@@ -9,6 +9,7 @@ import { ManagerDashboardPage } from './pages/ManagerDashboardPage';
 import { ManagerFuncionariosPage } from './pages/ManagerFuncionariosPage';
 import { ManagerLoginPage } from './pages/ManagerLoginPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
+import { RegisterOrganizationPage } from './pages/RegisterOrganizationPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ToolsHubPage } from './pages/ToolsHubPage';
 
@@ -17,6 +18,7 @@ function App() {
     <Routes>
       {/* Login geral: o gestor entra com e-mail+senha sem saber o slug da organização de antemão. */}
       <Route path="/" element={<OrganizationLoginPage />} />
+      <Route path="/cadastro" element={<RegisterOrganizationPage />} />
 
       <Route path=":orgSlug" element={<OrgLayout />}>
         {/* Entrada pública do funcionário (terminal do balcão): pede código+PIN direto, sem tela intermediária. */}

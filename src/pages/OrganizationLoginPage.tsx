@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
 import { SESSION_KEY } from '../services/api';
 import { authService } from '../services/authService';
@@ -54,6 +54,13 @@ export function OrganizationLoginPage() {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+
+        <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 16, textAlign: 'center' }}>
+          Sua empresa ainda não tem conta?{' '}
+          <Link to="/cadastro" style={{ color: 'var(--teal-deep)', fontWeight: 600 }}>
+            Criar conta
+          </Link>
+        </p>
       </div>
     </div>
   );
