@@ -16,6 +16,10 @@ export function ManagerFuncionariosPage() {
   const [saving, setSaving] = useState(false);
   const [funcionarioParaRedefinirPin, setFuncionarioParaRedefinirPin] = useState<Funcionario | null>(null);
   const [toast, setToast] = useState('');
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
+  const [editingIconId, setEditingIconId] = useState<string | null>(null);
+  const [editingNomeId, setEditingNomeId] = useState<string | null>(null);
+  const [nomeEmEdicao, setNomeEmEdicao] = useState('');
 
   function reload() {
     funcionarioService.list(true).then(setFuncionarios);
@@ -48,8 +52,60 @@ export function ManagerFuncionariosPage() {
   }
 
   async function handleDeactivate(id: string) {
+    setRowError(null);
     await funcionarioService.deactivate(id);
     reload();
+  }
+
+  async function handleActivate(id: string) {
+    setRowError(null);
+    await funcionarioService.activate(id);
+    reload();
+  }
+
+  async function handleRemove(funcionario: Funcionario) {
+    if (!confirm(`Excluir definitivamente o funcionário "${funcionario.nome}"? Essa ação não pode ser desfeita.`)) {
+      return;
+    }
+    setRowError(null);
+    try {
+      await funcionarioService.remove(funcionario.id);
+      reload();
+    } catch (err: any) {
+      setRowError({
+        id: funcionario.id,
+        message: err?.response?.data?.message ?? 'Não foi possível excluir o funcionário.',
+      });
+    }
+  }
+
+  async function handleChangeIcon(id: string, novoIcone: string) {
+    setRowError(null);
+    await funcionarioService.update(id, { icone: novoIcone });
+    setEditingIconId(null);
+    reload();
+  }
+
+  function startEditNome(funcionario: Funcionario) {
+    setRowError(null);
+    setEditingNomeId(funcionario.id);
+    setNomeEmEdicao(funcionario.nome);
+  }
+
+  async function handleSaveNome(id: string) {
+    setRowError(null);
+    const novoNome = nomeEmEdicao.trim();
+    if (novoNome.length < 2) {
+      setRowError({ id, message: 'Nome deve ter ao menos 2 caracteres.' });
+      return;
+    }
+    try {
+      await funcionarioService.update(id, { nome: novoNome });
+      setEditingNomeId(null);
+      reload();
+    } catch (err: any) {
+      setRowError({ id, message: err?.response?.data?.message ?? 'Não foi possível salvar o nome.' });
+    }
   }
 
   return (
@@ -91,6 +147,7 @@ export function ManagerFuncionariosPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>Ícone</th>
                 <th>Funcionário</th>
                 <th>Código</th>
                 <th>Status</th>
@@ -101,18 +158,69 @@ export function ManagerFuncionariosPage() {
               {funcionarios.map((f) => (
                 <tr key={f.id}>
                   <td>
-                    {f.icone} {f.nome}
+                    {editingIconId === f.id ? (
+                      <EmojiPicker value={f.icone} onChange={(novoIcone) => handleChangeIcon(f.id, novoIcone)} />
+                    ) : (
+                      <button
+                        className="btn-ghost"
+                        type="button"
+                        title="Trocar ícone"
+                        onClick={() => setEditingIconId(f.id)}
+                      >
+                        {f.icone}
+                      </button>
+                    )}
+                  </td>
+                  <td>
+                    {editingNomeId === f.id ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          autoFocus
+                          value={nomeEmEdicao}
+                          onChange={(e) => setNomeEmEdicao(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveNome(f.id);
+                            if (e.key === 'Escape') setEditingNomeId(null);
+                          }}
+                          style={{ maxWidth: 160 }}
+                        />
+                        <button className="btn-ghost" type="button" onClick={() => handleSaveNome(f.id)}>
+                          Salvar
+                        </button>
+                        <button className="btn-ghost" type="button" onClick={() => setEditingNomeId(null)}>
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button className="btn-ghost" type="button" title="Editar nome" onClick={() => startEditNome(f)}>
+                        {f.nome}
+                      </button>
+                    )}
                   </td>
                   <td>{f.codigo}</td>
                   <td>{f.ativo ? 'Ativo' : 'Inativo'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="btn-ghost" onClick={() => setFuncionarioParaRedefinirPin(f)}>
-                      Redefinir PIN
-                    </button>{' '}
-                    {f.ativo && (
-                      <button className="btn-ghost" onClick={() => handleDeactivate(f.id)}>
-                        Inativar
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button className="btn-ghost" type="button" onClick={() => setFuncionarioParaRedefinirPin(f)}>
+                        Redefinir PIN
                       </button>
+                      {f.ativo ? (
+                        <button className="btn-ghost" type="button" onClick={() => handleDeactivate(f.id)}>
+                          Inativar
+                        </button>
+                      ) : (
+                        <button className="btn-ghost" type="button" onClick={() => handleActivate(f.id)}>
+                          Ativar
+                        </button>
+                      )}
+                      <button className="btn-ghost" type="button" onClick={() => handleRemove(f)}>
+                        Excluir
+                      </button>
+                    </div>
+                    {rowError?.id === f.id && (
+                      <p className="error-text" style={{ textAlign: 'right', marginTop: 4 }}>
+                        {rowError.message}
+                      </p>
                     )}
                   </td>
                 </tr>

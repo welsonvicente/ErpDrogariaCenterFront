@@ -21,4 +21,13 @@ export const funcionarioService = {
   async deactivate(id: string) {
     await api.delete(`/usuarios/${id}`);
   },
+
+  async activate(id: string) {
+    const { data } = await api.patch<Funcionario>(`/usuarios/${id}/ativar`);
+    return data;
+  },
+
+  async remove(id: string) {
+    await api.delete(`/usuarios/${id}/permanente`);
+  },
 };

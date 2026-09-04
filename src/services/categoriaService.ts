@@ -20,4 +20,13 @@ export const categoriaService = {
   async deactivate(id: string) {
     await api.delete(`/categorias/${id}`);
   },
+
+  async activate(id: string) {
+    const { data } = await api.patch<Categoria>(`/categorias/${id}/ativar`);
+    return data;
+  },
+
+  async remove(id: string) {
+    await api.delete(`/categorias/${id}/permanente`);
+  },
 };

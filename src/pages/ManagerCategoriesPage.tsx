@@ -11,6 +11,8 @@ export function ManagerCategoriesPage() {
   const [icone, setIcone] = useState('✳️');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
+  const [editingIconId, setEditingIconId] = useState<string | null>(null);
 
   function reload() {
     categoriaService.list(true).then(setCategorias);
@@ -35,7 +37,37 @@ export function ManagerCategoriesPage() {
   }
 
   async function handleDeactivate(id: string) {
+    setRowError(null);
     await categoriaService.deactivate(id);
+    reload();
+  }
+
+  async function handleActivate(id: string) {
+    setRowError(null);
+    await categoriaService.activate(id);
+    reload();
+  }
+
+  async function handleRemove(categoria: Categoria) {
+    if (!confirm(`Excluir definitivamente a categoria "${categoria.nome}"? Essa ação não pode ser desfeita.`)) {
+      return;
+    }
+    setRowError(null);
+    try {
+      await categoriaService.remove(categoria.id);
+      reload();
+    } catch (err: any) {
+      setRowError({
+        id: categoria.id,
+        message: err?.response?.data?.message ?? 'Não foi possível excluir a categoria.',
+      });
+    }
+  }
+
+  async function handleChangeIcon(id: string, novoIcone: string) {
+    setRowError(null);
+    await categoriaService.update(id, { icone: novoIcone });
+    setEditingIconId(null);
     reload();
   }
 
@@ -62,6 +94,7 @@ export function ManagerCategoriesPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>Ícone</th>
                 <th>Categoria</th>
                 <th>Status</th>
                 <th></th>
@@ -71,14 +104,40 @@ export function ManagerCategoriesPage() {
               {categorias.map((cat) => (
                 <tr key={cat.id}>
                   <td>
-                    {cat.icone} {cat.nome}
+                    {editingIconId === cat.id ? (
+                      <EmojiPicker value={cat.icone} onChange={(novoIcone) => handleChangeIcon(cat.id, novoIcone)} />
+                    ) : (
+                      <button
+                        className="btn-ghost"
+                        type="button"
+                        title="Trocar ícone"
+                        onClick={() => setEditingIconId(cat.id)}
+                      >
+                        {cat.icone}
+                      </button>
+                    )}
                   </td>
+                  <td>{cat.nome}</td>
                   <td>{cat.ativo ? 'Ativa' : 'Inativa'}</td>
                   <td>
-                    {cat.ativo && (
-                      <button className="btn-ghost" onClick={() => handleDeactivate(cat.id)}>
-                        Inativar
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      {cat.ativo ? (
+                        <button className="btn-ghost" type="button" onClick={() => handleDeactivate(cat.id)}>
+                          Inativar
+                        </button>
+                      ) : (
+                        <button className="btn-ghost" type="button" onClick={() => handleActivate(cat.id)}>
+                          Ativar
+                        </button>
+                      )}
+                      <button className="btn-ghost" type="button" onClick={() => handleRemove(cat)}>
+                        Excluir
                       </button>
+                    </div>
+                    {rowError?.id === cat.id && (
+                      <p className="error-text" style={{ textAlign: 'right', marginTop: 4 }}>
+                        {rowError.message}
+                      </p>
                     )}
                   </td>
                 </tr>
