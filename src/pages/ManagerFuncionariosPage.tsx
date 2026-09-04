@@ -128,7 +128,7 @@ export function ManagerFuncionariosPage() {
               type="password"
               inputMode="numeric"
               value={pin}
-              onChange={(e) => setPin(e.target.value)}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               minLength={4}
               required
             />

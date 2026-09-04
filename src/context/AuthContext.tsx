@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { SESSION_KEY, lerSessao } from '../services/api';
+import { useLocation } from 'react-router-dom';
+import { areaDaRota, lerSessao, removerSessao, salvarSessao, type AreaSessao } from '../services/api';
 import { authService } from '../services/authService';
 import type { UsuarioSessao } from '../types';
 
@@ -15,42 +16,47 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-/**
- * Provedor de sessão escopado a uma organização (o slug vem da URL, ver
- * OrgLayout.tsx). A sessão salva localmente carrega o slug junto — se o
- * usuário navegar para a URL de outra organização, a sessão antiga não é
- * reaproveitada (evita misturar dados de empresas diferentes no mesmo navegador).
- */
-function usuarioDaSessaoSalva(orgSlug: string): UsuarioSessao | null {
-  const sessao = lerSessao();
+function usuarioDaSessaoSalva(orgSlug: string, area: AreaSessao): UsuarioSessao | null {
+  const sessao = lerSessao(area);
   return sessao && sessao.orgSlug === orgSlug ? (sessao.usuario as UsuarioSessao) : null;
 }
 
+/**
+ * Provedor de sessão escopado a uma organização (o slug vem da URL, ver
+ * OrgLayout.tsx) e à área atual — gestor ou funcionário, derivada do
+ * caminho (ver `areaDaRota` em services/api.ts). Gestor e funcionário usam
+ * chaves de sessão separadas: assim, entrar como funcionário numa aba (ou
+ * navegar pra tela de funcionário) nunca reaproveita nem sobrescreve a
+ * sessão de quem está logado como gestor, e vice-versa.
+ */
 export function AuthProvider({ orgSlug, children }: { orgSlug: string; children: ReactNode }) {
+  const location = useLocation();
+  const area = areaDaRota(location.pathname);
+
   // Inicializador "preguiçoso": lê a sessão salva já na primeira renderização.
   // Se isso ficasse só no useEffect (que roda depois do primeiro render), o
   // ProtectedRoute veria `usuario === null` por um instante e redirecionaria
   // para o login mesmo com uma sessão válida salva (bug de "flash" de logout).
-  const [usuario, setUsuario] = useState<UsuarioSessao | null>(() => usuarioDaSessaoSalva(orgSlug));
+  const [usuario, setUsuario] = useState<UsuarioSessao | null>(() => usuarioDaSessaoSalva(orgSlug, area));
 
   useEffect(() => {
-    setUsuario(usuarioDaSessaoSalva(orgSlug));
-  }, [orgSlug]);
+    setUsuario(usuarioDaSessaoSalva(orgSlug, area));
+  }, [orgSlug, area]);
 
   async function login(email: string, senha: string) {
     const { token, usuario: usuarioLogado } = await authService.login(orgSlug, email, senha);
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ orgSlug, token, usuario: usuarioLogado }));
+    salvarSessao('gestor', { orgSlug, token, usuario: usuarioLogado });
     setUsuario(usuarioLogado);
   }
 
   async function loginFuncionario(codigo: string, pin: string) {
     const { token, usuario: usuarioLogado } = await authService.loginFuncionario(orgSlug, codigo, pin);
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ orgSlug, token, usuario: usuarioLogado }));
+    salvarSessao('funcionario', { orgSlug, token, usuario: usuarioLogado });
     setUsuario(usuarioLogado);
   }
 
   function logout() {
-    localStorage.removeItem(SESSION_KEY);
+    removerSessao(area);
     setUsuario(null);
   }
 
@@ -60,11 +66,11 @@ export function AuthProvider({ orgSlug, children }: { orgSlug: string; children:
    * só os dados exibidos localmente mudam.
    */
   function atualizarUsuarioLocal(dados: Partial<UsuarioSessao>) {
-    const sessao = lerSessao();
+    const sessao = lerSessao(area);
     if (!sessao || sessao.orgSlug !== orgSlug) return;
 
     const usuarioAtualizado = { ...sessao.usuario, ...dados } as UsuarioSessao;
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ ...sessao, usuario: usuarioAtualizado }));
+    salvarSessao(area, { ...sessao, usuario: usuarioAtualizado });
     setUsuario(usuarioAtualizado);
   }
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
-import { SESSION_KEY } from '../services/api';
+import { salvarSessao } from '../services/api';
 import { registroService } from '../services/registroService';
 
 function slugify(texto: string): string {
@@ -83,7 +83,7 @@ export function RegisterOrganizationPage() {
         email,
         senha,
       });
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ orgSlug: organizacaoSlug, token, usuario }));
+      salvarSessao('gestor', { orgSlug: organizacaoSlug, token, usuario });
       navigate(`/${organizacaoSlug}/ferramentas`);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Não foi possível criar a conta. Tente novamente.');

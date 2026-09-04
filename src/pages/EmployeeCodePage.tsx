@@ -63,7 +63,7 @@ export function EmployeeCodePage() {
               inputMode="numeric"
               style={{ textAlign: 'center', fontSize: 18, letterSpacing: 4 }}
               value={pin}
-              onChange={(e) => setPin(e.target.value)}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               required
             />
           </div>

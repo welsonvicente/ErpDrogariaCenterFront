@@ -1,6 +1,33 @@
 import axios from 'axios';
 
-export const SESSION_KEY = 'drogaria:session';
+export type AreaSessao = 'gestor' | 'funcionario';
+
+const SESSION_KEY_GESTOR = 'drogaria:session:gestor';
+const SESSION_KEY_FUNCIONARIO = 'drogaria:session:funcionario';
+
+/**
+ * Caminhos (já sem o slug da organização) que pertencem à área do gestor.
+ * "ferramentas" e "configuracoes" não têm "/gestor" no path mas são a mesma
+ * área — por isso não dá pra checar só `startsWith('/gestor')`.
+ */
+const PREFIXOS_GESTOR = ['/gestor', '/ferramentas', '/configuracoes'];
+
+/**
+ * Deriva se a rota atual é do gestor ou do funcionário a partir do pathname
+ * (ex.: "/drogariacenter/gestor/categorias" -> "gestor",
+ * "/drogariacenter/funcionario/lancar" -> "funcionario"). Usado tanto pelo
+ * AuthContext (pra saber qual sessão exibir) quanto pelo interceptor do
+ * axios (pra saber qual token anexar) — assim as duas pontas nunca divergem.
+ */
+export function areaDaRota(pathname: string): AreaSessao {
+  const semOrgSlug = pathname.replace(/^\/[^/]+/, '') || '/';
+  const ehGestor = PREFIXOS_GESTOR.some((prefixo) => semOrgSlug === prefixo || semOrgSlug.startsWith(`${prefixo}/`));
+  return ehGestor ? 'gestor' : 'funcionario';
+}
+
+function chaveSessao(area: AreaSessao) {
+  return area === 'gestor' ? SESSION_KEY_GESTOR : SESSION_KEY_FUNCIONARIO;
+}
 
 export interface SessaoArmazenada {
   orgSlug: string;
@@ -8,14 +35,30 @@ export interface SessaoArmazenada {
   usuario: { id: string; nome: string; email: string | null; perfil: string; icone?: string };
 }
 
-export function lerSessao(): SessaoArmazenada | null {
-  const raw = localStorage.getItem(SESSION_KEY);
+/**
+ * Gestor e funcionário usam chaves de sessão separadas no localStorage.
+ * Antes havia uma única chave compartilhada: logar como funcionário numa
+ * aba sobrescrevia a sessão e "sequestrava" quem estava logado como gestor
+ * (e vice-versa), inclusive entre abas diferentes do mesmo navegador — isso
+ * causava tanto erros de permissão quanto despesas lançadas em nome da
+ * conta errada. Cada área agora só enxerga a própria sessão.
+ */
+export function lerSessao(area: AreaSessao): SessaoArmazenada | null {
+  const raw = localStorage.getItem(chaveSessao(area));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as SessaoArmazenada;
   } catch {
     return null;
   }
+}
+
+export function salvarSessao(area: AreaSessao, sessao: SessaoArmazenada) {
+  localStorage.setItem(chaveSessao(area), JSON.stringify(sessao));
+}
+
+export function removerSessao(area: AreaSessao) {
+  localStorage.removeItem(chaveSessao(area));
 }
 
 /**
@@ -33,15 +76,15 @@ function resolverBaseUrl(): string {
 
 /**
  * Instância única do axios usada por todos os services.
- * - o token da sessão atual (se existir) é anexado automaticamente em toda requisição.
- * - respostas 401 limpam a sessão local (o AuthProvider detecta isso e desloga).
+ * - o token da sessão da área atual (gestor ou funcionário, pela URL) é anexado automaticamente em toda requisição.
+ * - respostas 401 limpam a sessão local da área atual (o AuthProvider detecta isso e desloga).
  */
 export const api = axios.create({
   baseURL: resolverBaseUrl(),
 });
 
 api.interceptors.request.use((config) => {
-  const sessao = lerSessao();
+  const sessao = lerSessao(areaDaRota(window.location.pathname));
   if (sessao?.token) {
     config.headers.Authorization = `Bearer ${sessao.token}`;
   }
@@ -52,7 +95,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem(SESSION_KEY);
+      removerSessao(areaDaRota(window.location.pathname));
     }
     return Promise.reject(error);
   },

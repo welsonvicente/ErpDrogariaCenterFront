@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
-import { SESSION_KEY } from '../services/api';
+import { salvarSessao } from '../services/api';
 import { authService } from '../services/authService';
 
 /**
@@ -25,7 +25,7 @@ export function OrganizationLoginPage() {
     setLoading(true);
     try {
       const { token, usuario, organizacaoSlug } = await authService.loginOrganizacao(email, senha);
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ orgSlug: organizacaoSlug, token, usuario }));
+      salvarSessao('gestor', { orgSlug: organizacaoSlug, token, usuario });
       navigate(`/${organizacaoSlug}/ferramentas`);
     } catch {
       setError('E-mail ou senha inválidos.');

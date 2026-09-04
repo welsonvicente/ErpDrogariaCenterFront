@@ -68,7 +68,7 @@ export function ResetPinModal({
               inputMode="numeric"
               minLength={4}
               value={novoPin}
-              onChange={(e) => setNovoPin(e.target.value)}
+              onChange={(e) => setNovoPin(e.target.value.replace(/\D/g, ''))}
               autoFocus
               required
             />
@@ -81,7 +81,7 @@ export function ResetPinModal({
               inputMode="numeric"
               minLength={4}
               value={confirmarPin}
-              onChange={(e) => setConfirmarPin(e.target.value)}
+              onChange={(e) => setConfirmarPin(e.target.value.replace(/\D/g, ''))}
               required
             />
           </div>
