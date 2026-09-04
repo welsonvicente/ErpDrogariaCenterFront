@@ -36,10 +36,22 @@ export interface Categoria {
   ativo: boolean;
 }
 
+export type FormaPagamento = 'DINHEIRO' | 'CARTAO_DEBITO' | 'CARTAO_CREDITO' | 'PIX' | 'BOLETO' | 'OUTRO';
+
+export const FORMA_PAGAMENTO_LABEL: Record<FormaPagamento, string> = {
+  DINHEIRO: 'Dinheiro',
+  CARTAO_DEBITO: 'Cartão de Débito',
+  CARTAO_CREDITO: 'Cartão de Crédito',
+  PIX: 'PIX',
+  BOLETO: 'Boleto',
+  OUTRO: 'Outro',
+};
+
 export interface Despesa {
   id: string;
   data: string;
   valor: string;
+  formaPagamento: FormaPagamento;
   descricao: string | null;
   usuarioId: string;
   categoriaId: string;

@@ -34,11 +34,11 @@ export function ToolsHubPage() {
       </div>
 
       <div className="role-cards">
-        <div className="card role-card" onClick={() => navigate(`/${orgSlug}/gestor`)}>
-          <div className="icon">💰</div>
+        <button type="button" className="card role-card" onClick={() => navigate(`/${orgSlug}/gestor`)}>
+          <div className="icon-badge">🧾</div>
           <div className="title">Gastos</div>
           <div className="sub">Dashboard e lançamentos de despesas</div>
-        </div>
+        </button>
       </div>
     </div>
   );

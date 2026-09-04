@@ -48,15 +48,38 @@
   width: 220px;
   padding: 28px 20px;
   text-align: center;
-  transition: transform 0.12s ease;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease;
 }
 .role-card:hover {
   transform: translateY(-3px);
   border-color: var(--teal);
+  background: var(--mint);
+  box-shadow: 0 4px 14px -4px rgba(98, 139, 0, 0.35);
+}
+.role-card:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 1px 2px rgba(23, 60, 58, 0.06);
 }
 .role-card .icon {
   font-size: 38px;
   margin-bottom: 10px;
+}
+.role-card .icon-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--mint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  margin: 0 auto 12px;
+  transition: background 0.12s ease;
+}
+.role-card:hover .icon-badge {
+  background: var(--card);
 }
 .role-card .title {
   font-weight: 700;
@@ -83,11 +106,19 @@
 .cat-card {
   padding: 20px 12px;
   text-align: center;
-  transition: transform 0.12s ease, border-color 0.12s ease;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease;
 }
 .cat-card:hover {
   transform: translateY(-2px);
   border-color: var(--teal);
+  background: var(--mint);
+  box-shadow: 0 4px 14px -4px rgba(98, 139, 0, 0.35);
+}
+.cat-card:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: 0 1px 2px rgba(23, 60, 58, 0.06);
 }
 .cat-card .icon-badge {
   width: 56px;
@@ -99,6 +130,10 @@
   justify-content: center;
   font-size: 26px;
   margin: 0 auto 10px;
+  transition: background 0.12s ease;
+}
+.cat-card:hover .icon-badge {
+  background: var(--card);
 }
 .cat-card .cname {
   font-size: 12.5px;

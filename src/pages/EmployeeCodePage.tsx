@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
 
 /**
@@ -57,9 +58,8 @@ export function EmployeeCodePage() {
           </div>
           <div className="field">
             <label htmlFor="pin">PIN</label>
-            <input
+            <PasswordInput
               id="pin"
-              type="password"
               inputMode="numeric"
               style={{ textAlign: 'center', fontSize: 18, letterSpacing: 4 }}
               value={pin}

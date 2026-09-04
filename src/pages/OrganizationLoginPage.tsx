@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PasswordInput } from '../components/PasswordInput';
 import { SESSION_KEY } from '../services/api';
 import { authService } from '../services/authService';
 
@@ -46,7 +47,7 @@ export function OrganizationLoginPage() {
           </div>
           <div className="field">
             <label htmlFor="senha">Senha</label>
-            <input id="senha" type="password" required value={senha} onChange={(e) => setSenha(e.target.value)} />
+            <PasswordInput id="senha" required value={senha} onChange={(e) => setSenha(e.target.value)} />
           </div>
           <p className="error-text">{error}</p>
           <button className="btn-primary" style={{ width: '100%' }} type="submit" disabled={loading}>

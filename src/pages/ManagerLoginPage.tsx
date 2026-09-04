@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
 
 /** Login do gestor (e-mail + senha) — protege o dashboard administrativo. */
@@ -40,9 +41,8 @@ export function ManagerLoginPage() {
           </div>
           <div className="field">
             <label htmlFor="password">Senha</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}

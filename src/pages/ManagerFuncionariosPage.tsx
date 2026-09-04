@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { EmojiPicker } from '../components/EmojiPicker';
 import { ManagerLayout } from '../components/ManagerLayout';
+import { ResetPinModal } from '../components/ResetPinModal';
 import { funcionarioService } from '../services/funcionarioService';
 import type { Funcionario } from '../types';
 
@@ -13,12 +14,20 @@ export function ManagerFuncionariosPage() {
   const [icone, setIcone] = useState('🙂');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [funcionarioParaRedefinirPin, setFuncionarioParaRedefinirPin] = useState<Funcionario | null>(null);
+  const [toast, setToast] = useState('');
 
   function reload() {
     funcionarioService.list(true).then(setFuncionarios);
   }
 
   useEffect(reload, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(''), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -96,7 +105,10 @@ export function ManagerFuncionariosPage() {
                   </td>
                   <td>{f.codigo}</td>
                   <td>{f.ativo ? 'Ativo' : 'Inativo'}</td>
-                  <td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn-ghost" onClick={() => setFuncionarioParaRedefinirPin(f)}>
+                      Redefinir PIN
+                    </button>{' '}
                     {f.ativo && (
                       <button className="btn-ghost" onClick={() => handleDeactivate(f.id)}>
                         Inativar
@@ -109,6 +121,19 @@ export function ManagerFuncionariosPage() {
           </table>
         </div>
       </div>
+
+      {funcionarioParaRedefinirPin && (
+        <ResetPinModal
+          funcionario={funcionarioParaRedefinirPin}
+          onClose={() => setFuncionarioParaRedefinirPin(null)}
+          onSaved={() => {
+            setFuncionarioParaRedefinirPin(null);
+            setToast('PIN redefinido com sucesso.');
+          }}
+        />
+      )}
+
+      {toast && <div className="toast">{toast}</div>}
     </ManagerLayout>
   );
 }
