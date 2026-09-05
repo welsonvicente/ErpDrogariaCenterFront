@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/BrandLogo';
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
@@ -31,6 +32,7 @@ export function ManagerLoginPage() {
   return (
     <div className="page">
       <div className="card gate-box" style={{ padding: 32 }}>
+        <BrandLogo large />
         <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>Acesso do Gestor</h2>
         <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>Entre com seu e-mail e senha.</p>
 

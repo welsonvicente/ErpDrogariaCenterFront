@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/BrandLogo';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -92,6 +93,7 @@ export function SettingsPage() {
 
   return (
     <div className="page">
+      <div className="brand-header"><BrandLogo /></div>
       <div className="page-header">
         <div>
           <button

@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/BrandLogo';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
@@ -37,7 +38,8 @@ export function OrganizationLoginPage() {
   return (
     <div className="page">
       <div className="card gate-box" style={{ padding: 32 }}>
-        <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>PharmaMind</h2>
+        <BrandLogo large />
+        <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>Bem-vindo</h2>
         <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>Entre com seu e-mail e senha.</p>
 
         <form onSubmit={handleSubmit}>

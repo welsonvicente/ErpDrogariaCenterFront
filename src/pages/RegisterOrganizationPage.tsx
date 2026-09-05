@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/BrandLogo';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
@@ -95,6 +96,7 @@ export function RegisterOrganizationPage() {
   return (
     <div className="page">
       <div className="card gate-box" style={{ padding: 32, maxWidth: 420 }}>
+        <BrandLogo large />
         <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>Criar conta</h2>
         <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>
           Cadastre sua empresa e o primeiro acesso de gestor.

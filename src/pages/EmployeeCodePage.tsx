@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/BrandLogo';
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
@@ -36,6 +37,7 @@ export function EmployeeCodePage() {
   return (
     <div className="page">
       <div className="card gate-box" style={{ padding: 32 }}>
+        <BrandLogo large />
         <p style={{ color: 'var(--ink-soft)', fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>
           Gastos — PharmaMind
         </p>

@@ -1,3 +1,4 @@
+import { BrandLogo } from './BrandLogo';
 import type { ReactNode } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +16,7 @@ export function ManagerLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="page">
+      <div className="brand-header"><BrandLogo /></div>
       <div className="page-header">
         <div>
           <button
