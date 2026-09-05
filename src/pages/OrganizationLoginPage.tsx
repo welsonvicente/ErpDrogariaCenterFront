@@ -37,7 +37,7 @@ export function OrganizationLoginPage() {
   return (
     <div className="page">
       <div className="card gate-box" style={{ padding: 32 }}>
-        <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>Drogaria Center — ERP</h2>
+        <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>PharmaMind</h2>
         <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>Entre com seu e-mail e senha.</p>
 
         <form onSubmit={handleSubmit}>

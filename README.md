@@ -1,6 +1,6 @@
-# ErpDrogariaCenterFront
+# PharmaMind — Frontend
 
-Frontend do ERP Drogaria Center — React + Vite + TypeScript.
+Frontend do PharmaMind — React + Vite + TypeScript.
 
 ## Rodando localmente
 

@@ -37,7 +37,7 @@ export function EmployeeCodePage() {
     <div className="page">
       <div className="card gate-box" style={{ padding: 32 }}>
         <p style={{ color: 'var(--ink-soft)', fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>
-          Gastos — Drogaria Center
+          Gastos — PharmaMind
         </p>
         <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>Identifique-se</h2>
         <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>
