@@ -2,10 +2,12 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { EmojiPicker } from '../components/EmojiPicker';
 import { ManagerLayout } from '../components/ManagerLayout';
 import { categoriaService } from '../services/categoriaService';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import type { Categoria } from '../types';
 
 /** CRUD simples de categorias de despesa. */
 export function ManagerCategoriesPage() {
+  useDocumentTitle('Categorias');
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [nome, setNome] = useState('');
   const [icone, setIcone] = useState('✳️');

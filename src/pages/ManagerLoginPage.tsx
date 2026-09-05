@@ -3,9 +3,11 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** Login do gestor (e-mail + senha) — protege o dashboard administrativo. */
 export function ManagerLoginPage() {
+  useDocumentTitle('Acesso do Gestor');
   const { login } = useAuth();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();

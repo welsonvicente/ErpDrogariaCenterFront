@@ -4,9 +4,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { organizacaoService } from '../services/organizacaoService';
 import { perfilService } from '../services/perfilService';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /** Configurações: meus dados, troca de senha e dados da organização (tudo gestor-only). */
 export function SettingsPage() {
+  useDocumentTitle('Configurações');
   const { usuario, atualizarUsuarioLocal } = useAuth();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();

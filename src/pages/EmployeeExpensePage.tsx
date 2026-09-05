@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { categoriaService } from '../services/categoriaService';
 import { despesaService } from '../services/despesaService';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { FORMA_PAGAMENTO_LABEL, type Categoria, type Despesa, type FormaPagamento } from '../types';
 
 function todayStr() {
@@ -24,6 +25,7 @@ export function EmployeeExpensePage() {
   const navigate = useNavigate();
 
   const [aba, setAba] = useState<'lancar' | 'meus'>('lancar');
+  useDocumentTitle(aba === 'lancar' ? 'Lançar gasto' : 'Meus lançamentos');
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaSelecionada, setCategoriaSelecionada] = useState<Categoria | null>(null);

@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
 import { salvarSessao } from '../services/api';
 import { registroService } from '../services/registroService';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 function slugify(texto: string): string {
   return texto
@@ -18,6 +19,7 @@ type StatusSlug = 'ocioso' | 'verificando' | 'disponivel' | 'indisponivel';
 
 /** Cadastro público de uma organização (empresa) nova — cria a empresa + o primeiro admin de uma vez. */
 export function RegisterOrganizationPage() {
+  useDocumentTitle('Criar conta');
   const navigate = useNavigate();
 
   const [nomeOrganizacao, setNomeOrganizacao] = useState('');

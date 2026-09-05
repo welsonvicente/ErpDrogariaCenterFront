@@ -4,6 +4,7 @@ import { ManagerLayout } from '../components/ManagerLayout';
 import { categoriaService } from '../services/categoriaService';
 import { despesaService } from '../services/despesaService';
 import { funcionarioService } from '../services/funcionarioService';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { FORMA_PAGAMENTO_LABEL, type Categoria, type Despesa, type Funcionario, type ListaDespesasResultado, type ResumoDespesas } from '../types';
 
 function currentMonthRange() {
@@ -20,6 +21,7 @@ function fmtMoney(v: number) {
 
 /** Dashboard principal: filtros de período/funcionário/categoria + estatísticas + tabela de lançamentos. */
 export function ManagerDashboardPage() {
+  useDocumentTitle('Painel do Gestor');
   const defaultRange = useMemo(currentMonthRange, []);
 
   const [dataInicio, setDataInicio] = useState(defaultRange.dataInicio);

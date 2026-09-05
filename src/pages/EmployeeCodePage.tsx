@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Login rápido do funcionário: código + PIN (pensado para terminal
@@ -11,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
  * gestor entra pela raiz do sistema ("/").
  */
 export function EmployeeCodePage() {
+  useDocumentTitle('Identifique-se');
   const { loginFuncionario } = useAuth();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();

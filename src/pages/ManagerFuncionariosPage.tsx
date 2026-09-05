@@ -3,10 +3,12 @@ import { EmojiPicker } from '../components/EmojiPicker';
 import { ManagerLayout } from '../components/ManagerLayout';
 import { ResetPinModal } from '../components/ResetPinModal';
 import { funcionarioService } from '../services/funcionarioService';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import type { Funcionario } from '../types';
 
 /** CRUD de funcionários: nome, código de acesso e PIN (login rápido no balcão). */
 export function ManagerFuncionariosPage() {
+  useDocumentTitle('Funcionários');
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [nome, setNome] = useState('');
   const [codigo, setCodigo] = useState('');

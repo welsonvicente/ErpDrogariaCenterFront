@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
 import { salvarSessao } from '../services/api';
 import { authService } from '../services/authService';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Login inicial do sistema (rota "/"), fora do contexto de qualquer
@@ -13,6 +14,7 @@ import { authService } from '../services/authService';
  * para "/:orgSlug/ferramentas".
  */
 export function OrganizationLoginPage() {
+  useDocumentTitle('Entrar');
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');

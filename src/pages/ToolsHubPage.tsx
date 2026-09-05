@@ -1,6 +1,7 @@
 import { BrandLogo } from '../components/BrandLogo';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Hub de ferramentas do gestor — tela que abre depois do login geral.
@@ -8,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
  * lugar natural para os próximos módulos aparecerem.
  */
 export function ToolsHubPage() {
+  useDocumentTitle('Ferramentas');
   const { usuario, logout } = useAuth();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();
