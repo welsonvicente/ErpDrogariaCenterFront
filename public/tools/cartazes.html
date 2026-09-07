@@ -494,6 +494,17 @@ function fmtMoney(v){
   if(isNaN(n)) return '0,00';
   return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
+// Título mostrado na folha de compartilhar (ex.: no iPhone) pra um único
+// produto — nome + preço De/Por, quando disponíveis.
+function buildShareTitle(name, de, por){
+  const parts = [(name || '').trim() || 'Produto'];
+  const deNum = Number(de), porNum = Number(por);
+  const temDe = de !== undefined && de !== null && de !== '' && !isNaN(deNum) && deNum > 0;
+  const temPor = por !== undefined && por !== null && por !== '' && !isNaN(porNum) && porNum > 0;
+  if(temDe && temPor) parts.push('De R$ ' + fmtMoney(deNum) + ' por R$ ' + fmtMoney(porNum));
+  else if(temPor) parts.push('R$ ' + fmtMoney(porNum));
+  return parts.join(' — ');
+}
 function discountPct(de, por){
   const d = Number(de), p = Number(por);
   if(!d || !p || d<=0) return null;
@@ -896,7 +907,8 @@ document.getElementById('storyExtraEnabled').addEventListener('change', ()=>{ sy
 document.getElementById('storyDownloadBtn').addEventListener('click', async ()=>{
   const canvas = document.getElementById('storyCanvas');
   const productName = document.getElementById('storyName').value.trim() || 'Story';
-  await saveOrShareFile(canvas.toDataURL('image/png'), 'story-' + Date.now() + '.png', 'image/png', productName);
+  const shareTitle = buildShareTitle(productName, document.getElementById('storyDe').value, document.getElementById('storyPor').value);
+  await saveOrShareFile(canvas.toDataURL('image/png'), 'story-' + Date.now() + '.png', 'image/png', shareTitle);
 });
 
 // Gera um story individual a partir de um produto já cadastrado no panfleto
@@ -946,7 +958,7 @@ function generateIndividualStory(idx){
     const previewDownload = document.getElementById('storyPreviewDownload');
     previewDownload.dataset.url = dataUrl;
     previewDownload.dataset.filename = fileName;
-    previewDownload.dataset.shareTitle = p.name;
+    previewDownload.dataset.shareTitle = buildShareTitle(p.name, p.de, p.por);
     document.getElementById('storyPreviewOverlay').style.display = 'flex';
   }catch(e){
     console.error(e);
