@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gerador de Cartazes — Drogaria Center</title>
+<title>Gerador de Cartazes — PharmaMind</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -79,20 +79,26 @@
   .empty-note{color:var(--ink-soft);font-size:12.5px;text-align:center;padding:14px 0;}
   .footnote{margin-top:6px;font-size:11.5px;color:var(--ink-soft);text-align:center;}
 
-  .batch-row{display:flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;}
+  .batch-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;}
   .batch-row .thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#E4E9E0;display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;}
-  .batch-row .binfo{flex:1;min-width:0;}
-  .batch-row .bname{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .batch-row .binfo{flex:1 1 160px;min-width:0;}
+  .batch-row .bname{font-weight:600;font-size:13px;white-space:normal;overflow-wrap:anywhere;}
   .batch-row .bprice{font-size:12px;color:var(--ink-soft);}
   .batch-row .bstatus{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;display:inline-block;margin-top:3px;}
   .batch-row .bstatus.found{background:var(--entrada-bg,#E5F6ED);color:#1E9E6B;}
   .batch-row .bstatus.manual{background:var(--mint);color:var(--green-deep);}
   .batch-row .bstatus.pending{background:var(--amber-bg);color:var(--amber);}
   .batch-row .bstatus.failed{background:var(--red-bg);color:var(--red);}
-  .batch-row .bactions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;}
+  /* Em telas estreitas (celular), as ações formam sua própria linha cheia
+     em vez de disputar espaço com o nome do produto — era isso que deixava
+     tudo espremido/desalinhado (nome sumindo, "Remover" fora do lugar). */
+  .batch-row .bactions{display:flex;gap:6px;flex-wrap:wrap;flex:1 1 100%;}
   .batch-row .bactions button{border:1px solid var(--line);background:#fff;color:var(--green-deep);font-size:11px;font-weight:600;padding:6px 8px;border-radius:8px;cursor:pointer;white-space:nowrap;}
   .batch-row .bactions button:hover{background:var(--mint);}
   .batch-row .bactions button.del{color:var(--red);}
+  @media (min-width:560px){
+    .batch-row .bactions{flex:0 0 auto;margin-left:auto;}
+  }
 
   .drag-guide{
     position:absolute;height:9%;border-radius:10px;
@@ -111,7 +117,7 @@
 <body>
 <div class="wrap">
   <header>
-    <img class="full-logo" src="data:image/png;base64,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" alt="Drogaria Center">
+    <img class="full-logo" src="/brand/pharmamind-horizontal.png" alt="PharmaMind">
     <div class="brand-text"><p>Gerador de cartazes de oferta</p></div>
   </header>
 
@@ -396,8 +402,8 @@
   <div style="background:#fff;border-radius:20px;padding:20px;max-width:360px;width:100%;text-align:center;max-height:92vh;overflow-y:auto;">
     <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;color:var(--green-deep);margin:0 0 12px;">Story pronto!</h3>
     <img id="storyPreviewImg" style="width:100%;border-radius:12px;margin-bottom:14px;display:block;">
-    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;">📱 No celular: toque e segure a imagem acima para salvar. 💻 No computador: use o botão abaixo.</div>
-    <a id="storyPreviewDownload" download="story.png" style="display:block;background:var(--green-mid);color:#fff;font-weight:700;font-size:14px;padding:12px;border-radius:12px;text-decoration:none;margin-bottom:8px;">⬇️ Baixar imagem</a>
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;">📱 No celular: toque em "Baixar/Compartilhar imagem" (abre as opções de salvar) ou toque e segure a imagem acima. 💻 No computador: baixa direto.</div>
+    <button type="button" id="storyPreviewDownload" style="display:block;width:100%;border:none;background:var(--green-mid);color:#fff;font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer;margin-bottom:8px;">⬇️ Baixar/Compartilhar imagem</button>
     <button id="storyPreviewClose" style="width:100%;border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-weight:600;font-size:13px;padding:10px;border-radius:10px;cursor:pointer;">Fechar</button>
   </div>
 </div>
@@ -418,6 +424,45 @@ function showAlert(msg){
 document.getElementById('customAlertOk').addEventListener('click', ()=>{
   document.getElementById('customAlertOverlay').style.display = 'none';
 });
+
+// ---------- Download/compartilhamento de imagens e arquivos ----------
+// No iPhone (Safari/Chrome-iOS), o atributo "download" do <a> é ignorado —
+// clicar no link simplesmente não baixa nada. A Web Share API (passando o
+// arquivo) é o jeito confiável de "salvar" ali: abre a folha de
+// compartilhar nativa, que tem "Salvar Imagem"/"Salvar Arquivo". Em
+// desktop/Android o download normal já funciona bem, então só usamos o
+// share quando o navegador realmente suportar compartilhar aquele arquivo.
+async function dataUrlToFile(dataUrl, filename, mime){
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  return new File([blob], filename, { type: mime || blob.type });
+}
+async function saveOrShareFile(blobOrDataUrl, filename, mime){
+  const file = (typeof blobOrDataUrl === 'string')
+    ? await dataUrlToFile(blobOrDataUrl, filename, mime)
+    : new File([blobOrDataUrl], filename, { type: mime || blobOrDataUrl.type });
+
+  if(navigator.canShare && navigator.canShare({ files: [file] })){
+    try{
+      await navigator.share({ files: [file], title: filename });
+      return;
+    }catch(e){
+      if(e && e.name === 'AbortError') return; // usuário cancelou o compartilhamento, não é erro
+      console.error(e);
+      // qualquer outro erro cai pro download tradicional abaixo
+    }
+  }
+
+  // Fallback: download por link — funciona em desktop e Android. No
+  // iPhone/iPad sem suporte a compartilhar arquivo, a saída é tocar e
+  // segurar a imagem que já fica visível na tela pra salvar.
+  const url = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = url;
+  link.click();
+  setTimeout(()=> URL.revokeObjectURL(url), 60000);
+}
 
 // ---------- Mode switching ----------
 document.getElementById('tabStory').addEventListener('click', ()=> switchMode('story'));
@@ -844,12 +889,9 @@ document.getElementById('storyNameEnabled').addEventListener('change', ()=>{ syn
 document.getElementById('storyPriceEnabled').addEventListener('change', ()=>{ syncGuideVisuals(); drawStory(); });
 document.getElementById('storyExtraEnabled').addEventListener('change', ()=>{ syncGuideVisuals(); drawStory(); });
 
-document.getElementById('storyDownloadBtn').addEventListener('click', ()=>{
+document.getElementById('storyDownloadBtn').addEventListener('click', async ()=>{
   const canvas = document.getElementById('storyCanvas');
-  const link = document.createElement('a');
-  link.download = 'story-drogaria-center-' + Date.now() + '.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+  await saveOrShareFile(canvas.toDataURL('image/png'), 'story-' + Date.now() + '.png', 'image/png');
 });
 
 // Gera um story individual a partir de um produto já cadastrado no panfleto
@@ -893,10 +935,12 @@ function generateIndividualStory(idx){
     const fileName = 'story-' + p.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40) + '-' + Date.now() + '.png';
 
     const previewImg = document.getElementById('storyPreviewImg');
-    const previewDownload = document.getElementById('storyPreviewDownload');
     previewImg.src = dataUrl;
-    previewDownload.href = dataUrl;
-    previewDownload.setAttribute('download', fileName);
+    // Guarda o dataUrl/nome no próprio botão pra o listener (cadastrado uma
+    // única vez, fora desta função) saber o que baixar/compartilhar.
+    const previewDownload = document.getElementById('storyPreviewDownload');
+    previewDownload.dataset.url = dataUrl;
+    previewDownload.dataset.filename = fileName;
     document.getElementById('storyPreviewOverlay').style.display = 'flex';
   }catch(e){
     console.error(e);
@@ -905,6 +949,12 @@ function generateIndividualStory(idx){
 }
 document.getElementById('storyPreviewClose').addEventListener('click', ()=>{
   document.getElementById('storyPreviewOverlay').style.display = 'none';
+});
+document.getElementById('storyPreviewDownload').addEventListener('click', async (e)=>{
+  const btn = e.currentTarget;
+  const { url, filename } = btn.dataset;
+  if(!url) return;
+  await saveOrShareFile(url, filename || ('story-' + Date.now() + '.png'), 'image/png');
 });
 
 // ==================== FLYER ====================
@@ -1303,10 +1353,7 @@ function renderQrToCanvas(ctx, text, x, y, size){
 document.getElementById('flyerDownloadBtn').addEventListener('click', async ()=>{
   if(flyerPageCanvases.length <= 1){
     const canvas = document.getElementById('flyerCanvas');
-    const link = document.createElement('a');
-    link.download = 'panfleto-drogaria-center-' + Date.now() + '.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    await saveOrShareFile(canvas.toDataURL('image/png'), 'panfleto-' + Date.now() + '.png', 'image/png');
     return;
   }
 
@@ -1323,10 +1370,7 @@ document.getElementById('flyerDownloadBtn').addEventListener('click', async ()=>
       zip.file('panfleto-parte-' + (i+1) + '.png', blob);
     }
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    const link = document.createElement('a');
-    link.download = 'panfletos-drogaria-center-' + Date.now() + '.zip';
-    link.href = URL.createObjectURL(zipBlob);
-    link.click();
+    await saveOrShareFile(zipBlob, 'panfletos-' + Date.now() + '.zip', 'application/zip');
   }catch(e){
     console.error(e);
     showAlert('Não foi possível gerar os panfletos. Tente novamente.');
@@ -1446,6 +1490,7 @@ function renderBatchList(){
         <button data-search="${idx}">🔍 Buscar</button>
         <button data-manual="${idx}">📤 Trocar</button>
         <button data-cam="${idx}">📸 Foto</button>
+        <button data-copyitem="${idx}">📋 Copiar texto</button>
         <button class="del" data-delbatch="${idx}">Remover</button>
       </div>
     `;
@@ -1465,6 +1510,11 @@ function renderBatchList(){
       batchProducts[idx].imgStatus = 'manual';
       renderBatchList();
     });
+  }));
+  el.querySelectorAll('[data-copyitem]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const p = batchProducts[Number(btn.dataset.copyitem)];
+    if(!p) return;
+    copyToClipboard('🔥 *OFERTA* 🔥\n\n' + productPromoText(p.description, p.normal, p.promo) + '\n\n📍 Corre que é por tempo limitado!');
   }));
   el.querySelectorAll('[data-delbatch]').forEach(btn=> btn.addEventListener('click', ()=>{
     batchProducts.splice(Number(btn.dataset.delbatch), 1);
@@ -1510,10 +1560,10 @@ function getApiBaseUrl(){
   return location.protocol + '//' + location.hostname + ':3333/api';
 }
 function getAuthToken(){
-  // Busca automática é gestor-only — usa a sessão de gestor especificamente
+  // Ferramenta de Cartazes é de uso do funcionário — usa a sessão de funcionário
   // (gestor e funcionário têm sessões separadas no localStorage do PharmaMind).
   try{
-    const raw = localStorage.getItem('drogaria:session:gestor');
+    const raw = localStorage.getItem('drogaria:session:funcionario');
     if(!raw) return null;
     return (JSON.parse(raw) || {}).token || null;
   }catch(e){ return null; }
@@ -1639,10 +1689,7 @@ document.getElementById('batchZipBtn').addEventListener('click', async ()=>{
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    const link = document.createElement('a');
-    link.download = 'stories-drogaria-center-' + Date.now() + '.zip';
-    link.href = URL.createObjectURL(zipBlob);
-    link.click();
+    await saveOrShareFile(zipBlob, 'stories-' + Date.now() + '.zip', 'application/zip');
   }catch(e){
     console.error(e);
     showAlert('Não foi possível gerar o pacote de stories. Tente novamente.');
@@ -1660,9 +1707,14 @@ async function openCamera(callback){
   cameraCallback = callback;
   const overlay = document.getElementById('cameraOverlay');
   const errorEl = document.getElementById('cameraError');
+  const captureBtn = document.getElementById('cameraCaptureBtn');
   errorEl.style.display = 'none';
   overlay.style.display = 'flex';
   syncGuideVisuals();
+  // Só libera o botão de captura quando o vídeo realmente tiver um frame
+  // pronto — capturar antes disso (comum no iPhone, mesmo com autoplay) é
+  // o que fazia a foto sair toda preta.
+  captureBtn.disabled = true;
 
   if(!window.isSecureContext){
     errorEl.textContent = '⚠ A câmera só funciona com o app aberto por HTTPS (ou localhost) — abrir o arquivo direto não é suficiente. Hospede o arquivo num servidor com HTTPS pra usar a câmera.';
@@ -1676,7 +1728,17 @@ async function openCamera(callback){
   }
   try{
     cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-    document.getElementById('cameraVideo').srcObject = cameraStream;
+    const video = document.getElementById('cameraVideo');
+    video.srcObject = cameraStream;
+    // No iPhone (Safari/Chrome), o autoplay às vezes não "pega" sozinho —
+    // forçar o play() e esperar o primeiro frame de verdade (loadeddata)
+    // antes de deixar capturar.
+    await new Promise((resolve)=>{
+      if(video.readyState >= 2){ resolve(); return; }
+      video.onloadeddata = resolve;
+      video.play().catch(()=>{});
+    });
+    captureBtn.disabled = false;
   }catch(e){
     console.error(e);
     errorEl.textContent = '⚠ Não foi possível acessar a câmera (permissão negada ou nenhuma câmera encontrada).';
@@ -1693,7 +1755,7 @@ document.getElementById('cameraCancelBtn').addEventListener('click', closeCamera
 
 document.getElementById('cameraCaptureBtn').addEventListener('click', async ()=>{
   const video = document.getElementById('cameraVideo');
-  if(!video.videoWidth){ return; }
+  if(!video.videoWidth || video.readyState < 2){ return; }
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = 1080; tempCanvas.height = 1920;
   const ctx = tempCanvas.getContext('2d');

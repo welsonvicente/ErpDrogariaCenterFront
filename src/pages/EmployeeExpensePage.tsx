@@ -2,6 +2,7 @@ import { BrandLogo } from '../components/BrandLogo';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../services/api';
 import { categoriaService } from '../services/categoriaService';
 import { despesaService } from '../services/despesaService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -14,6 +15,18 @@ function todayStr() {
 
 function fmtMoney(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/**
+ * A ferramenta de Cartazes é uma página HTML estática (fora do bundle do
+ * React — ver public/tools/cartazes.html), não uma rota do app. Ela recebe
+ * a URL da API já resolvida via query string, porque um arquivo estático
+ * não tem acesso a VITE_API_URL (isso só existe em módulos que passam pelo
+ * build do Vite). É ferramenta de funcionário (balcão), por isso mora aqui
+ * e não no hub do gestor.
+ */
+function urlFerramentaCartazes(): string {
+  return `/tools/cartazes.html?api=${encodeURIComponent(api.defaults.baseURL ?? '')}`;
 }
 
 const FORMAS_PAGAMENTO: FormaPagamento[] = ['DINHEIRO', 'CARTAO_DEBITO', 'CARTAO_CREDITO', 'PIX', 'BOLETO', 'OUTRO'];
@@ -106,9 +119,14 @@ export function EmployeeExpensePage() {
           </h1>
           <p>{aba === 'lancar' ? 'Selecione a categoria do gasto' : 'Gastos que você já lançou'}</p>
         </div>
-        <button className="btn-ghost" onClick={handleTrocarFuncionario}>
-          Trocar funcionário
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a className="btn-ghost" href={urlFerramentaCartazes()} target="_blank" rel="noopener noreferrer">
+            🖼️ Cartazes e panfletos
+          </a>
+          <button className="btn-ghost" onClick={handleTrocarFuncionario}>
+            Trocar funcionário
+          </button>
+        </div>
       </div>
 
       <div className="nav-tabs">
