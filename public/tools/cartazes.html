@@ -437,14 +437,18 @@ async function dataUrlToFile(dataUrl, filename, mime){
   const blob = await res.blob();
   return new File([blob], filename, { type: mime || blob.type });
 }
-async function saveOrShareFile(blobOrDataUrl, filename, mime){
+async function saveOrShareFile(blobOrDataUrl, filename, mime, shareTitle){
   const file = (typeof blobOrDataUrl === 'string')
     ? await dataUrlToFile(blobOrDataUrl, filename, mime)
     : new File([blobOrDataUrl], filename, { type: mime || blobOrDataUrl.type });
 
   if(navigator.canShare && navigator.canShare({ files: [file] })){
     try{
-      await navigator.share({ files: [file], title: filename });
+      // "title" é o texto que aparece pro usuário na folha de compartilhar
+      // (ex.: no iPhone) — usamos o nome do produto em vez do nome técnico
+      // do arquivo (com slug e timestamp), que não tem nada a ver pra quem
+      // está compartilhando.
+      await navigator.share({ files: [file], title: shareTitle || filename });
       return;
     }catch(e){
       if(e && e.name === 'AbortError') return; // usuário cancelou o compartilhamento, não é erro
@@ -891,7 +895,8 @@ document.getElementById('storyExtraEnabled').addEventListener('change', ()=>{ sy
 
 document.getElementById('storyDownloadBtn').addEventListener('click', async ()=>{
   const canvas = document.getElementById('storyCanvas');
-  await saveOrShareFile(canvas.toDataURL('image/png'), 'story-' + Date.now() + '.png', 'image/png');
+  const productName = document.getElementById('storyName').value.trim() || 'Story';
+  await saveOrShareFile(canvas.toDataURL('image/png'), 'story-' + Date.now() + '.png', 'image/png', productName);
 });
 
 // Gera um story individual a partir de um produto já cadastrado no panfleto
@@ -941,6 +946,7 @@ function generateIndividualStory(idx){
     const previewDownload = document.getElementById('storyPreviewDownload');
     previewDownload.dataset.url = dataUrl;
     previewDownload.dataset.filename = fileName;
+    previewDownload.dataset.shareTitle = p.name;
     document.getElementById('storyPreviewOverlay').style.display = 'flex';
   }catch(e){
     console.error(e);
@@ -952,9 +958,9 @@ document.getElementById('storyPreviewClose').addEventListener('click', ()=>{
 });
 document.getElementById('storyPreviewDownload').addEventListener('click', async (e)=>{
   const btn = e.currentTarget;
-  const { url, filename } = btn.dataset;
+  const { url, filename, shareTitle } = btn.dataset;
   if(!url) return;
-  await saveOrShareFile(url, filename || ('story-' + Date.now() + '.png'), 'image/png');
+  await saveOrShareFile(url, filename || ('story-' + Date.now() + '.png'), 'image/png', shareTitle);
 });
 
 // ==================== FLYER ====================
@@ -1072,6 +1078,15 @@ document.getElementById('flyerLogoColor').addEventListener('input', drawFlyer);
 document.getElementById('flyerDescColor').addEventListener('input', drawFlyer);
 document.getElementById('flyerPriceColor').addEventListener('input', drawFlyer);
 
+// O layout do panfleto é desenhado em coordenadas "lógicas" pequenas (poucas
+// centenas de px) porque cada foto de produto ocupa um card pequeno na
+// grade — em resolução 1:1 isso dá poucos pixels reais por foto e o
+// resultado sai borrado/pixelizado ao baixar. EXPORT_SCALE multiplica a
+// resolução real do canvas (largura/altura em pixels) mantendo o tamanho
+// visual igual em tela (o CSS já exibe o canvas em max-width:100%), então
+// as fotos e o texto saem nítidos sem mudar nada do layout.
+const FLYER_EXPORT_SCALE = 3;
+
 const FLYER_SIZE_PRESETS = {
   3:  { cardW: 320, photoH: 260, cardH: 430 },
   6:  { cardW: 280, photoH: 190, cardH: 350 },
@@ -1100,9 +1115,10 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
   const W = pad*2 + cols*cardW + (cols-1)*gap;
   const H = headerH + rows*cardH + (rows-1)*gap + footerH + pad;
 
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = W * FLYER_EXPORT_SCALE;
+  canvas.height = H * FLYER_EXPORT_SCALE;
   const ctx = canvas.getContext('2d');
+  ctx.scale(FLYER_EXPORT_SCALE, FLYER_EXPORT_SCALE);
 
   const logoColor = document.getElementById('flyerLogoColor').value || '#436000';
   const descColor = document.getElementById('flyerDescColor').value || '#173C3A';
@@ -1339,8 +1355,13 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines){
 let qrCache = {};
 function renderQrToCanvas(ctx, text, x, y, size){
   if(!qrCache[text]){
+    // Gera o QR numa resolução maior que o tamanho lógico desenhado — o
+    // canvas do panfleto agora é exportado em alta resolução (ver
+    // FLYER_EXPORT_SCALE) e um QR nativo de 130px ficaria borrado ao ser
+    // ampliado junto com o resto.
+    const nativeSize = size * FLYER_EXPORT_SCALE;
     const tempDiv = document.createElement('div');
-    new QRCode(tempDiv, { text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+    new QRCode(tempDiv, { text, width: nativeSize, height: nativeSize, correctLevel: QRCode.CorrectLevel.M });
     const qImg = tempDiv.querySelector('img') || tempDiv.querySelector('canvas');
     qrCache[text] = qImg;
   }
@@ -1351,9 +1372,10 @@ function renderQrToCanvas(ctx, text, x, y, size){
 }
 
 document.getElementById('flyerDownloadBtn').addEventListener('click', async ()=>{
+  const shareTitle = document.getElementById('flyerTitle').value.trim() || document.getElementById('flyerStoreName').value.trim() || 'Panfleto de ofertas';
   if(flyerPageCanvases.length <= 1){
     const canvas = document.getElementById('flyerCanvas');
-    await saveOrShareFile(canvas.toDataURL('image/png'), 'panfleto-' + Date.now() + '.png', 'image/png');
+    await saveOrShareFile(canvas.toDataURL('image/png'), 'panfleto-' + Date.now() + '.png', 'image/png', shareTitle);
     return;
   }
 
@@ -1370,7 +1392,7 @@ document.getElementById('flyerDownloadBtn').addEventListener('click', async ()=>
       zip.file('panfleto-parte-' + (i+1) + '.png', blob);
     }
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    await saveOrShareFile(zipBlob, 'panfletos-' + Date.now() + '.zip', 'application/zip');
+    await saveOrShareFile(zipBlob, 'panfletos-' + Date.now() + '.zip', 'application/zip', shareTitle);
   }catch(e){
     console.error(e);
     showAlert('Não foi possível gerar os panfletos. Tente novamente.');
@@ -1689,7 +1711,7 @@ document.getElementById('batchZipBtn').addEventListener('click', async ()=>{
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    await saveOrShareFile(zipBlob, 'stories-' + Date.now() + '.zip', 'application/zip');
+    await saveOrShareFile(zipBlob, 'stories-' + Date.now() + '.zip', 'application/zip', 'Stories de ofertas (' + withImage.length + ' produtos)');
   }catch(e){
     console.error(e);
     showAlert('Não foi possível gerar o pacote de stories. Tente novamente.');
