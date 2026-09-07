@@ -2,6 +2,18 @@ import { BrandLogo } from '../components/BrandLogo';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { api } from '../services/api';
+
+/**
+ * A ferramenta de Cartazes é uma página HTML estática (fora do bundle do
+ * React — ver public/tools/cartazes.html), não uma rota do app. Ela recebe
+ * a URL da API já resolvida via query string, porque um arquivo estático
+ * não tem acesso a VITE_API_URL (isso só existe em módulos que passam pelo
+ * build do Vite).
+ */
+function urlFerramentaCartazes(): string {
+  return `/tools/cartazes.html?api=${encodeURIComponent(api.defaults.baseURL ?? '')}`;
+}
 
 /**
  * Hub de ferramentas do gestor — tela que abre depois do login geral.
@@ -43,6 +55,17 @@ export function ToolsHubPage() {
           <div className="title">Gastos</div>
           <div className="sub">Dashboard e lançamentos de despesas</div>
         </button>
+        <a
+          className="card role-card"
+          style={{ textDecoration: 'none', display: 'block' }}
+          href={urlFerramentaCartazes()}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <div className="icon-badge">🖼️</div>
+          <div className="title">Cartazes</div>
+          <div className="sub">Gerador de stories e panfletos de oferta</div>
+        </a>
       </div>
     </div>
   );

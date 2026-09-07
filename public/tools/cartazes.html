@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Cartazes — Drogaria Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --green:#97D700; --green-deep:#436000; --green-mid:#628B00; --mint:#EAF7CC;
+    --ink:#173C3A; --ink-soft:#4B6A67; --bg:#EFF6F3; --card:#FFFFFF; --line:#D8E7E2;
+    --red:#E30613; --red-bg:#FCE6E7; --amber:#C98A1D; --amber-bg:#FCEFD8;
+    --radius:18px;
+    --shadow: 0 1px 2px rgba(23,60,58,0.06), 0 8px 24px -12px rgba(23,60,58,0.18);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;padding-bottom:60px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 0;}
+
+  header{display:flex;align-items:center;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .full-logo{height:40px;width:auto;flex-shrink:0;}
+  .brand-text p{margin:0;font-size:13px;color:var(--ink-soft);font-weight:500;}
+
+  .mode-tabs{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px;margin-bottom:22px;max-width:460px;}
+  .mode-tab{flex:1;border:none;background:transparent;color:var(--ink-soft);font-weight:700;font-size:13.5px;padding:11px;border-radius:10px;cursor:pointer;}
+  .mode-tab.active{background:var(--green-mid);color:#fff;}
+
+  .cols{display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start;}
+  @media (max-width:820px){ .cols{grid-template-columns:1fr;} }
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);}
+  h2.section-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:var(--green-deep);margin:0 0 14px;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  .field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:13.5px;font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .field input[type=color]{padding:3px;height:38px;cursor:pointer;}
+
+  .upload-box{
+    border:2px dashed var(--line);border-radius:14px;padding:22px 14px;text-align:center;cursor:pointer;
+    color:var(--ink-soft);font-size:13px;font-weight:600;margin-bottom:14px;background:var(--bg);
+  }
+  .upload-box:hover{border-color:var(--green-mid);background:var(--mint);color:var(--green-deep);}
+  .upload-box.has-image{padding:0;border-style:solid;overflow:hidden;}
+  .upload-box.has-image img{width:100%;display:block;max-height:180px;object-fit:cover;}
+
+  .emoji-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .emoji-btn{border:1px solid var(--line);background:var(--bg);border-radius:10px;font-size:18px;padding:6px 10px;cursor:pointer;}
+  .emoji-btn.selected{border-color:var(--green-mid);background:var(--mint);}
+
+  .btn-primary{width:100%;border:none;background:var(--green-mid);color:#fff;font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer;}
+  .btn-primary:hover{background:var(--green-deep);}
+  .btn-ghost{border:1px solid var(--line);background:var(--card);color:var(--green-deep);font-weight:600;font-size:13px;padding:10px 14px;border-radius:10px;cursor:pointer;width:100%;margin-top:8px;}
+  .btn-ghost:hover{background:var(--mint);}
+
+  .preview-panel{display:flex;flex-direction:column;align-items:center;gap:16px;}
+  .canvas-frame{
+    background:#0A2422;border-radius:20px;padding:14px;box-shadow:var(--shadow);
+    display:flex;align-items:center;justify-content:center;
+  }
+  #storyCanvas{max-width:100%;height:auto;border-radius:10px;display:block;}
+  #flyerCanvas{max-width:100%;height:auto;border-radius:10px;display:block;background:#fff;}
+
+  .product-list{display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+  .product-row{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:10px;padding:8px 10px;font-size:12.5px;}
+  .product-row img{width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0;}
+  .product-row .pinfo{flex:1;min-width:0;}
+  .product-row .pname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .product-row .pprice{color:var(--ink-soft);}
+  .product-row button{border:none;background:none;color:var(--red);cursor:pointer;font-size:12px;font-weight:600;flex-shrink:0;}
+  .product-row button[data-story]{background:var(--mint);color:var(--green-deep);border-radius:8px;padding:5px 8px;font-size:14px;}
+  .product-row button[data-story]:hover{background:var(--green);color:#fff;}
+  .empty-note{color:var(--ink-soft);font-size:12.5px;text-align:center;padding:14px 0;}
+  .footnote{margin-top:6px;font-size:11.5px;color:var(--ink-soft);text-align:center;}
+
+  .batch-row{display:flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;}
+  .batch-row .thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#E4E9E0;display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;}
+  .batch-row .binfo{flex:1;min-width:0;}
+  .batch-row .bname{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .batch-row .bprice{font-size:12px;color:var(--ink-soft);}
+  .batch-row .bstatus{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;display:inline-block;margin-top:3px;}
+  .batch-row .bstatus.found{background:var(--entrada-bg,#E5F6ED);color:#1E9E6B;}
+  .batch-row .bstatus.manual{background:var(--mint);color:var(--green-deep);}
+  .batch-row .bstatus.pending{background:var(--amber-bg);color:var(--amber);}
+  .batch-row .bstatus.failed{background:var(--red-bg);color:var(--red);}
+  .batch-row .bactions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;}
+  .batch-row .bactions button{border:1px solid var(--line);background:#fff;color:var(--green-deep);font-size:11px;font-weight:600;padding:6px 8px;border-radius:8px;cursor:pointer;white-space:nowrap;}
+  .batch-row .bactions button:hover{background:var(--mint);}
+  .batch-row .bactions button.del{color:var(--red);}
+
+  .drag-guide{
+    position:absolute;height:9%;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:12px;color:#fff;
+    cursor:grab;user-select:none;border:2px dashed rgba(255,255,255,0.85);
+    touch-action:none;
+  }
+  .drag-guide:active{cursor:grabbing;}
+  .drag-guide.name-guide{background:rgba(67,96,0,0.55);}
+  .drag-guide.price-guide{background:rgba(227,6,19,0.45);}
+  .drag-guide.extra-guide{background:rgba(23,60,58,0.5);}
+  .drag-hint{font-size:9.5px;font-weight:600;background:rgba(0,0,0,0.35);padding:2px 6px;border-radius:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img class="full-logo" src="data:image/png;base64,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" alt="Drogaria Center">
+    <div class="brand-text"><p>Gerador de cartazes de oferta</p></div>
+  </header>
+
+  <div class="mode-tabs" style="max-width:640px;">
+    <button class="mode-tab active" id="tabStory" type="button">📱 Story (produto único)</button>
+    <button class="mode-tab" id="tabFlyer" type="button">🗞️ Panfleto (vários)</button>
+    <button class="mode-tab" id="tabBatch" type="button">📊 Importar planilha</button>
+  </div>
+
+  <!-- ==================== STORY MODE ==================== -->
+  <div id="storyMode" class="cols">
+    <div class="panel">
+      <h2 class="section-title">Dados do produto</h2>
+
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <div class="upload-box" id="storyUploadBox" style="flex:1;margin-bottom:0;">
+          📷 Escolher foto
+        </div>
+        <button class="btn-ghost" id="storyCameraBtn" style="width:auto;margin:0;white-space:nowrap;">📸 Tirar foto</button>
+      </div>
+      <input type="file" id="storyFileInput" accept="image/*" style="display:none;">
+      <div class="footnote" style="text-align:left;margin:-8px 0 14px;">Arraste as faixas verde, rosa e escura no preview ao lado (pra qualquer direção) pra escolher onde cada informação vai ficar na foto.</div>
+
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;">
+        <input type="checkbox" id="storyNameEnabled" checked style="width:auto;"> Usar o nome do produto na imagem
+      </label>
+      <div class="field"><input id="storyName" placeholder="Ex: Johnson's Baby Sabonete 180ml"></div>
+
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;">
+        <input type="checkbox" id="storyPriceEnabled" checked style="width:auto;"> Usar o preço na imagem
+      </label>
+      <div class="field-row">
+        <div class="field"><label>De (R$)</label><input id="storyDe" type="number" step="0.01" placeholder="15,99"></div>
+        <div class="field"><label>Por (R$)</label><input id="storyPor" type="number" step="0.01" placeholder="9,99"></div>
+      </div>
+
+      <div class="field">
+        <label>Emoji de destaque</label>
+        <div class="emoji-row" id="storyEmojiRow"></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>Cor do logo/nome</label><input id="storyLogoColor" type="color" value="#436000"></div>
+        <div class="field"><label>Cor do texto do nome</label><input id="storyDescColor" type="color" value="#FFFFFF"></div>
+        <div class="field"><label>Cor do preço</label><input id="storyPriceColor" type="color" value="#E30613"></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>Tamanho do nome <span id="storyNameSizeVal">40</span>px</label><input id="storyNameSize" type="range" min="24" max="70" value="40"></div>
+        <div class="field"><label>Tamanho do preço <span id="storyPriceSizeVal">62</span>px</label><input id="storyPriceSize" type="range" min="34" max="90" value="62"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Margem lateral do nome <span id="storyNameMarginVal">60</span>px</label><input id="storyNameMargin" type="range" min="0" max="180" value="60"></div>
+        <div class="field"><label>Margem lateral do preço <span id="storyPriceMarginVal">60</span>px</label><input id="storyPriceMargin" type="range" min="0" max="180" value="60"></div>
+      </div>
+      <div class="footnote" style="text-align:left;margin:-6px 0 12px;">Margem menor = a faixa fica mais colada nas bordas (informação maior, borda quase sumindo). O tamanho da letra continua controlado só pelos controles de "Tamanho" acima — um não mexe no outro.</div>
+
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;">
+        <input type="checkbox" id="storyExtraEnabled" checked style="width:auto;"> Usar frases extras na imagem
+      </label>
+      <div class="field">
+        <label>Frases extras (uma por linha) — ex: Chama! Entrega grátis (81) 99913-7573</label>
+        <textarea id="storyExtraText" rows="2" placeholder="Chama! Entrega grátis&#10;(81) 99913-7573"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Cor de fundo das frases</label><input id="storyExtraBgColor" type="color" value="#173C3A"></div>
+        <div class="field"><label>Cor do texto das frases</label><input id="storyExtraTextColor" type="color" value="#FFFFFF"></div>
+        <div class="field"><label>Tamanho <span id="storyExtraSizeVal">32</span>px</label><input id="storyExtraSize" type="range" min="18" max="50" value="32"></div>
+      </div>
+      <div class="field"><label>Margem lateral das frases <span id="storyExtraMarginVal">60</span>px</label><input id="storyExtraMargin" type="range" min="0" max="180" value="60"></div>
+
+      <button class="btn-primary" id="storyDownloadBtn">⬇️ Baixar imagem do story</button>
+      <button class="btn-ghost" id="storyCopyTextBtn">📋 Copiar texto pronto (WhatsApp/Instagram)</button>
+      <div class="footnote">Formato 1080×1920 — pronto pra postar no Instagram/WhatsApp Status. Pode gerar quantas imagens quiser, sem limite.</div>
+    </div>
+
+    <div class="preview-panel">
+      <div class="canvas-frame" style="position:relative;">
+        <canvas id="storyCanvas" width="1080" height="1920"></canvas>
+        <div id="nameGuide" class="drag-guide name-guide">↕ NOME <span class="drag-hint">arraste</span></div>
+        <div id="priceGuide" class="drag-guide price-guide">↕ PREÇO <span class="drag-hint">arraste</span></div>
+        <div id="extraGuide" class="drag-guide extra-guide">↕ FRASES <span class="drag-hint">arraste</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== FLYER MODE ==================== -->
+  <div id="flyerMode" class="cols" style="display:none;">
+    <div class="panel">
+      <h2 class="section-title">Adicionar produto ao panfleto</h2>
+
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <div class="upload-box" id="flyerUploadBox" style="flex:1;margin-bottom:0;">
+          📷 Escolher foto
+        </div>
+        <button class="btn-ghost" id="flyerCameraBtn" style="width:auto;margin:0;white-space:nowrap;">📸 Tirar foto</button>
+      </div>
+      <input type="file" id="flyerFileInput" accept="image/*" style="display:none;">
+
+      <div class="field"><label>Nome do produto</label><input id="flyerName" placeholder="Ex: SIMETICONA 125MG 30CAP"></div>
+      <div class="field-row">
+        <div class="field"><label>De (R$)</label><input id="flyerDe" type="number" step="0.01" placeholder="20,99"></div>
+        <div class="field"><label>Por (R$)</label><input id="flyerPor" type="number" step="0.01" placeholder="9,99"></div>
+      </div>
+      <button class="btn-primary" id="flyerAddBtn">+ Adicionar ao panfleto</button>
+
+      <h2 class="section-title" style="margin-top:20px;">Produtos no panfleto</h2>
+      <div class="product-list" id="flyerProductList"></div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
+
+      <h2 class="section-title">Textos do cabeçalho</h2>
+      <div class="field-row">
+        <div class="field" style="flex:2;"><label>Nome da loja</label><input id="flyerStoreName" value="Drogaria Center"></div>
+        <div class="field"><label>Posição</label>
+          <select id="flyerStoreNameAlign">
+            <option value="left" selected>Esquerda</option>
+            <option value="center">Centro</option>
+            <option value="right">Direita</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:2;"><label>Título/chamada</label><input id="flyerTitle" value="Ofertas da Semana"></div>
+        <div class="field"><label>Posição</label>
+          <select id="flyerTitleAlign">
+            <option value="left" selected>Esquerda</option>
+            <option value="center">Centro</option>
+            <option value="right">Direita</option>
+          </select>
+        </div>
+      </div>
+
+      <h2 class="section-title" style="margin-top:18px;">Textos do rodapé</h2>
+      <div class="field-row">
+        <div class="field" style="flex:2;"><label>Frase principal do rodapé</label><input id="flyerFooterText1" value="Feito com carinho pela Drogaria Center"></div>
+        <div class="field"><label>Posição</label>
+          <select id="flyerFooterText1Align">
+            <option value="left" selected>Esquerda</option>
+            <option value="center">Centro</option>
+            <option value="right">Direita</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:2;"><label>Frase secundária do rodapé</label><input id="flyerFooterText2" value="Aponte a câmera do celular para o QR Code"></div>
+        <div class="field"><label>Posição</label>
+          <select id="flyerFooterText2Align">
+            <option value="left" selected>Esquerda</option>
+            <option value="center">Centro</option>
+            <option value="right">Direita</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Posição do QR Code</label>
+        <select id="flyerQrAlign">
+          <option value="left" selected>Esquerda</option>
+          <option value="right">Direita</option>
+        </select>
+      </div>
+      <div class="footnote" style="text-align:left;margin:-6px 0 14px;">Dica: se o texto e o QR Code ficarem se sobrepondo, escolha posições opostas (ex: QR à esquerda, texto centralizado ou à direita).</div>
+
+      <div class="field">
+        <label>Itens por panfleto</label>
+        <select id="flyerPerPage">
+          <option value="3">3 (fotos grandes)</option>
+          <option value="6">6</option>
+          <option value="9" selected>9 (padrão)</option>
+          <option value="12">12 (fotos menores)</option>
+        </select>
+      </div>
+      <div class="footnote" style="text-align:left;margin:-6px 0 12px;">Se tiver mais produtos do que cabe, o restante vira automaticamente outros panfletos (baixados juntos num .zip).</div>
+
+      <div class="field-row">
+        <div class="field"><label>Cor da logo</label><input id="flyerLogoColor" type="color" value="#436000"></div>
+        <div class="field"><label>Cor da descrição</label><input id="flyerDescColor" type="color" value="#173C3A"></div>
+        <div class="field"><label>Cor do preço</label><input id="flyerPriceColor" type="color" value="#436000"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Tamanho da descrição <span id="flyerNameSizeVal">15</span>px</label><input id="flyerNameSize" type="range" min="10" max="24" value="15"></div>
+        <div class="field"><label>Tamanho do preço <span id="flyerPriceSizeVal">19</span>px</label><input id="flyerPriceSize" type="range" min="13" max="30" value="19"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Tamanho da borda externa <span id="flyerPadVal">40</span>px</label><input id="flyerPad" type="range" min="12" max="90" value="40"></div>
+        <div class="field"><label>Tamanho da letra do selo de desconto <span id="flyerBadgeSizeVal">13</span>px</label><input id="flyerBadgeSize" type="range" min="9" max="22" value="13"></div>
+      </div>
+
+      <div class="field"><label>Imagem de fundo do panfleto (opcional)</label>
+        <div style="display:flex;gap:8px;">
+          <div class="upload-box" id="flyerBgUploadBox" style="flex:1;margin-bottom:0;font-size:12px;padding:14px;">🖼️ Escolher imagem de fundo</div>
+          <button class="btn-ghost" id="flyerBgRemoveBtn" style="width:auto;margin:0;">Remover</button>
+        </div>
+        <input type="file" id="flyerBgFileInput" accept="image/*" style="display:none;">
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;">
+          <input type="checkbox" id="flyerBgWhiteBars" checked style="width:auto;">
+          Manter faixa branca atrás do cabeçalho e do rodapé (ajuda a ler o texto sobre a imagem de fundo)
+        </label>
+      </div>
+
+      <div class="field"><label>Link do Pix / WhatsApp para o QR Code (opcional)</label><input id="flyerLink" placeholder="Ex: https://wa.me/5511999999999"></div>
+
+      <button class="btn-ghost" id="flyerDownloadBtn">⬇️ Baixar panfleto</button>
+      <button class="btn-ghost" id="flyerCopyTextBtn">📋 Copiar texto pronto (WhatsApp/Instagram)</button>
+      <div class="footnote">Sem limite de gerações. Adicione quantos produtos quiser — o layout se ajusta sozinho.</div>
+    </div>
+
+    <div class="preview-panel">
+      <div class="canvas-frame"><canvas id="flyerCanvas" width="900" height="1200"></canvas></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;" id="flyerPageNav">
+        <button class="btn-ghost" id="flyerPrevPageBtn" style="width:auto;margin:0;">◀</button>
+        <span id="flyerPageLabel" style="font-size:13px;font-weight:600;color:var(--ink-soft);">Página 1/1</span>
+        <button class="btn-ghost" id="flyerNextPageBtn" style="width:auto;margin:0;">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== BATCH MODE (importar planilha) ==================== -->
+  <div id="batchMode" style="display:none;">
+    <div class="panel" style="margin-bottom:20px;">
+      <h2 class="section-title">Importar planilha (.xls ou .xlsx)</h2>
+      <div class="upload-box" id="batchUploadBox" style="max-width:420px;">
+        📊 Clique para escolher o arquivo da planilha
+      </div>
+      <input type="file" id="batchFileInput" accept=".xls,.xlsx" style="display:none;">
+      <div class="footnote" id="batchImportStatus" style="text-align:left;">A planilha precisa ter colunas com o nome do produto, preço normal, valor da promoção e EAN (código de barras).</div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:18px 0;">
+
+      <h2 class="section-title">Ou cole direto do Excel/Sheets (uma coluna por vez)</h2>
+      <div class="footnote" style="text-align:left;margin-bottom:10px;">Copia uma coluna inteira da planilha (Ctrl+C) e cola no campo correspondente abaixo — um valor por linha. A ordem das linhas é o que liga um campo ao outro (linha 1 de "Descrição" = linha 1 de "Preço Normal" etc).</div>
+      <div class="field"><label>Descrição do produto (uma por linha)</label><textarea id="pasteDesc" rows="4" placeholder="ABERALGINA 500MG/ML GTS 10ML&#10;APEVITIN BC LIQ 240ML&#10;..."></textarea></div>
+      <div class="field-row">
+        <div class="field"><label>Preço Normal</label><textarea id="pasteNormal" rows="4" placeholder="4,00&#10;17,00&#10;..."></textarea></div>
+        <div class="field"><label>Valor Promoção</label><textarea id="pastePromo" rows="4" placeholder="1,99&#10;9,99&#10;..."></textarea></div>
+        <div class="field"><label>EAN</label><textarea id="pasteEan" rows="4" placeholder="7894164000050&#10;..."></textarea></div>
+      </div>
+      <button class="btn-ghost" id="pasteAddBtn">+ Adicionar produtos colados</button>
+    </div>
+
+    <div class="panel" id="batchListPanel" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h2 class="section-title" style="margin:0;">Produtos importados (<span id="batchCount">0</span>)</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-ghost" style="width:auto;margin:0;" id="batchSearchAllBtn">🔍 Buscar todas as imagens</button>
+          <button class="btn-ghost" style="width:auto;margin:0;" id="batchToFlyerBtn">🗞️ Usar no panfleto</button>
+          <button class="btn-ghost" style="width:auto;margin:0;" id="batchCopyTextBtn">📋 Copiar texto pronto</button>
+          <button class="btn-primary" style="width:auto;" id="batchZipBtn">📦 Baixar todos os stories (.zip)</button>
+        </div>
+      </div>
+      <div class="footnote" style="text-align:left;margin-bottom:12px;">A busca automática de imagem nem sempre funciona (muitos sites bloqueiam uso externo da foto) — quando falhar, use "Trocar imagem" pra enviar a foto manualmente.</div>
+      <div class="field-row">
+        <div class="field"><label>Cor do logo/nome (stories gerados)</label><input id="batchLogoColor" type="color" value="#436000"></div>
+        <div class="field"><label>Cor do texto do nome</label><input id="batchDescColor" type="color" value="#FFFFFF"></div>
+        <div class="field"><label>Cor do preço</label><input id="batchPriceColor" type="color" value="#E30613"></div>
+      </div>
+      <div id="batchProductList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: câmera (compartilhado entre Story, Panfleto e Lote) -->
+<div id="cameraOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,30,28,0.85);z-index:95;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#000;border-radius:16px;padding:12px;max-width:380px;width:100%;">
+    <div id="cameraFrame" style="position:relative;width:100%;aspect-ratio:9/16;background:#111;border-radius:10px;overflow:hidden;">
+      <video id="cameraVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;"></video>
+      <div id="cameraNameGuide" class="drag-guide name-guide" style="pointer-events:none;">NOME DO PRODUTO</div>
+      <div id="cameraPriceGuide" class="drag-guide price-guide" style="pointer-events:none;">R$ PREÇO</div>
+      <div id="cameraExtraGuide" class="drag-guide extra-guide" style="pointer-events:none;">FRASES</div>
+    </div>
+    <div id="cameraError" style="color:#FCA5A5;font-size:12.5px;text-align:center;padding:10px 4px;display:none;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button id="cameraCancelBtn" style="flex:1;border:1px solid #444;background:#222;color:#fff;font-weight:600;font-size:13.5px;padding:11px;border-radius:10px;cursor:pointer;">Cancelar</button>
+      <button id="cameraCaptureBtn" style="flex:2;border:none;background:var(--green-mid);color:#fff;font-weight:700;font-size:14px;padding:11px;border-radius:10px;cursor:pointer;">📸 Capturar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: preview do story gerado individualmente pelo panfleto -->
+<input type="file" id="batchManualImageInput" accept="image/*" style="display:none;">
+<input type="file" id="flyerSwapImageInput" accept="image/*" style="display:none;">
+<div id="storyPreviewOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,30,28,0.75);z-index:80;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;padding:20px;max-width:360px;width:100%;text-align:center;max-height:92vh;overflow-y:auto;">
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;color:var(--green-deep);margin:0 0 12px;">Story pronto!</h3>
+    <img id="storyPreviewImg" style="width:100%;border-radius:12px;margin-bottom:14px;display:block;">
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;">📱 No celular: toque e segure a imagem acima para salvar. 💻 No computador: use o botão abaixo.</div>
+    <a id="storyPreviewDownload" download="story.png" style="display:block;background:var(--green-mid);color:#fff;font-weight:700;font-size:14px;padding:12px;border-radius:12px;text-decoration:none;margin-bottom:8px;">⬇️ Baixar imagem</a>
+    <button id="storyPreviewClose" style="width:100%;border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-weight:600;font-size:13px;padding:10px;border-radius:10px;cursor:pointer;">Fechar</button>
+  </div>
+</div>
+
+<!-- MODAL: aviso próprio (substitui showAlert() nativo, bloqueado em alguns navegadores/previews) -->
+<div id="customAlertOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,30,28,0.55);z-index:90;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:16px;padding:20px;max-width:320px;width:100%;text-align:center;">
+    <p id="customAlertMsg" style="font-size:13.5px;color:var(--ink);line-height:1.5;margin:0 0 16px;"></p>
+    <button id="customAlertOk" style="width:100%;border:none;background:var(--green-mid);color:#fff;font-weight:700;font-size:13.5px;padding:10px;border-radius:10px;cursor:pointer;">Entendi</button>
+  </div>
+</div>
+
+<script>
+function showAlert(msg){
+  document.getElementById('customAlertMsg').textContent = msg;
+  document.getElementById('customAlertOverlay').style.display = 'flex';
+}
+document.getElementById('customAlertOk').addEventListener('click', ()=>{
+  document.getElementById('customAlertOverlay').style.display = 'none';
+});
+
+// ---------- Mode switching ----------
+document.getElementById('tabStory').addEventListener('click', ()=> switchMode('story'));
+document.getElementById('tabFlyer').addEventListener('click', ()=> switchMode('flyer'));
+document.getElementById('tabBatch').addEventListener('click', ()=> switchMode('batch'));
+function switchMode(mode){
+  document.getElementById('tabStory').classList.toggle('active', mode==='story');
+  document.getElementById('tabFlyer').classList.toggle('active', mode==='flyer');
+  document.getElementById('tabBatch').classList.toggle('active', mode==='batch');
+  document.getElementById('storyMode').style.display = mode==='story' ? 'grid' : 'none';
+  document.getElementById('flyerMode').style.display = mode==='flyer' ? 'grid' : 'none';
+  document.getElementById('batchMode').style.display = mode==='batch' ? 'block' : 'none';
+}
+
+// ---------- Fonts ready ----------
+let fontsReady = false;
+Promise.all([
+  document.fonts.load('700 60px Fredoka'),
+  document.fonts.load('600 30px Fredoka'),
+  document.fonts.load('700 40px "Space Grotesk"')
+]).then(()=>{ fontsReady = true; drawStory(); drawFlyer(); }).catch(()=>{ fontsReady = true; });
+
+function fmtMoney(v){
+  const n = Number(v);
+  if(isNaN(n)) return '0,00';
+  return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function discountPct(de, por){
+  const d = Number(de), p = Number(por);
+  if(!d || !p || d<=0) return null;
+  return Math.round((1 - p/d) * 100);
+}
+function loadImageFromFile(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=> resolve(img);
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function drawImageCover(ctx, img, x, y, w, h){
+  const imgRatio = img.width / img.height;
+  const boxRatio = w / h;
+  let sx, sy, sw, sh;
+  if(imgRatio > boxRatio){
+    sh = img.height;
+    sw = sh * boxRatio;
+    sx = (img.width - sw) / 2;
+    sy = 0;
+  } else {
+    sw = img.width;
+    sh = sw / boxRatio;
+    sx = 0;
+    sy = (img.height - sh) / 2;
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+function drawImageContain(ctx, img, x, y, w, h){
+  const imgRatio = img.width / img.height;
+  const boxRatio = w / h;
+  let dw, dh;
+  if(imgRatio > boxRatio){ dw = w; dh = w / imgRatio; }
+  else { dh = h; dw = h * imgRatio; }
+  const dx = x + (w - dw)/2;
+  const dy = y + (h - dh)/2;
+  ctx.drawImage(img, dx, dy, dw, dh);
+}
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+// ==================== STORY ====================
+let storyImage = null;
+
+// Posição da máscara (nome/preço/frases extras) em pixels no espaço do canvas 1080x1920 — arrastável em qualquer direção
+let guideNameY = 130, guideNameOffsetX = 0;
+let guidePriceY = 320, guidePriceOffsetX = 0;
+let guideExtraY = 560, guideExtraOffsetX = 0;
+
+function guideBadgeX(margin, offsetX){
+  const badgeW = 1080 - margin*2;
+  let x = (1080 - badgeW)/2 + offsetX;
+  x = Math.max(0, Math.min(1080 - badgeW, x));
+  return x;
+}
+
+function syncGuideVisuals(){
+  const nameG = document.getElementById('nameGuide');
+  const priceG = document.getElementById('priceGuide');
+  const extraG = document.getElementById('extraGuide');
+
+  const nameMargin = Number(document.getElementById('storyNameMargin').value);
+  const priceMargin = Number(document.getElementById('storyPriceMargin').value);
+  const extraMargin = Number(document.getElementById('storyExtraMargin').value);
+  const nameW = 1080 - nameMargin*2;
+  const priceW = 1080 - priceMargin*2;
+  const extraW = 1080 - extraMargin*2;
+  const nameX = guideBadgeX(nameMargin, guideNameOffsetX);
+  const priceX = guideBadgeX(priceMargin, guidePriceOffsetX);
+  const extraX = guideBadgeX(extraMargin, guideExtraOffsetX);
+
+  nameG.style.top = (guideNameY/1920*100) + '%';
+  nameG.style.left = (nameX/1080*100) + '%';
+  nameG.style.width = (nameW/1080*100) + '%';
+
+  priceG.style.top = (guidePriceY/1920*100) + '%';
+  priceG.style.left = (priceX/1080*100) + '%';
+  priceG.style.width = (priceW/1080*100) + '%';
+
+  extraG.style.top = (guideExtraY/1920*100) + '%';
+  extraG.style.left = (extraX/1080*100) + '%';
+  extraG.style.width = (extraW/1080*100) + '%';
+
+  // Esconde a faixa-guia do editor quando aquela informação está desativada
+  nameG.style.display = isNameEnabled() ? 'flex' : 'none';
+  priceG.style.display = isPriceEnabled() ? 'flex' : 'none';
+  extraG.style.display = isExtraEnabled() ? 'flex' : 'none';
+
+  const camNameG = document.getElementById('cameraNameGuide');
+  const camPriceG = document.getElementById('cameraPriceGuide');
+  const camExtraG = document.getElementById('cameraExtraGuide');
+  if(camNameG){ camNameG.style.top = nameG.style.top; camNameG.style.left = nameG.style.left; camNameG.style.width = nameG.style.width; camNameG.style.display = nameG.style.display; }
+  if(camPriceG){ camPriceG.style.top = priceG.style.top; camPriceG.style.left = priceG.style.left; camPriceG.style.width = priceG.style.width; camPriceG.style.display = priceG.style.display; }
+  if(camExtraG){ camExtraG.style.top = extraG.style.top; camExtraG.style.left = extraG.style.left; camExtraG.style.width = extraG.style.width; camExtraG.style.display = extraG.style.display; }
+}
+
+// Arraste em qualquer direção (cima/baixo/esquerda/direita)
+function makeGuideDraggable(guideEl, frameEl, getPos, setPos){
+  let dragging = false;
+  let startClientX = 0, startClientY = 0;
+  let startX = 0, startY = 0;
+  guideEl.addEventListener('pointerdown', (e)=>{
+    dragging = true;
+    startClientX = e.clientX;
+    startClientY = e.clientY;
+    const pos = getPos();
+    startX = pos.x; startY = pos.y;
+    guideEl.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  guideEl.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const scaleY = frameEl.clientHeight / 1920;
+    const scaleX = frameEl.clientWidth / 1080;
+    const deltaY = (e.clientY - startClientY) / scaleY;
+    const deltaX = (e.clientX - startClientX) / scaleX;
+    let newY = Math.max(0, Math.min(1920 - 140, startY + deltaY));
+    let newX = startX + deltaX; // o clamp horizontal já acontece em guideBadgeX
+    setPos(newX, newY);
+    syncGuideVisuals();
+    drawStory();
+  });
+  guideEl.addEventListener('pointerup', ()=>{ dragging = false; });
+  guideEl.addEventListener('pointercancel', ()=>{ dragging = false; });
+}
+const STORY_EMOJIS = ['🤩😱','🔥🔥','😍','🎉','💚','⚡'];
+let storyEmoji = STORY_EMOJIS[0];
+
+const storyUploadBox = document.getElementById('storyUploadBox');
+const storyFileInput = document.getElementById('storyFileInput');
+storyUploadBox.addEventListener('click', ()=> storyFileInput.click());
+function setStoryImage(img){
+  storyImage = img;
+  storyUploadBox.classList.add('has-image');
+  storyUploadBox.innerHTML = '<img src="'+img.src+'">';
+  drawStory();
+}
+storyFileInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  setStoryImage(await loadImageFromFile(file));
+});
+document.getElementById('storyCameraBtn').addEventListener('click', ()=>{
+  openCamera((img)=> setStoryImage(img));
+});
+
+function buildEmojiRow(){
+  const el = document.getElementById('storyEmojiRow');
+  el.innerHTML = '';
+  STORY_EMOJIS.forEach(em=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'emoji-btn' + (em===storyEmoji ? ' selected' : '');
+    btn.textContent = em;
+    btn.addEventListener('click', ()=>{
+      storyEmoji = em;
+      document.querySelectorAll('#storyEmojiRow .emoji-btn').forEach(b=> b.classList.toggle('selected', b.textContent===em));
+      drawStory();
+    });
+    el.appendChild(btn);
+  });
+}
+buildEmojiRow();
+
+// Inicializa o arraste das faixas de nome/preço sobre o preview do story
+{
+  const frame = document.getElementById('nameGuide').closest('.canvas-frame');
+  makeGuideDraggable(document.getElementById('nameGuide'), frame,
+    ()=>({x:guideNameOffsetX, y:guideNameY}), (x,y)=>{ guideNameOffsetX = x; guideNameY = y; });
+  makeGuideDraggable(document.getElementById('priceGuide'), frame,
+    ()=>({x:guidePriceOffsetX, y:guidePriceY}), (x,y)=>{ guidePriceOffsetX = x; guidePriceY = y; });
+  makeGuideDraggable(document.getElementById('extraGuide'), frame,
+    ()=>({x:guideExtraOffsetX, y:guideExtraY}), (x,y)=>{ guideExtraOffsetX = x; guideExtraY = y; });
+  syncGuideVisuals();
+}
+
+document.getElementById('storyPor').addEventListener('input', drawStory);
+document.getElementById('storyName').addEventListener('input', drawStory);
+document.getElementById('storyLogoColor').addEventListener('input', drawStory);
+document.getElementById('storyDescColor').addEventListener('input', drawStory);
+document.getElementById('storyPriceColor').addEventListener('input', drawStory);
+
+// Função genérica de pintura do story — usada tanto pelo preview ao vivo quanto
+// pelo botão "gerar story individual" de cada produto do panfleto.
+function paintStoryArt(ctx, W, H, { image, name, de, por, emoji, logoColor, descColor, priceColor, nameY, priceY, nameFontSize, priceFontSize, extraText, extraY, extraBgColor, extraTextColor, extraFontSize, nameMargin, priceMargin, extraMargin, nameOffsetX, priceOffsetX, extraOffsetX }){
+  logoColor = logoColor || '#436000';
+  descColor = descColor || '#FFFFFF';
+  priceColor = priceColor || '#E30613';
+  nameY = (nameY !== undefined) ? nameY : 130;
+  priceY = (priceY !== undefined) ? priceY : 320;
+  extraY = (extraY !== undefined) ? extraY : 560;
+  nameFontSize = nameFontSize || 40;
+  priceFontSize = priceFontSize || 62;
+  nameMargin = (nameMargin !== undefined) ? nameMargin : 60;
+  priceMargin = (priceMargin !== undefined) ? priceMargin : 60;
+  extraMargin = (extraMargin !== undefined) ? extraMargin : 60;
+
+  ctx.clearRect(0,0,W,H);
+
+  if(image){
+    drawImageCover(ctx, image, 0, 0, W, H);
+  } else {
+    ctx.fillStyle = '#DDEBD8';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#7A8F72';
+    ctx.font = '500 34px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Escolha a foto do produto', W/2, H/2);
+  }
+
+  // faixa com o nome do produto (opcional) — posição, tamanho e margem lateral configuráveis
+  if(name){
+    ctx.save();
+    const badgeW = W - nameMargin*2; const badgeX = guideBadgeX(nameMargin, nameOffsetX||0);
+    ctx.font = '600 ' + nameFontSize + 'px Fredoka';
+    const nameLines = wrapTextLines(ctx, name.toUpperCase(), badgeW - 60);
+    const nameLineH = Math.round(nameFontSize * 1.3);
+    const namePadV = Math.round(nameFontSize * 0.6);
+    const nameH = nameLines.length*nameLineH + namePadV*2;
+
+    ctx.fillStyle = logoColor;
+    roundRect(ctx, badgeX, nameY, badgeW, nameH, 28);
+    ctx.fill();
+
+    ctx.fillStyle = descColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    nameLines.forEach((line, i)=>{
+      ctx.fillText(line, badgeX + badgeW/2, nameY + namePadV + nameLineH/2 + i*nameLineH);
+    });
+    ctx.restore();
+  }
+
+  // faixa de preço — posição, tamanho e margem lateral configuráveis
+  if(de || por){
+    ctx.save();
+    const badgeW = W - priceMargin*2; const badgeX = guideBadgeX(priceMargin, priceOffsetX||0);
+    const deFontSize = Math.max(24, priceFontSize - 8);
+    const deText = de ? 'De: R$' + fmtMoney(de) : '';
+    const porText = por ? 'Por: R$' + fmtMoney(por) + ' ' + (emoji||'') : '';
+    const lineH = Math.round(priceFontSize * 1.48);
+    const padV = Math.round(priceFontSize * 0.55);
+    const badgeH = (deText && porText) ? lineH*2 + padV*2 : lineH + padV*2;
+    const cursorY = priceY;
+
+    ctx.fillStyle = '#FBD6E4';
+    roundRect(ctx, badgeX, cursorY, badgeW, badgeH, 34);
+    ctx.fill();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let ty = cursorY + padV + lineH/2;
+
+    if(deText){
+      ctx.font = '700 ' + deFontSize + 'px Fredoka';
+      ctx.fillStyle = priceColor;
+      const deW = ctx.measureText(deText).width;
+      ctx.fillText(deText, badgeX + badgeW/2, ty);
+      ctx.strokeStyle = priceColor;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(badgeX + badgeW/2 - deW/2 - 4, ty);
+      ctx.lineTo(badgeX + badgeW/2 + deW/2 + 4, ty);
+      ctx.stroke();
+      ty += lineH;
+    }
+    if(porText){
+      ctx.font = '700 ' + priceFontSize + 'px Fredoka';
+      ctx.fillStyle = priceColor;
+      ctx.fillText(porText, badgeX + badgeW/2, ty);
+    }
+    ctx.restore();
+  }
+
+  // faixa de frases extras (opcional) — posição, cor, tamanho e margem lateral configuráveis
+  if(extraText){
+    const lines = extraText.split('\n').map(s=>s.trim()).filter(Boolean);
+    if(lines.length){
+      ctx.save();
+      const badgeW = W - extraMargin*2; const badgeX = guideBadgeX(extraMargin, extraOffsetX||0);
+      const fSize = extraFontSize || 32;
+      ctx.font = '600 ' + fSize + 'px Inter';
+      const extraLineH = Math.round(fSize * 1.375);
+      const extraPadV = Math.round(fSize * 0.625);
+      const extraH = lines.length*extraLineH + extraPadV*2;
+
+      ctx.fillStyle = extraBgColor || 'rgba(23,60,58,0.82)';
+      roundRect(ctx, badgeX, extraY, badgeW, extraH, 24);
+      ctx.fill();
+
+      ctx.fillStyle = extraTextColor || '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      lines.forEach((line, i)=>{
+        ctx.fillText(line, badgeX + badgeW/2, extraY + extraPadV + extraLineH/2 + i*extraLineH);
+      });
+      ctx.restore();
+    }
+  }
+}
+
+function wrapTextLines(ctx, text, maxWidth){
+  const words = text.split(' ');
+  let line = '';
+  const lines = [];
+  words.forEach(word=>{
+    const test = line + word + ' ';
+    if(ctx.measureText(test).width > maxWidth && line !== ''){
+      lines.push(line.trim());
+      line = word + ' ';
+    } else {
+      line = test;
+    }
+  });
+  if(line.trim()) lines.push(line.trim());
+  return lines.slice(0, 3);
+}
+
+function isNameEnabled(){ return document.getElementById('storyNameEnabled').checked; }
+function isPriceEnabled(){ return document.getElementById('storyPriceEnabled').checked; }
+function isExtraEnabled(){ return document.getElementById('storyExtraEnabled').checked; }
+
+function drawStory(){
+  const canvas = document.getElementById('storyCanvas');
+  const ctx = canvas.getContext('2d');
+  paintStoryArt(ctx, canvas.width, canvas.height, {
+    image: storyImage,
+    name: isNameEnabled() ? document.getElementById('storyName').value.trim() : '',
+    de: isPriceEnabled() ? document.getElementById('storyDe').value : '',
+    por: isPriceEnabled() ? document.getElementById('storyPor').value : '',
+    emoji: storyEmoji,
+    logoColor: document.getElementById('storyLogoColor').value,
+    descColor: document.getElementById('storyDescColor').value,
+    priceColor: document.getElementById('storyPriceColor').value,
+    nameY: guideNameY,
+    priceY: guidePriceY,
+    nameOffsetX: guideNameOffsetX,
+    priceOffsetX: guidePriceOffsetX,
+    nameFontSize: Number(document.getElementById('storyNameSize').value),
+    priceFontSize: Number(document.getElementById('storyPriceSize').value),
+    extraText: isExtraEnabled() ? document.getElementById('storyExtraText').value : '',
+    extraBgColor: document.getElementById('storyExtraBgColor').value,
+    extraTextColor: document.getElementById('storyExtraTextColor').value,
+    extraFontSize: Number(document.getElementById('storyExtraSize').value),
+    nameMargin: Number(document.getElementById('storyNameMargin').value),
+    priceMargin: Number(document.getElementById('storyPriceMargin').value),
+    extraMargin: Number(document.getElementById('storyExtraMargin').value),
+    extraOffsetX: guideExtraOffsetX,
+    extraY: guideExtraY
+  });
+}
+document.getElementById('storyNameSize').addEventListener('input', (e)=>{
+  document.getElementById('storyNameSizeVal').textContent = e.target.value;
+  drawStory();
+});
+document.getElementById('storyPriceSize').addEventListener('input', (e)=>{
+  document.getElementById('storyPriceSizeVal').textContent = e.target.value;
+  drawStory();
+});
+document.getElementById('storyExtraText').addEventListener('input', drawStory);
+document.getElementById('storyExtraBgColor').addEventListener('input', drawStory);
+document.getElementById('storyExtraTextColor').addEventListener('input', drawStory);
+document.getElementById('storyExtraSize').addEventListener('input', (e)=>{
+  document.getElementById('storyExtraSizeVal').textContent = e.target.value;
+  drawStory();
+});
+document.getElementById('storyNameMargin').addEventListener('input', (e)=>{
+  document.getElementById('storyNameMarginVal').textContent = e.target.value;
+  syncGuideVisuals();
+  drawStory();
+});
+document.getElementById('storyPriceMargin').addEventListener('input', (e)=>{
+  document.getElementById('storyPriceMarginVal').textContent = e.target.value;
+  syncGuideVisuals();
+  drawStory();
+});
+document.getElementById('storyExtraMargin').addEventListener('input', (e)=>{
+  document.getElementById('storyExtraMarginVal').textContent = e.target.value;
+  syncGuideVisuals();
+  drawStory();
+});
+document.getElementById('storyNameEnabled').addEventListener('change', ()=>{ syncGuideVisuals(); drawStory(); });
+document.getElementById('storyPriceEnabled').addEventListener('change', ()=>{ syncGuideVisuals(); drawStory(); });
+document.getElementById('storyExtraEnabled').addEventListener('change', ()=>{ syncGuideVisuals(); drawStory(); });
+
+document.getElementById('storyDownloadBtn').addEventListener('click', ()=>{
+  const canvas = document.getElementById('storyCanvas');
+  const link = document.createElement('a');
+  link.download = 'story-drogaria-center-' + Date.now() + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+});
+
+// Gera um story individual a partir de um produto já cadastrado no panfleto
+// e mostra um preview em tela cheia (mais confiável que baixar "escondido" em celulares)
+function generateIndividualStory(idx){
+  const p = flyerProducts[idx];
+  if(!p){ showAlert('Não encontrei esse produto. Tente recarregar a lista.'); return; }
+
+  try{
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 1080;
+    tempCanvas.height = 1920;
+    const ctx = tempCanvas.getContext('2d');
+    paintStoryArt(ctx, tempCanvas.width, tempCanvas.height, {
+      image: p.img,
+      name: isNameEnabled() ? p.name : '',
+      de: isPriceEnabled() ? p.de : '',
+      por: isPriceEnabled() ? p.por : '',
+      emoji: STORY_EMOJIS[0],
+      logoColor: document.getElementById('storyLogoColor').value,
+      descColor: document.getElementById('storyDescColor').value,
+      priceColor: document.getElementById('storyPriceColor').value,
+      nameY: guideNameY,
+      priceY: guidePriceY,
+      nameOffsetX: guideNameOffsetX,
+      priceOffsetX: guidePriceOffsetX,
+      nameFontSize: Number(document.getElementById('storyNameSize').value),
+      priceFontSize: Number(document.getElementById('storyPriceSize').value),
+      extraText: isExtraEnabled() ? document.getElementById('storyExtraText').value : '',
+    extraBgColor: document.getElementById('storyExtraBgColor').value,
+    extraTextColor: document.getElementById('storyExtraTextColor').value,
+    extraFontSize: Number(document.getElementById('storyExtraSize').value),
+    nameMargin: Number(document.getElementById('storyNameMargin').value),
+    priceMargin: Number(document.getElementById('storyPriceMargin').value),
+    extraMargin: Number(document.getElementById('storyExtraMargin').value),
+    extraOffsetX: guideExtraOffsetX,
+      extraY: guideExtraY
+    });
+
+    const dataUrl = tempCanvas.toDataURL('image/png');
+    const fileName = 'story-' + p.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40) + '-' + Date.now() + '.png';
+
+    const previewImg = document.getElementById('storyPreviewImg');
+    const previewDownload = document.getElementById('storyPreviewDownload');
+    previewImg.src = dataUrl;
+    previewDownload.href = dataUrl;
+    previewDownload.setAttribute('download', fileName);
+    document.getElementById('storyPreviewOverlay').style.display = 'flex';
+  }catch(e){
+    console.error(e);
+    showAlert('Não foi possível gerar o story desse produto. Tente novamente (' + e.message + ').');
+  }
+}
+document.getElementById('storyPreviewClose').addEventListener('click', ()=>{
+  document.getElementById('storyPreviewOverlay').style.display = 'none';
+});
+
+// ==================== FLYER ====================
+let flyerProducts = [];
+let flyerPendingImage = null;
+let flyerSwapTargetIdx = null;
+
+const flyerUploadBox = document.getElementById('flyerUploadBox');
+const flyerFileInput = document.getElementById('flyerFileInput');
+flyerUploadBox.addEventListener('click', ()=> flyerFileInput.click());
+function setFlyerPendingImage(img){
+  flyerPendingImage = img;
+  flyerUploadBox.classList.add('has-image');
+  flyerUploadBox.innerHTML = '<img src="'+img.src+'">';
+}
+flyerFileInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  setFlyerPendingImage(await loadImageFromFile(file));
+});
+document.getElementById('flyerCameraBtn').addEventListener('click', ()=>{
+  openCamera((img)=> setFlyerPendingImage(img));
+});
+document.getElementById('flyerSwapImageInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(file && flyerSwapTargetIdx !== null){
+    flyerProducts[flyerSwapTargetIdx].img = await loadImageFromFile(file);
+    renderProductList();
+    drawFlyer();
+  }
+  e.target.value = '';
+  flyerSwapTargetIdx = null;
+});
+
+document.getElementById('flyerAddBtn').addEventListener('click', ()=>{
+  const name = document.getElementById('flyerName').value.trim();
+  const de = document.getElementById('flyerDe').value;
+  const por = document.getElementById('flyerPor').value;
+  if(!flyerPendingImage){ showAlert('Escolha a foto do produto antes de adicionar.'); return; }
+  if(!name){ showAlert('Digite o nome do produto.'); return; }
+  if(!por){ showAlert('Digite o preço "Por".'); return; }
+
+  flyerProducts.push({ img: flyerPendingImage, name, de, por });
+
+  flyerPendingImage = null;
+  flyerUploadBox.classList.remove('has-image');
+  flyerUploadBox.innerHTML = '📷 Clique para escolher a foto do produto';
+  document.getElementById('flyerName').value = '';
+  document.getElementById('flyerDe').value = '';
+  document.getElementById('flyerPor').value = '';
+  flyerFileInput.value = '';
+
+  renderProductList();
+  drawFlyer();
+});
+
+function renderProductList(){
+  const el = document.getElementById('flyerProductList');
+  el.innerHTML = '';
+  if(flyerProducts.length === 0){
+    el.innerHTML = '<div class="empty-note">Nenhum produto adicionado ainda.</div>';
+    return;
+  }
+  flyerProducts.forEach((p, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'product-row';
+    row.innerHTML = `
+      <img src="${p.img.src}">
+      <div class="pinfo">
+        <div class="pname">${p.name}</div>
+        <div class="pprice">${p.de ? 'De R$'+fmtMoney(p.de)+' · ' : ''}Por R$${fmtMoney(p.por)}</div>
+      </div>
+      <button data-swap="${idx}" title="Trocar foto (galeria)">🔄</button>
+      <button data-camswap="${idx}" title="Trocar foto (câmera)">📸</button>
+      <button data-story="${idx}" title="Gerar story individual deste produto">📱</button>
+      <button data-remove="${idx}">Remover</button>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('[data-story]').forEach(btn=>{
+    btn.addEventListener('click', ()=> generateIndividualStory(Number(btn.dataset.story)));
+  });
+  el.querySelectorAll('[data-swap]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      flyerSwapTargetIdx = Number(btn.dataset.swap);
+      document.getElementById('flyerSwapImageInput').click();
+    });
+  });
+  el.querySelectorAll('[data-camswap]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      openCamera((img)=>{
+        flyerProducts[Number(btn.dataset.camswap)].img = img;
+        renderProductList();
+        drawFlyer();
+      });
+    });
+  });
+  el.querySelectorAll('[data-remove]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      flyerProducts.splice(Number(btn.dataset.remove), 1);
+      renderProductList();
+      drawFlyer();
+    });
+  });
+}
+
+document.getElementById('flyerTitle').addEventListener('input', drawFlyer);
+document.getElementById('flyerLink').addEventListener('input', drawFlyer);
+['flyerStoreName','flyerStoreNameAlign','flyerTitleAlign','flyerFooterText1','flyerFooterText1Align','flyerFooterText2','flyerFooterText2Align','flyerQrAlign'].forEach(id=>{
+  const el = document.getElementById(id);
+  el.addEventListener('input', drawFlyer);
+  el.addEventListener('change', drawFlyer);
+});
+document.getElementById('flyerLogoColor').addEventListener('input', drawFlyer);
+document.getElementById('flyerDescColor').addEventListener('input', drawFlyer);
+document.getElementById('flyerPriceColor').addEventListener('input', drawFlyer);
+
+const FLYER_SIZE_PRESETS = {
+  3:  { cardW: 320, photoH: 260, cardH: 430 },
+  6:  { cardW: 280, photoH: 190, cardH: 350 },
+  9:  { cardW: 260, photoH: 140, cardH: 300 },
+  12: { cardW: 230, photoH: 100, cardH: 260 }
+};
+
+let flyerPageCanvases = [];
+let flyerPageIndex = 0;
+let flyerBackgroundImage = null;
+
+// Desenha texto respeitando a posição escolhida (esquerda/centro/direita), com margem "pad" nas bordas
+function drawAlignedText(ctx, text, y, align, pad, W){
+  if(align === 'center'){ ctx.textAlign = 'center'; ctx.fillText(text, W/2, y); }
+  else if(align === 'right'){ ctx.textAlign = 'right'; ctx.fillText(text, W-pad, y); }
+  else { ctx.textAlign = 'left'; ctx.fillText(text, pad, y); }
+}
+
+function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
+  const cols = 3;
+  const { cardW, cardH, photoH } = sizing;
+  const gap = 24, pad = Number(document.getElementById('flyerPad').value) || 40;
+  const headerH = 130;
+  const footerH = 190;
+  const rows = Math.max(1, Math.ceil(pageProducts.length / cols));
+  const W = pad*2 + cols*cardW + (cols-1)*gap;
+  const H = headerH + rows*cardH + (rows-1)*gap + footerH + pad;
+
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const logoColor = document.getElementById('flyerLogoColor').value || '#436000';
+  const descColor = document.getElementById('flyerDescColor').value || '#173C3A';
+  const priceColor = document.getElementById('flyerPriceColor').value || '#436000';
+  const nameFontSize = Number(document.getElementById('flyerNameSize').value) || 15;
+  const priceFontSize = Number(document.getElementById('flyerPriceSize').value) || 19;
+  const deFontSize = Math.max(10, priceFontSize - 5);
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0,0,W,H);
+
+  // Quando há imagem de fundo e o criador desmarcar a opção, remove faixas brancas E as linhas divisórias
+  const keepWhiteBars = flyerBackgroundImage ? document.getElementById('flyerBgWhiteBars').checked : true;
+
+  if(flyerBackgroundImage){
+    ctx.globalAlpha = 1;
+    drawImageCover(ctx, flyerBackgroundImage, 0, 0, W, H);
+    if(keepWhiteBars){
+      // faixa translúcida atrás do cabeçalho/rodapé pra manter o texto legível sobre o fundo — opcional
+      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      ctx.fillRect(0, 0, W, headerH);
+      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      ctx.fillRect(0, H-footerH, W, footerH);
+    }
+  }
+
+  // header
+  const storeName = document.getElementById('flyerStoreName').value.trim() || 'Drogaria Center';
+  const storeNameAlign = document.getElementById('flyerStoreNameAlign').value;
+  ctx.fillStyle = logoColor;
+  ctx.font = '700 34px "Space Grotesk"';
+  ctx.textBaseline = 'alphabetic';
+  drawAlignedText(ctx, storeName, 56, storeNameAlign, pad, W);
+
+  const title = document.getElementById('flyerTitle').value || 'Ofertas';
+  const titleAlign = document.getElementById('flyerTitleAlign').value;
+  ctx.fillStyle = logoColor;
+  ctx.font = '600 22px Inter';
+  let titleText = title;
+  if(totalPages > 1) titleText += ' — parte ' + pageNum + '/' + totalPages;
+  drawAlignedText(ctx, titleText, 88, titleAlign, pad, W);
+
+  if(keepWhiteBars){
+    ctx.strokeStyle = '#D8E7E2';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pad, headerH-20);
+    ctx.lineTo(W-pad, headerH-20);
+    ctx.stroke();
+  }
+
+  // grid
+  pageProducts.forEach((p, idx)=>{
+    const col = idx % cols;
+    const row = Math.floor(idx / cols);
+    const x = pad + col*(cardW+gap);
+    const y = headerH + row*(cardH+gap);
+
+    ctx.fillStyle = '#FBFDF9';
+    ctx.strokeStyle = '#E4E9E0';
+    ctx.lineWidth = 1;
+    roundRect(ctx, x, y, cardW, cardH, 14);
+    ctx.fill(); ctx.stroke();
+
+    const photoPad = 14;
+    drawImageContain(ctx, p.img, x+photoPad, y+photoPad, cardW-photoPad*2, photoH);
+
+    let cursorY = y + photoPad + photoH + 24;
+
+    ctx.fillStyle = descColor;
+    ctx.font = '700 ' + nameFontSize + 'px Inter';
+    ctx.textAlign = 'left';
+    wrapText(ctx, p.name.toUpperCase(), x+photoPad, cursorY, cardW-photoPad*2, Math.round(nameFontSize*1.25), 2);
+    cursorY += Math.round(nameFontSize*1.25*2) + 12;
+
+    if(p.de){
+      ctx.fillStyle = '#9AA79A';
+      ctx.font = '400 ' + deFontSize + 'px Inter';
+      const deText = 'De: R$' + fmtMoney(p.de);
+      ctx.fillText(deText, x+photoPad, cursorY);
+      const w = ctx.measureText(deText).width;
+      ctx.strokeStyle = '#9AA79A'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(x+photoPad, cursorY-5); ctx.lineTo(x+photoPad+w, cursorY-5); ctx.stroke();
+      cursorY += Math.round(priceFontSize*1.25);
+    }
+    ctx.fillStyle = priceColor;
+    ctx.font = '700 ' + priceFontSize + 'px Inter';
+    ctx.fillText('Por: R$' + fmtMoney(p.por), x+photoPad, cursorY);
+
+    const pct = discountPct(p.de, p.por);
+    if(pct !== null && pct > 0){
+      const badgeFontSize = Number(document.getElementById('flyerBadgeSize').value) || 13;
+      ctx.fillStyle = '#FCEFD8';
+      const badgeText = '-' + pct + '%';
+      ctx.font = '700 ' + badgeFontSize + 'px Inter';
+      const bw = ctx.measureText(badgeText).width + 18;
+      const bh = Math.round(badgeFontSize * 1.85);
+      roundRect(ctx, x+photoPad, cursorY+12, bw, bh, bh/2);
+      ctx.fill();
+      ctx.fillStyle = '#C98A1D';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(badgeText, x+photoPad+9, cursorY+12+bh/2);
+      ctx.textBaseline = 'alphabetic';
+    }
+  });
+
+  if(pageProducts.length === 0){
+    ctx.fillStyle = '#9AA79A';
+    ctx.font = '500 18px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Adicione produtos pra ver o panfleto aqui', W/2, headerH + 100);
+  }
+
+  // footer
+  const footerY = H - footerH;
+  if(keepWhiteBars){
+    ctx.strokeStyle = '#D8E7E2';
+    ctx.beginPath();
+    ctx.moveTo(pad, footerY);
+    ctx.lineTo(W-pad, footerY);
+    ctx.stroke();
+  }
+
+  const link = document.getElementById('flyerLink').value.trim();
+  const qrAlign = document.getElementById('flyerQrAlign').value;
+  const hasQr = link && window.QRCode;
+  if(hasQr){
+    const qrX = (qrAlign === 'right') ? (W - pad - 130) : pad;
+    renderQrToCanvas(ctx, link, qrX, footerY+30, 130);
+  }
+
+  const footerText1 = document.getElementById('flyerFooterText1').value;
+  const footerText1Align = document.getElementById('flyerFooterText1Align').value;
+  const footerText2 = document.getElementById('flyerFooterText2').value;
+  const footerText2Align = document.getElementById('flyerFooterText2Align').value;
+
+  ctx.fillStyle = '#173C3A';
+  ctx.font = '600 16px Inter';
+  if(footerText1) drawAlignedText(ctx, footerText1, footerY+55, footerText1Align, pad, W);
+
+  ctx.fillStyle = '#628B00';
+  ctx.font = '400 13px Inter';
+  if(footerText2) drawAlignedText(ctx, footerText2, footerY+78, footerText2Align, pad, W);
+}
+
+function buildFlyerPages(){
+  const perPage = Number(document.getElementById('flyerPerPage').value) || 9;
+  const sizing = FLYER_SIZE_PRESETS[perPage] || FLYER_SIZE_PRESETS[9];
+  const pages = [];
+  const totalPages = Math.max(1, Math.ceil(flyerProducts.length / perPage));
+  for(let i=0; i<totalPages; i++){
+    const chunk = flyerProducts.slice(i*perPage, (i+1)*perPage);
+    const pageCanvas = document.createElement('canvas');
+    renderFlyerPage(pageCanvas, chunk, sizing, i+1, totalPages);
+    pages.push(pageCanvas);
+  }
+  return pages;
+}
+
+function drawFlyer(){
+  flyerPageCanvases = buildFlyerPages();
+  if(flyerPageIndex >= flyerPageCanvases.length) flyerPageIndex = flyerPageCanvases.length - 1;
+  if(flyerPageIndex < 0) flyerPageIndex = 0;
+
+  const visible = document.getElementById('flyerCanvas');
+  const current = flyerPageCanvases[flyerPageIndex];
+  visible.width = current.width;
+  visible.height = current.height;
+  visible.getContext('2d').drawImage(current, 0, 0);
+
+  document.getElementById('flyerPageLabel').textContent = 'Página ' + (flyerPageIndex+1) + '/' + flyerPageCanvases.length;
+  document.getElementById('flyerPageNav').style.display = flyerPageCanvases.length > 1 ? 'flex' : 'none';
+}
+
+document.getElementById('flyerPrevPageBtn').addEventListener('click', ()=>{
+  if(flyerPageIndex > 0){ flyerPageIndex--; drawFlyer(); }
+});
+document.getElementById('flyerNextPageBtn').addEventListener('click', ()=>{
+  if(flyerPageIndex < flyerPageCanvases.length-1){ flyerPageIndex++; drawFlyer(); }
+});
+document.getElementById('flyerPerPage').addEventListener('change', ()=>{ flyerPageIndex = 0; drawFlyer(); });
+document.getElementById('flyerNameSize').addEventListener('input', (e)=>{
+  document.getElementById('flyerNameSizeVal').textContent = e.target.value;
+  drawFlyer();
+});
+document.getElementById('flyerPriceSize').addEventListener('input', (e)=>{
+  document.getElementById('flyerPriceSizeVal').textContent = e.target.value;
+  drawFlyer();
+});
+document.getElementById('flyerPad').addEventListener('input', (e)=>{
+  document.getElementById('flyerPadVal').textContent = e.target.value;
+  drawFlyer();
+});
+document.getElementById('flyerBadgeSize').addEventListener('input', (e)=>{
+  document.getElementById('flyerBadgeSizeVal').textContent = e.target.value;
+  drawFlyer();
+});
+
+const flyerBgUploadBox = document.getElementById('flyerBgUploadBox');
+const flyerBgFileInput = document.getElementById('flyerBgFileInput');
+flyerBgUploadBox.addEventListener('click', ()=> flyerBgFileInput.click());
+flyerBgFileInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  flyerBackgroundImage = await loadImageFromFile(file);
+  flyerBgUploadBox.textContent = '🖼️ ' + file.name;
+  drawFlyer();
+});
+document.getElementById('flyerBgWhiteBars').addEventListener('change', drawFlyer);
+document.getElementById('flyerBgRemoveBtn').addEventListener('click', ()=>{
+  flyerBackgroundImage = null;
+  flyerBgUploadBox.textContent = '🖼️ Escolher imagem de fundo';
+  drawFlyer();
+});
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines){
+  const words = text.split(' ');
+  let line = '';
+  let lines = [];
+  words.forEach(word=>{
+    const test = line + word + ' ';
+    if(ctx.measureText(test).width > maxWidth && line !== ''){
+      lines.push(line.trim());
+      line = word + ' ';
+    } else {
+      line = test;
+    }
+  });
+  lines.push(line.trim());
+  lines = lines.slice(0, maxLines);
+  lines.forEach((l, i)=> ctx.fillText(l, x, y + i*lineHeight));
+}
+
+let qrCache = {};
+function renderQrToCanvas(ctx, text, x, y, size){
+  if(!qrCache[text]){
+    const tempDiv = document.createElement('div');
+    new QRCode(tempDiv, { text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+    const qImg = tempDiv.querySelector('img') || tempDiv.querySelector('canvas');
+    qrCache[text] = qImg;
+  }
+  const el = qrCache[text];
+  if(el){
+    try{ ctx.drawImage(el, x, y, size, size); }catch(e){ /* ainda carregando */ setTimeout(()=>drawFlyer(), 200); }
+  }
+}
+
+document.getElementById('flyerDownloadBtn').addEventListener('click', async ()=>{
+  if(flyerPageCanvases.length <= 1){
+    const canvas = document.getElementById('flyerCanvas');
+    const link = document.createElement('a');
+    link.download = 'panfleto-drogaria-center-' + Date.now() + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    return;
+  }
+
+  if(!window.JSZip){ showAlert('Não foi possível carregar a ferramenta de compactação (.zip). Verifique sua conexão com a internet e recarregue a página.'); return; }
+
+  const btn = document.getElementById('flyerDownloadBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Gerando…';
+  btn.disabled = true;
+  try{
+    const zip = new JSZip();
+    for(let i=0; i<flyerPageCanvases.length; i++){
+      const blob = await new Promise(resolve=> flyerPageCanvases[i].toBlob(resolve, 'image/png'));
+      zip.file('panfleto-parte-' + (i+1) + '.png', blob);
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.download = 'panfletos-drogaria-center-' + Date.now() + '.zip';
+    link.href = URL.createObjectURL(zipBlob);
+    link.click();
+  }catch(e){
+    console.error(e);
+    showAlert('Não foi possível gerar os panfletos. Tente novamente.');
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+});
+
+// ==================== BATCH (importar planilha) ====================
+let batchProducts = []; // {description, normal, promo, ean, img, imgStatus: 'pending'|'searching'|'found'|'manual'|'failed'}
+let batchManualTargetIdx = null;
+
+function parseMoneyCell(v){
+  if(v === null || v === undefined || v === '') return null;
+  if(typeof v === 'number') return v;
+  const n = parseFloat(String(v).replace(/[^\d,.-]/g,'').replace(',','.'));
+  return isNaN(n) ? null : n;
+}
+function normalizeHeader(h){ return String(h||'').trim().toLowerCase(); }
+
+function parseWorkbookToProducts(workbook){
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+  if(!rows.length) return [];
+
+  const headerRow = rows[0].map(normalizeHeader);
+  const findCol = (...keywords) => headerRow.findIndex(h => keywords.some(k => h.includes(k)));
+
+  const colDesc = findCol('produto', 'descri');
+  const colNormal = findCol('preço normal', 'preco normal', 'normal');
+  const colPromo = findCol('promo');
+  const colEan = findCol('ean');
+
+  if(colDesc === -1){ return null; } // planilha não reconhecida
+
+  const products = [];
+  for(let i=1; i<rows.length; i++){
+    const row = rows[i];
+    if(!row) continue;
+    const desc = row[colDesc];
+    if(!desc || typeof desc !== 'string' || !desc.trim()) continue;
+    if(desc.toLowerCase().includes('total de itens')) continue;
+
+    const normal = colNormal!==-1 ? parseMoneyCell(row[colNormal]) : null;
+    const promo = colPromo!==-1 ? parseMoneyCell(row[colPromo]) : null;
+    let ean = colEan!==-1 ? row[colEan] : null;
+    if(typeof ean === 'number') ean = String(Math.round(ean));
+    else if(ean) ean = String(ean).trim();
+
+    products.push({
+      description: desc.trim(),
+      normal, promo, ean,
+      img: null,
+      imgStatus: 'pending'
+    });
+  }
+  return products;
+}
+
+const batchUploadBox = document.getElementById('batchUploadBox');
+const batchFileInput = document.getElementById('batchFileInput');
+batchUploadBox.addEventListener('click', ()=> batchFileInput.click());
+batchFileInput.addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('batchImportStatus');
+  statusEl.textContent = 'Lendo planilha…';
+
+  const reader = new FileReader();
+  reader.onload = (evt)=>{
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      const products = parseWorkbookToProducts(workbook);
+      if(products === null){
+        statusEl.textContent = 'Não consegui identificar as colunas dessa planilha. Confirme que ela tem uma coluna com o nome do produto.';
+        return;
+      }
+      if(products.length === 0){
+        statusEl.textContent = 'Nenhum produto encontrado nessa planilha.';
+        return;
+      }
+      batchProducts = products;
+      statusEl.textContent = products.length + ' produto(s) importado(s) com sucesso.';
+      document.getElementById('batchListPanel').style.display = 'block';
+      renderBatchList();
+    }catch(err){
+      console.error(err);
+      statusEl.textContent = 'Não foi possível ler esse arquivo. Confirme que é um .xls ou .xlsx válido.';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function renderBatchList(){
+  document.getElementById('batchCount').textContent = batchProducts.length;
+  const el = document.getElementById('batchProductList');
+  el.innerHTML = '';
+  batchProducts.forEach((p, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'batch-row';
+
+    const statusLabel = {
+      pending: 'Sem imagem', searching: 'Buscando…', found: 'Imagem encontrada',
+      manual: 'Foto manual', failed: 'Busca falhou'
+    }[p.imgStatus] || 'Sem imagem';
+
+    row.innerHTML = `
+      <div class="thumb">${p.img ? '' : '💊'}</div>
+      <div class="binfo">
+        <div class="bname">${p.description}</div>
+        <div class="bprice">${p.normal ? 'De R$'+fmtMoney(p.normal)+' · ' : ''}${p.promo ? 'Por R$'+fmtMoney(p.promo) : 'sem preço promo'} ${p.ean ? '· EAN '+p.ean : ''}</div>
+        <span class="bstatus ${p.imgStatus}">${statusLabel}</span>
+      </div>
+      <div class="bactions">
+        <button data-search="${idx}">🔍 Buscar</button>
+        <button data-manual="${idx}">📤 Trocar</button>
+        <button data-cam="${idx}">📸 Foto</button>
+        <button class="del" data-delbatch="${idx}">Remover</button>
+      </div>
+    `;
+    if(p.img) row.querySelector('.thumb').innerHTML = `<img src="${p.img.src}" style="width:100%;height:100%;object-fit:cover;">`;
+    el.appendChild(row);
+  });
+
+  el.querySelectorAll('[data-search]').forEach(btn=> btn.addEventListener('click', ()=> searchImageForProduct(Number(btn.dataset.search))));
+  el.querySelectorAll('[data-manual]').forEach(btn=> btn.addEventListener('click', ()=>{
+    batchManualTargetIdx = Number(btn.dataset.manual);
+    document.getElementById('batchManualImageInput').click();
+  }));
+  el.querySelectorAll('[data-cam]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const idx = Number(btn.dataset.cam);
+    openCamera((img)=>{
+      batchProducts[idx].img = img;
+      batchProducts[idx].imgStatus = 'manual';
+      renderBatchList();
+    });
+  }));
+  el.querySelectorAll('[data-delbatch]').forEach(btn=> btn.addEventListener('click', ()=>{
+    batchProducts.splice(Number(btn.dataset.delbatch), 1);
+    renderBatchList();
+  }));
+}
+
+document.getElementById('batchManualImageInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(file && batchManualTargetIdx !== null){
+    const img = await loadImageFromFile(file);
+    batchProducts[batchManualTargetIdx].img = img;
+    batchProducts[batchManualTargetIdx].imgStatus = 'manual';
+    renderBatchList();
+  }
+  e.target.value = '';
+  batchManualTargetIdx = null;
+});
+
+// Testa se uma imagem carregada de outra origem pode ser usada num canvas exportável
+// (muitos sites bloqueiam isso via CORS — só descobrimos tentando).
+function testImageExportable(img){
+  try{
+    const c = document.createElement('canvas');
+    c.width = 2; c.height = 2;
+    const cx = c.getContext('2d');
+    cx.drawImage(img, 0, 0, 2, 2);
+    c.toDataURL();
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+// Base da API e sessão do PharmaMind — lidas do link que abriu essa ferramenta
+// (?api=...) e do localStorage da própria sessão logada (mesmo domínio do front).
+// A busca automática de imagem passa pelo NOSSO backend (nunca direto pra
+// Anthropic): a chave fica só no servidor, e a rota é protegida por login de
+// gestor, já que cada chamada tem custo (usa busca na web).
+function getApiBaseUrl(){
+  const fromQuery = new URLSearchParams(location.search).get('api');
+  if(fromQuery) return fromQuery;
+  return location.protocol + '//' + location.hostname + ':3333/api';
+}
+function getAuthToken(){
+  // Busca automática é gestor-only — usa a sessão de gestor especificamente
+  // (gestor e funcionário têm sessões separadas no localStorage do PharmaMind).
+  try{
+    const raw = localStorage.getItem('drogaria:session:gestor');
+    if(!raw) return null;
+    return (JSON.parse(raw) || {}).token || null;
+  }catch(e){ return null; }
+}
+
+async function searchImageForProduct(idx){
+  const p = batchProducts[idx];
+  if(!p) return;
+
+  const token = getAuthToken();
+  if(!token){
+    showAlert('Faça login no PharmaMind (numa aba dessa mesma janela) pra usar a busca automática de imagem.');
+    return;
+  }
+
+  p.imgStatus = 'searching';
+  renderBatchList();
+
+  try{
+    const response = await fetch(getApiBaseUrl() + '/cartazes/buscar-imagem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ descricao: p.description, ean: p.ean || undefined })
+    });
+    const data = await response.json();
+    if(!response.ok) throw new Error((data && data.message) || 'Erro na busca');
+
+    const parsed = { image_url: data.imageUrl };
+    if(!parsed.image_url){ p.imgStatus = 'failed'; renderBatchList(); return; }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject)=>{
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = parsed.image_url;
+    });
+
+    if(testImageExportable(img)){
+      p.img = img;
+      p.imgStatus = 'found';
+    } else {
+      p.imgStatus = 'failed';
+    }
+  }catch(e){
+    console.error(e);
+    p.imgStatus = 'failed';
+  }
+  renderBatchList();
+}
+
+document.getElementById('batchSearchAllBtn').addEventListener('click', async ()=>{
+  for(let i=0; i<batchProducts.length; i++){
+    if(batchProducts[i].img) continue;
+    await searchImageForProduct(i);
+  }
+});
+
+document.getElementById('batchToFlyerBtn').addEventListener('click', ()=>{
+  const withImage = batchProducts.filter(p=> p.img);
+  if(withImage.length === 0){ showAlert('Nenhum produto tem imagem ainda. Busque ou envie fotos antes de usar no panfleto.'); return; }
+  flyerProducts = withImage.map(p=> ({ img: p.img, name: p.description, de: p.normal, por: p.promo }));
+  renderProductList();
+  drawFlyer();
+  switchMode('flyer');
+  document.getElementById('tabFlyer').classList.add('active');
+  document.getElementById('tabBatch').classList.remove('active');
+  showToastBatch(withImage.length + ' produto(s) enviados pro panfleto!');
+});
+
+function showToastBatch(msg){
+  let t = document.getElementById('batchToast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'batchToast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green-deep);color:#fff;padding:12px 22px;border-radius:12px;font-weight:600;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,0.2);opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:60;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(()=> t.style.opacity = '0', 2400);
+}
+
+document.getElementById('batchZipBtn').addEventListener('click', async ()=>{
+  const withImage = batchProducts.filter(p=> p.img);
+  if(withImage.length === 0){ showAlert('Nenhum produto tem imagem ainda. Busque ou envie fotos antes de gerar os stories.'); return; }
+  if(!window.JSZip){ showAlert('Não foi possível carregar a ferramenta de compactação (.zip). Verifique sua conexão com a internet e recarregue a página.'); return; }
+
+  const btn = document.getElementById('batchZipBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Gerando…';
+  btn.disabled = true;
+
+  try{
+    const zip = new JSZip();
+    const logoColor = document.getElementById('batchLogoColor').value;
+    const descColor = document.getElementById('batchDescColor').value;
+    const priceColor = document.getElementById('batchPriceColor').value;
+
+    for(let i=0; i<withImage.length; i++){
+      const p = withImage[i];
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = 1080; tempCanvas.height = 1920;
+      const ctx = tempCanvas.getContext('2d');
+      paintStoryArt(ctx, 1080, 1920, {
+        image: p.img, name: isNameEnabled() ? p.description : '', de: isPriceEnabled() ? p.normal : '', por: isPriceEnabled() ? p.promo : '',
+        emoji: STORY_EMOJIS[0], logoColor, descColor, priceColor, nameY: guideNameY, priceY: guidePriceY,
+        nameOffsetX: guideNameOffsetX, priceOffsetX: guidePriceOffsetX, extraOffsetX: guideExtraOffsetX,
+        nameFontSize: Number(document.getElementById('storyNameSize').value),
+        priceFontSize: Number(document.getElementById('storyPriceSize').value),
+        extraText: isExtraEnabled() ? document.getElementById('storyExtraText').value : '',
+    extraBgColor: document.getElementById('storyExtraBgColor').value,
+    extraTextColor: document.getElementById('storyExtraTextColor').value,
+    extraFontSize: Number(document.getElementById('storyExtraSize').value),
+    nameMargin: Number(document.getElementById('storyNameMargin').value),
+    priceMargin: Number(document.getElementById('storyPriceMargin').value),
+    extraMargin: Number(document.getElementById('storyExtraMargin').value),
+        extraY: guideExtraY
+      });
+      const blob = await new Promise(resolve=> tempCanvas.toBlob(resolve, 'image/png'));
+      const safeName = p.description.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40);
+      zip.file('story-' + (i+1) + '-' + safeName + '.png', blob);
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.download = 'stories-drogaria-center-' + Date.now() + '.zip';
+    link.href = URL.createObjectURL(zipBlob);
+    link.click();
+  }catch(e){
+    console.error(e);
+    showAlert('Não foi possível gerar o pacote de stories. Tente novamente.');
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+});
+
+// ==================== CÂMERA (compartilhada) ====================
+let cameraStream = null;
+let cameraCallback = null;
+
+async function openCamera(callback){
+  cameraCallback = callback;
+  const overlay = document.getElementById('cameraOverlay');
+  const errorEl = document.getElementById('cameraError');
+  errorEl.style.display = 'none';
+  overlay.style.display = 'flex';
+  syncGuideVisuals();
+
+  if(!window.isSecureContext){
+    errorEl.textContent = '⚠ A câmera só funciona com o app aberto por HTTPS (ou localhost) — abrir o arquivo direto não é suficiente. Hospede o arquivo num servidor com HTTPS pra usar a câmera.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    errorEl.textContent = '⚠ Este navegador não suporta acesso à câmera. Tente um navegador atualizado (Chrome ou Safari).';
+    errorEl.style.display = 'block';
+    return;
+  }
+  try{
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    document.getElementById('cameraVideo').srcObject = cameraStream;
+  }catch(e){
+    console.error(e);
+    errorEl.textContent = '⚠ Não foi possível acessar a câmera (permissão negada ou nenhuma câmera encontrada).';
+    errorEl.style.display = 'block';
+  }
+}
+
+function closeCamera(){
+  if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream = null; }
+  document.getElementById('cameraOverlay').style.display = 'none';
+  cameraCallback = null;
+}
+document.getElementById('cameraCancelBtn').addEventListener('click', closeCamera);
+
+document.getElementById('cameraCaptureBtn').addEventListener('click', async ()=>{
+  const video = document.getElementById('cameraVideo');
+  if(!video.videoWidth){ return; }
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = 1080; tempCanvas.height = 1920;
+  const ctx = tempCanvas.getContext('2d');
+  drawImageCover(ctx, video, 0, 0, 1080, 1920);
+  const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.92);
+  const img = new Image();
+  await new Promise(resolve=>{ img.onload = resolve; img.src = dataUrl; });
+  const cb = cameraCallback;
+  closeCamera();
+  if(cb) cb(img);
+});
+
+// ==================== COLAR PLANILHA (uma coluna por vez) ====================
+document.getElementById('pasteAddBtn').addEventListener('click', ()=>{
+  const descLines = document.getElementById('pasteDesc').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const normalLines = document.getElementById('pasteNormal').value.split('\n').map(s=>s.trim());
+  const promoLines = document.getElementById('pastePromo').value.split('\n').map(s=>s.trim());
+  const eanLines = document.getElementById('pasteEan').value.split('\n').map(s=>s.trim());
+
+  if(descLines.length === 0){ showAlert('Cole ao menos a descrição dos produtos (uma por linha).'); return; }
+
+  const newProducts = descLines.map((desc, i)=> ({
+    description: desc,
+    normal: parseMoneyCell(normalLines[i] || null),
+    promo: parseMoneyCell(promoLines[i] || null),
+    ean: (eanLines[i] || '').trim() || null,
+    img: null,
+    imgStatus: 'pending'
+  }));
+
+  batchProducts = batchProducts.concat(newProducts);
+  document.getElementById('pasteDesc').value = '';
+  document.getElementById('pasteNormal').value = '';
+  document.getElementById('pastePromo').value = '';
+  document.getElementById('pasteEan').value = '';
+  document.getElementById('batchListPanel').style.display = 'block';
+  document.getElementById('batchImportStatus').textContent = newProducts.length + ' produto(s) adicionado(s) por colagem.';
+  renderBatchList();
+});
+
+// ==================== TEXTO PRONTO (copiar pra WhatsApp/Instagram) ====================
+async function copyToClipboard(text){
+  try{
+    await navigator.clipboard.writeText(text);
+    showToastBatch('Texto copiado! Já pode colar no WhatsApp/Instagram.');
+  }catch(e){
+    // fallback pra navegadores/contextos que bloqueiam a Clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try{
+      document.execCommand('copy');
+      showToastBatch('Texto copiado! Já pode colar no WhatsApp/Instagram.');
+    }catch(e2){
+      showAlert('Não consegui copiar automaticamente. Selecione e copie o texto abaixo:\n\n' + text);
+    }
+    document.body.removeChild(ta);
+  }
+}
+
+function productPromoText(desc, normal, promo){
+  const pct = discountPct(normal, promo);
+  let line = '💊 *' + desc + '*\n';
+  if(normal) line += 'De: R$' + fmtMoney(normal) + '\n';
+  if(promo) line += 'Por: *R$' + fmtMoney(promo) + '*';
+  if(pct && pct > 0) line += ' (-' + pct + '%)';
+  return line;
+}
+
+document.getElementById('storyCopyTextBtn').addEventListener('click', ()=>{
+  const name = document.getElementById('storyName').value.trim() || 'Produto';
+  const de = document.getElementById('storyDe').value;
+  const por = document.getElementById('storyPor').value;
+  const text = '🔥 *OFERTA DROGARIA CENTER* 🔥\n\n' + productPromoText(name, de, por) + '\n\n📍 Corre que é por tempo limitado!';
+  copyToClipboard(text);
+});
+
+document.getElementById('flyerCopyTextBtn').addEventListener('click', ()=>{
+  if(flyerProducts.length === 0){ showAlert('Adicione produtos ao panfleto antes de gerar o texto.'); return; }
+  const title = document.getElementById('flyerTitle').value || 'Ofertas';
+  let text = '🔥 *' + title.toUpperCase() + ' — DROGARIA CENTER* 🔥\n\n';
+  flyerProducts.forEach(p=>{ text += productPromoText(p.name, p.de, p.por) + '\n\n'; });
+  text += '📍 Venha conferir na loja ou chama no WhatsApp!';
+  copyToClipboard(text);
+});
+
+document.getElementById('batchCopyTextBtn').addEventListener('click', ()=>{
+  if(batchProducts.length === 0){ showAlert('Importe produtos antes de gerar o texto.'); return; }
+  let text = '🔥 *OFERTAS DA SEMANA — DROGARIA CENTER* 🔥\n\n';
+  batchProducts.forEach(p=>{ text += productPromoText(p.description, p.normal, p.promo) + '\n\n'; });
+  text += '📍 Válido enquanto durar o estoque!';
+  copyToClipboard(text);
+});
+
+// init
+drawStory();
+drawFlyer();
+renderProductList();
+</script>
+</body>
+</html>
