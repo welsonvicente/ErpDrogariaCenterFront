@@ -523,25 +523,37 @@ function loadImageFromFile(file){
     reader.readAsDataURL(file);
   });
 }
+// video.width/height (atributo HTML) fica 0 quando não setado — a dimensão
+// real do frame de vídeo é videoWidth/videoHeight. Sem isso, desenhar o
+// <video> da câmera aqui saía com retângulo de origem 0x0 (drawImage não
+// desenha nada) e a foto "capturada" ficava toda preta.
+function sourceSize(img){
+  return {
+    w: img.videoWidth || img.naturalWidth || img.width,
+    h: img.videoHeight || img.naturalHeight || img.height,
+  };
+}
 function drawImageCover(ctx, img, x, y, w, h){
-  const imgRatio = img.width / img.height;
+  const { w: iw, h: ih } = sourceSize(img);
+  const imgRatio = iw / ih;
   const boxRatio = w / h;
   let sx, sy, sw, sh;
   if(imgRatio > boxRatio){
-    sh = img.height;
+    sh = ih;
     sw = sh * boxRatio;
-    sx = (img.width - sw) / 2;
+    sx = (iw - sw) / 2;
     sy = 0;
   } else {
-    sw = img.width;
+    sw = iw;
     sh = sw / boxRatio;
     sx = 0;
-    sy = (img.height - sh) / 2;
+    sy = (ih - sh) / 2;
   }
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
 function drawImageContain(ctx, img, x, y, w, h){
-  const imgRatio = img.width / img.height;
+  const { w: iw, h: ih } = sourceSize(img);
+  const imgRatio = iw / ih;
   const boxRatio = w / h;
   let dw, dh;
   if(imgRatio > boxRatio){ dw = w; dh = w / imgRatio; }
