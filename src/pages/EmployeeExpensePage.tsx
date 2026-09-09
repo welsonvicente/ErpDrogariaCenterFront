@@ -29,6 +29,17 @@ function urlFerramentaCartazes(): string {
   return `/tools/cartazes.html?api=${encodeURIComponent(api.defaults.baseURL ?? '')}`;
 }
 
+/**
+ * Ferramenta de Folgas (banco de folgas por domingo/feriado trabalhado,
+ * atestados e escala) — mesmo esquema da de Cartazes: página estática fora
+ * do bundle, recebe a URL da API por query string. Tem papel de gestor
+ * ("Administração", com senha própria) e de funcionário (código de acesso
+ * próprio da ferramenta), por isso o link mora aqui e é usável por ambos.
+ */
+function urlFerramentaFolgas(): string {
+  return `/tools/folgas-drogaria-center.html?api=${encodeURIComponent(api.defaults.baseURL ?? '')}`;
+}
+
 const FORMAS_PAGAMENTO: FormaPagamento[] = ['DINHEIRO', 'CARTAO_DEBITO', 'CARTAO_CREDITO', 'PIX', 'BOLETO', 'OUTRO'];
 
 /** Fluxo do funcionário (já autenticado por código+PIN): escolher categoria e lançar o valor gasto, ou ver o que já lançou. */
@@ -122,6 +133,9 @@ export function EmployeeExpensePage() {
         <div style={{ display: 'flex', gap: 8 }}>
           <a className="btn-ghost" href={urlFerramentaCartazes()} target="_blank" rel="noopener noreferrer">
             🖼️ Cartazes e panfletos
+          </a>
+          <a className="btn-ghost" href={urlFerramentaFolgas()} target="_blank" rel="noopener noreferrer">
+            📅 Folgas
           </a>
           <button className="btn-ghost" onClick={handleTrocarFuncionario}>
             Trocar funcionário

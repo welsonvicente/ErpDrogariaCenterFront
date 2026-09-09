@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Folgas — Drogaria Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#97D700; --green-deep:#436000; --green-mid:#628B00; --mint:#EAF7CC;
+    --ink:#173C3A; --ink-soft:#4B6A67; --bg:#EFF6F3; --card:#FFFFFF; --line:#D8E7E2;
+    --ok:#1E9E6B; --ok-bg:#E5F6ED;
+    --warn:#C98A1D; --warn-bg:#FCEFD8;
+    --red:#E30613; --red-bg:#FCE6E7;
+    --radius:18px;
+    --shadow: 0 1px 2px rgba(23,60,58,0.06), 0 8px 24px -12px rgba(23,60,58,0.18);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;padding-bottom:60px;}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 20px 0;}
+  [hidden]{display:none !important;}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .brand{display:flex;align-items:center;gap:14px;}
+  .full-logo{height:40px;width:auto;flex-shrink:0;}
+  .brand-text p{margin:0;font-size:13px;color:var(--ink-soft);font-weight:500;}
+  .back-link{border:none;background:none;color:var(--ink-soft);font-weight:600;font-size:13px;cursor:pointer;padding:6px 0;}
+  .back-link:hover{color:var(--green-deep);}
+
+  /* ROLE GATE */
+  .role-gate{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;}
+  .role-gate h2{font-family:'Space Grotesk',sans-serif;font-size:22px;color:var(--green-deep);margin:0 0 8px;}
+  .role-gate p{color:var(--ink-soft);font-size:14px;margin:0 0 32px;}
+  .role-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;}
+  .role-card{width:220px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px 20px;cursor:pointer;box-shadow:var(--shadow);transition:transform .12s ease;}
+  .role-card:hover{transform:translateY(-3px);border-color:var(--green-mid);}
+  .role-card .icon{font-size:38px;margin-bottom:10px;}
+  .role-card .title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;color:var(--ink);}
+  .role-card .sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px;}
+
+  /* GATES */
+  .gate-box{max-width:340px;margin:50px auto;text-align:center;}
+  .gate-box h2{font-family:'Space Grotesk',sans-serif;font-size:18px;color:var(--green-deep);margin-bottom:6px;}
+  .gate-box p{color:var(--ink-soft);font-size:13px;margin-bottom:20px;}
+  .gate-box input{width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:20px;letter-spacing:6px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card);color:var(--ink);margin-bottom:12px;}
+  .gate-box .err{color:var(--red);font-size:12.5px;font-weight:600;min-height:18px;margin-bottom:8px;}
+  .gate-box button{width:100%;border:none;background:var(--green-mid);color:#fff;font-weight:700;padding:12px;border-radius:12px;font-size:14px;cursor:pointer;}
+  .gate-box button:hover{background:var(--green-deep);}
+
+  .greeting-bar{max-width:640px;margin:0 auto 22px;display:flex;justify-content:space-between;align-items:center;}
+  .greeting-bar .hi{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;color:var(--green-deep);}
+  .greeting-bar button{border:none;background:none;color:var(--ink-soft);font-weight:600;font-size:12.5px;cursor:pointer;}
+  .greeting-bar button:hover{color:var(--red);}
+
+  /* EMPLOYEE VIEW */
+  .balance-card{
+    max-width:640px;margin:0 auto 24px;background:var(--card);border:1px solid var(--line);border-radius:20px;
+    padding:26px;box-shadow:var(--shadow);text-align:center;
+  }
+  .balance-card .big-num{font-family:'Space Grotesk',sans-serif;font-size:42px;font-weight:700;color:var(--green-deep);line-height:1;}
+  .balance-card .big-lbl{font-size:13px;color:var(--ink-soft);font-weight:600;margin-top:6px;}
+  .balance-card .schedule-btn{
+    margin-top:18px;border:none;background:var(--green-mid);color:#fff;font-weight:700;
+    padding:12px 24px;border-radius:12px;font-size:14px;cursor:pointer;
+  }
+  .balance-card .schedule-btn:hover{background:var(--green-deep);}
+  .balance-card .schedule-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed;}
+  .balance-card .hint{font-size:12px;color:var(--ink-soft);margin-top:10px;}
+
+  .my-list{max-width:640px;margin:0 auto;}
+  .my-list h3{font-family:'Space Grotesk',sans-serif;font-size:14px;color:var(--green-deep);margin-bottom:10px;}
+  .off-item{
+    display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:12px 16px;margin-bottom:8px;
+  }
+  .off-item .date{font-weight:700;font-family:'Space Grotesk',sans-serif;font-size:14px;}
+  .off-item .weekday{font-size:12px;color:var(--ink-soft);margin-left:6px;}
+  .off-item button{border:none;background:var(--red-bg);color:var(--red);font-weight:600;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;}
+  .off-item button:hover{background:var(--red);color:#fff;}
+  .empty-note{text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;}
+
+  /* MANAGER VIEW */
+  .toolbar{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+  .role-badge{
+    display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
+    letter-spacing:0.06em;text-transform:uppercase;color:var(--green-deep);background:var(--mint);
+    border:1px solid var(--green);padding:5px 12px;border-radius:999px;margin-bottom:14px;
+  }
+  .btn-ghost{border:1px solid var(--line);background:var(--card);color:var(--green-deep);font-weight:600;font-size:13px;padding:9px 14px;border-radius:10px;cursor:pointer;}
+  .btn-ghost:hover{background:var(--mint);}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:26px;}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);}
+  .stat .num{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:var(--green-deep);}
+  .stat .lbl{font-size:12px;color:var(--ink-soft);font-weight:600;margin-top:2px;}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+  @media (max-width:820px){ .cols{grid-template-columns:1fr;} }
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:20px;}
+  h2.section-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:var(--green-deep);margin:0 0 14px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);padding:8px 8px;border-bottom:1px solid var(--line);}
+  tbody td{padding:9px 8px;border-bottom:1px solid var(--line);}
+  tbody tr:last-child td{border-bottom:none;}
+  .balance-pill{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:20px;display:inline-block;}
+  .balance-pill.pos{background:var(--ok-bg);color:var(--ok);}
+  .balance-pill.zero{background:var(--bg);color:var(--ink-soft);}
+  .row-actions button{border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-soft);margin-right:6px;}
+  .row-actions button:hover{color:var(--green-deep);}
+  .row-actions button.del:hover{color:var(--red);}
+  .empty-row{text-align:center;color:var(--ink-soft);padding:26px 10px;font-size:13px;}
+
+  /* MODAL */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,30,28,0.55);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--card);border-radius:20px;padding:22px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(10,30,28,0.35);max-height:90vh;overflow-y:auto;}
+  .modal h3{font-family:'Space Grotesk',sans-serif;font-size:16px;margin:0 0 16px;color:var(--green-deep);}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  .field input,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:13.5px;font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);}
+  .modal-actions{display:flex;gap:10px;margin-top:8px;}
+  .modal-actions button{flex:1;border:none;border-radius:12px;padding:11px;font-weight:700;font-size:13.5px;cursor:pointer;}
+  .btn-primary{background:var(--green-mid);color:#fff;}
+  .btn-cancel{background:var(--bg);color:var(--ink-soft);border:1px solid var(--line) !important;}
+  .emp-manage-row{display:flex;justify-content:space-between;align-items:center;background:var(--bg);border-radius:10px;padding:9px 12px;margin-bottom:8px;font-size:13.5px;}
+  .emp-manage-row .ecode{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--green-deep);background:var(--mint);padding:2px 8px;border-radius:6px;margin-left:8px;}
+  .emp-manage-row .eactions button{border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-soft);margin-left:8px;}
+  .emp-manage-row .eactions button:hover{color:var(--green-deep);}
+  .emp-manage-row .eactions button.del:hover{color:var(--red);}
+  .pending-chip{
+    display:inline-flex;align-items:center;gap:6px;background:var(--mint);color:var(--green-deep);
+    font-size:12px;font-weight:600;padding:5px 6px 5px 10px;border-radius:999px;margin:0 6px 6px 0;
+  }
+  .pending-chip button{border:none;background:var(--card);border-radius:50%;width:18px;height:18px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:var(--red);padding:0;}
+  .weekday-toggles{display:flex;flex-wrap:wrap;gap:6px;}
+  .weekday-toggle{
+    border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-weight:600;font-size:12px;
+    padding:8px 10px;border-radius:10px;cursor:pointer;flex:1;min-width:70px;text-align:center;
+  }
+  .weekday-toggle.active{background:var(--red);border-color:var(--red);color:#fff;}
+  .password-row{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:10px;padding:8px 10px;margin-bottom:8px;}
+  .password-row .prole{font-size:12.5px;font-weight:700;color:var(--green-deep);min-width:82px;}
+  .password-row .pname{font-size:12.5px;font-weight:600;color:var(--ink);flex-shrink:0;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .password-row input{flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--card);color:var(--ink);}
+  .password-row button{border:none;background:var(--green-mid);color:#fff;font-weight:600;font-size:12px;padding:8px 12px;border-radius:8px;cursor:pointer;flex-shrink:0;}
+  .password-row button:hover{background:var(--green-deep);}
+  .footnote{margin-top:16px;font-size:11.5px;color:var(--ink-soft);}
+  .day-warning{font-size:12px;color:var(--warn);background:var(--warn-bg);border-radius:8px;padding:8px 10px;margin-top:-4px;margin-bottom:12px;display:none;}
+  .day-warning.show{display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <img class="full-logo" src="data:image/png;base64,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" alt="Drogaria Center">
+      <div class="brand-text"><p id="headerSub">Banco de folgas</p></div>
+    </div>
+    <button class="back-link" id="backBtn" hidden>← Trocar de tela</button>
+  </header>
+
+  <!-- ROLE GATE -->
+  <div class="role-gate" id="roleGate">
+    <h2>Quem está acessando?</h2>
+    <p>Quem trabalha no domingo ou feriado ganha 1 folga para usar quando quiser</p>
+    <div class="role-cards">
+      <div class="role-card" id="goEmployee">
+        <div class="icon">🧑‍💼</div>
+        <div class="title">Sou Funcionário</div>
+        <div class="sub">Ver e agendar minha folga</div>
+      </div>
+      <div class="role-card" id="goManager">
+        <div class="icon">🔐</div>
+        <div class="title">Administração</div>
+        <div class="sub">Supervisor, Gerência ou CEO</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANAGER PASSWORD GATE -->
+  <div class="gate-box" id="managerGate" hidden>
+    <h2>Acesso administrativo</h2>
+    <p>Digite a senha do seu cargo (Supervisor, Gerência ou CEO)</p>
+    <input type="password" id="managerPassword" maxlength="10" placeholder="•••••" inputmode="numeric">
+    <div class="err" id="managerErr"></div>
+    <button id="managerLoginBtn">Entrar</button>
+  </div>
+
+  <!-- EMPLOYEE VIEW -->
+  <div id="employeeView" hidden>
+    <div class="gate-box" id="codeGate">
+      <h2>Identifique-se</h2>
+      <p>Digite seu código de acesso da farmácia</p>
+      <input type="password" id="employeeCodeInput" maxlength="8" inputmode="numeric" placeholder="••••">
+      <div class="err" id="codeErr"></div>
+      <button id="codeLoginBtn">Entrar</button>
+    </div>
+
+    <div id="employeeLoggedArea" hidden>
+      <div class="greeting-bar">
+        <span class="hi" id="greetingText">Olá!</span>
+        <button id="switchEmployeeBtn">Trocar colaborador</button>
+      </div>
+
+      <div class="balance-card">
+        <div class="big-num" id="balanceNum">0</div>
+        <div class="big-lbl">folga(s) disponível(is)</div>
+        <button class="schedule-btn" id="scheduleBtn">📅 Agendar minha folga</button>
+        <div class="hint">Você ganha 1 folga cada vez que trabalha em um domingo ou feriado — seu gerente registra isso pra você.</div>
+      </div>
+
+      <div class="balance-card" style="text-align:left;">
+        <div style="text-align:center;">
+          <button class="schedule-btn" id="reportSickBtn" style="background:var(--red);">🩹 Registrar atestado / ausência por saúde</button>
+          <div class="hint" style="text-align:center;">Avise a farmácia quando precisar faltar por motivo de saúde.</div>
+        </div>
+      </div>
+
+      <div class="my-list">
+        <h3>Minhas folgas agendadas</h3>
+        <div id="myOffList"></div>
+      </div>
+
+      <div class="my-list" style="margin-top:24px;">
+        <h3>Meus atestados / ausências por saúde</h3>
+        <div id="mySickList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANAGER VIEW -->
+  <div id="managerView" hidden>
+    <div class="role-badge" id="roleBadge"></div>
+    <div class="toolbar">
+      <button class="btn-ghost" id="manageEmployeesBtn">👤 Colaboradores</button>
+      <button class="btn-ghost" id="manageLeavesBtn">🏖️ Férias / Atestados</button>
+      <button class="btn-ghost" id="manageBlockedBtn">🚫 Bloquear dias</button>
+      <button class="btn-ghost" id="addCreditBtn">+ Registrar crédito (domingo/feriado)</button>
+      <button class="btn-ghost" id="auditBtn" hidden>📋 Auditoria (CEO)</button>
+      <button class="btn-ghost" id="passwordsBtn" hidden>🔑 Senhas (CEO)</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="num" id="statEmployees">0</div><div class="lbl">Colaboradores</div></div>
+      <div class="stat"><div class="num" id="statCredits">0</div><div class="lbl">Créditos concedidos</div></div>
+      <div class="stat"><div class="num" id="statScheduled">0</div><div class="lbl">Folgas agendadas</div></div>
+      <div class="stat"><div class="num" id="statAvailable">0</div><div class="lbl">Saldo total disponível</div></div>
+    </div>
+
+    <div class="panel">
+      <h2 class="section-title">Ausências agora (férias / atestado)</h2>
+      <table>
+        <thead><tr><th>Colaborador</th><th>Tipo</th><th>Até</th></tr></thead>
+        <tbody id="activeLeavesBody"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2 class="section-title">📊 Relatório de dias ausentes por doença / atestado</h2>
+      <table>
+        <thead><tr><th>Colaborador</th><th>Nº de atestados</th><th>Total de dias ausente</th></tr></thead>
+        <tbody id="sickReportBody"></tbody>
+      </table>
+      <div class="footnote">Soma todos os períodos de atestado registrados (pelo colaborador ou pela gerência), do início ao fim de cada um.</div>
+
+      <h2 class="section-title" style="margin-top:22px;">Detalhamento de cada atestado</h2>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>Colaborador</th><th>Registrado em</th><th>Ausente de</th><th>Ausente até</th><th>Dias</th><th>Motivo</th></tr></thead>
+          <tbody id="sickDetailBody"></tbody>
+        </table>
+      </div>
+      <div class="footnote">"Registrado em" é a data em que o atestado foi lançado no sistema; "Ausente de/até" é o período real de afastamento informado.</div>
+    </div>
+
+    <div class="panel">
+      <h2 class="section-title">Saldo por colaborador</h2>
+      <table>
+        <thead><tr><th>Colaborador</th><th>Créditos</th><th>Usadas</th><th>Saldo</th></tr></thead>
+        <tbody id="balanceBody"></tbody>
+      </table>
+    </div>
+
+    <div class="cols">
+      <div class="panel">
+        <h2 class="section-title">Próximas folgas agendadas</h2>
+        <table>
+          <thead><tr><th>Colaborador</th><th>Data</th><th></th></tr></thead>
+          <tbody id="scheduledBody"></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h2 class="section-title">Histórico de créditos concedidos</h2>
+        <table>
+          <thead><tr><th>Colaborador</th><th>Trabalhou em</th><th>Vai folgar em</th><th></th></tr></thead>
+          <tbody id="creditsBody"></tbody>
+        </table>
+        <div class="footnote">Cada linha aqui representa 1 dia de domingo/feriado trabalhado = 1 folga ganha.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green-deep);color:#fff;padding:12px 22px;border-radius:12px;font-weight:600;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,0.2);opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:60;"></div>
+
+<!-- MODAL: agendar folga (funcionário) -->
+<div class="modal-overlay" id="scheduleModal">
+  <div class="modal">
+    <h3>Escolher dia de folga</h3>
+    <div class="field"><label>Data desejada</label><input id="scheduleDateInput" type="date"></div>
+    <div class="day-warning" id="dayWarning"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelScheduleBtn">Cancelar</button>
+      <button class="btn-primary" id="confirmScheduleBtn">Confirmar folga</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: registrar atestado / ausência por saúde (funcionário) -->
+<div class="modal-overlay" id="sickModal">
+  <div class="modal">
+    <h3>🩹 Registrar atestado / ausência por saúde</h3>
+    <div style="display:flex;gap:10px;">
+      <div class="field" style="flex:1;"><label>Início</label><input id="sickStartInput" type="date"></div>
+      <div class="field" style="flex:1;"><label>Fim</label><input id="sickEndInput" type="date"></div>
+    </div>
+    <div class="field">
+      <label>O que você tem? (obrigatório)</label>
+      <input id="sickReasonInput" placeholder="Ex: gripe forte, dor nas costas, consulta médica...">
+    </div>
+    <div class="footnote" style="margin-bottom:10px;">Essa informação é sensível e fica visível só para a gerência/CEO, para justificar sua ausência.</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelSickBtn">Cancelar</button>
+      <button class="btn-primary" id="confirmSickBtn" style="background:var(--red);">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: registrar crédito (gerente) -->
+<div class="modal-overlay" id="creditModal">
+  <div class="modal">
+    <h3>Registrar crédito de folga</h3>
+    <div class="field"><label>Colaborador</label><select id="creditEmployeeSelect"></select></div>
+    <div class="field"><label>Data trabalhada (domingo ou feriado)</label><input id="creditDateInput" type="date"></div>
+    <div class="field"><label>Observação (opcional)</label><input id="creditNoteInput" placeholder="Ex: Feriado de 7 de setembro"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelCreditBtn">Cancelar</button>
+      <button class="btn-primary" id="saveCreditBtn">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: gerenciar colaboradores -->
+<div class="modal-overlay" id="employeesModal">
+  <div class="modal">
+    <h3>Colaboradores cadastrados</h3>
+    <div id="employeesList" style="margin-bottom:14px;"></div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
+    <div class="field"><label>Nome do colaborador</label><input id="newEmpName" placeholder="Ex: João Silva"></div>
+    <div class="field"><label>Código de acesso</label><input id="newEmpCode" maxlength="8" inputmode="numeric" placeholder="Ex: 1234"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="closeEmployeesModalBtn">Fechar</button>
+      <button class="btn-primary" id="saveEmployeeBtn">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: gerenciar férias e atestados -->
+<div class="modal-overlay" id="leavesModal">
+  <div class="modal" style="max-width:480px;">
+    <h3>Férias e Atestados</h3>
+    <div id="leavesList" style="margin-bottom:14px;"></div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
+    <div class="field"><label>Colaborador</label><select id="leaveEmployeeSelect"></select></div>
+    <div class="field"><label>Tipo</label>
+      <select id="leaveTypeSelect">
+        <option value="ferias">🏖️ Férias</option>
+        <option value="atestado">🩹 Atestado médico</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <div class="field" style="flex:1;"><label>Início</label><input id="leaveStartInput" type="date"></div>
+      <div class="field" style="flex:1;"><label>Fim</label><input id="leaveEndInput" type="date"></div>
+    </div>
+    <div class="field"><label>Observação (opcional)</label><input id="leaveNoteInput" placeholder="Ex: CID não é necessário aqui"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="closeLeavesModalBtn">Fechar</button>
+      <button class="btn-primary" id="saveLeaveBtn">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: bloquear dias específicos -->
+<div class="modal-overlay" id="blockedModal">
+  <div class="modal">
+    <h3>Bloquear dias para folga</h3>
+
+    <div class="field">
+      <label>Bloquear um dia da semana inteiro (todo domingo, todo sábado etc.)</label>
+      <div class="weekday-toggles" id="weekdayToggles"></div>
+      <div class="footnote" style="margin-top:6px;">Isso bloqueia esse dia da semana pra sempre, todas as semanas — não precisa marcar data por data.</div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
+
+    <div id="blockedList" style="margin-bottom:14px;"></div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
+
+    <div class="field"><label>Motivo (opcional, vale para todas as datas abaixo)</label><input id="blockedReasonInput" placeholder="Ex: Black Friday — precisamos de todo mundo"></div>
+
+    <div style="display:flex;gap:10px;">
+      <div class="field" style="flex:1;"><label>Data</label><input id="blockedDateInput" type="date"></div>
+      <div class="field" style="flex:1;"><label>Até (opcional, para um intervalo)</label><input id="blockedDateEndInput" type="date"></div>
+    </div>
+    <button class="btn-ghost" type="button" id="addPendingBlockedBtn" style="width:100%;margin-bottom:14px;">+ Adicionar à lista</button>
+
+    <div id="pendingBlockedList" style="margin-bottom:10px;"></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="closeBlockedModalBtn">Fechar</button>
+      <button class="btn-primary" id="saveBlockedBtn">Bloquear dia(s) da lista</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: gerenciar senhas (só CEO) -->
+<div class="modal-overlay" id="passwordsModal">
+  <div class="modal" style="max-width:480px;">
+    <h3>🔑 Gerenciar senhas</h3>
+
+    <div class="field"><label>Senhas dos cargos</label></div>
+    <div id="rolePasswordsList" style="margin-bottom:16px;"></div>
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
+
+    <div class="field"><label>Códigos de acesso dos colaboradores</label></div>
+    <div id="employeeCodesList"></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="closePasswordsModalBtn">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: auditoria (só CEO) -->
+<div class="modal-overlay" id="auditModal">
+  <div class="modal" style="max-width:560px;">
+    <h3>📋 Relatório de auditoria</h3>
+    <div class="field"><label>Filtrar por cargo</label>
+      <select id="auditRoleFilter">
+        <option value="">Todos os cargos</option>
+        <option value="Supervisor">Supervisor</option>
+        <option value="Gerência">Gerência</option>
+        <option value="CEO">CEO</option>
+      </select>
+    </div>
+    <div id="auditList" style="max-height:420px;overflow-y:auto;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="closeAuditModalBtn">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: diálogos próprios (substituem confirm()/alert() nativos, bloqueados em alguns navegadores/previews) -->
+<div class="modal-overlay" id="confirmDialogOverlay">
+  <div class="modal" style="max-width:360px;text-align:center;">
+    <p id="confirmDialogMsg" style="font-size:14px;line-height:1.5;margin:0 0 20px;"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="confirmDialogCancel">Cancelar</button>
+      <button class="btn-primary" id="confirmDialogOk" style="background:var(--red);">Confirmar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="alertDialogOverlay">
+  <div class="modal" style="max-width:360px;text-align:center;">
+    <p id="alertDialogMsg" style="font-size:14px;line-height:1.5;margin:0 0 20px;"></p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="alertDialogOk">Entendi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- Diálogos próprios (substituem confirm()/alert() nativos) ----------
+let _confirmResolve = null;
+function showConfirm(msg){
+  document.getElementById('confirmDialogMsg').textContent = msg;
+  document.getElementById('confirmDialogOverlay').classList.add('open');
+  return new Promise(resolve=>{ _confirmResolve = resolve; });
+}
+document.getElementById('confirmDialogCancel').addEventListener('click', ()=>{
+  document.getElementById('confirmDialogOverlay').classList.remove('open');
+  if(_confirmResolve) _confirmResolve(false);
+});
+document.getElementById('confirmDialogOk').addEventListener('click', ()=>{
+  document.getElementById('confirmDialogOverlay').classList.remove('open');
+  if(_confirmResolve) _confirmResolve(true);
+});
+let _alertResolve = null;
+function showAlert(msg){
+  document.getElementById('alertDialogMsg').textContent = msg;
+  document.getElementById('alertDialogOverlay').classList.add('open');
+  return new Promise(resolve=>{ _alertResolve = resolve; });
+}
+document.getElementById('alertDialogOk').addEventListener('click', ()=>{
+  document.getElementById('alertDialogOverlay').classList.remove('open');
+  if(_alertResolve) _alertResolve();
+});
+
+const STORAGE_KEY = 'drogaria-center-folgas';
+const DEFAULT_ROLE_PASSWORDS = {
+  'Supervisor': '11111',
+  'Gerência': '45595',
+  'CEO': '99999'
+};
+
+let state = { employees: [], credits: [], daysOff: [], leaves: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
+let loaded = false;
+let editingEmployeeId = null;
+let currentEmployee = null;
+let currentRole = null; // 'Supervisor' | 'Gerência' | 'CEO'
+
+async function logAction(action, details){
+  state.auditLog.push({
+    id: uid('log'),
+    role: currentRole || '—',
+    action,
+    details: details || '',
+    timestamp: new Date().toISOString()
+  });
+  await saveState();
+}
+
+function uid(prefix){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
+function pad(n){ return n.toString().padStart(2,'0'); }
+function todayStr(){ const d = new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function tomorrowStr(){ const d = new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function fmtDateBr(iso){ const [y,m,d] = iso.split('-'); return d+'/'+m+'/'+y; }
+function weekdayName(iso){
+  const d = new Date(iso+'T00:00:00');
+  return ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][d.getDay()];
+}
+
+// Base da API e sessão do PharmaMind — lidas do link que abriu essa ferramenta
+// (?api=...) e do localStorage da própria sessão logada (mesmo domínio do
+// front), no mesmo esquema usado pela ferramenta de Cartazes. O estado
+// (funcionários, créditos, folgas, atestados...) é salvo no backend, escopado
+// pela organização de quem estiver logado — assim gestor e funcionário, em
+// aparelhos diferentes, enxergam sempre os mesmos dados.
+function getApiBaseUrl(){
+  const fromQuery = new URLSearchParams(location.search).get('api');
+  if(fromQuery) return fromQuery;
+  return location.protocol + '//' + location.hostname + ':3333/api';
+}
+function getAuthToken(){
+  try{
+    for(const key of ['drogaria:session:gestor', 'drogaria:session:funcionario']){
+      const raw = localStorage.getItem(key);
+      if(raw){ const t = (JSON.parse(raw)||{}).token; if(t) return t; }
+    }
+  }catch(e){ /* sem sessão salva */ }
+  return null;
+}
+
+function estadoPadrao(){
+  return { employees: [], credits: [], daysOff: [], leaves: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
+}
+
+async function loadState(){
+  try{
+    const token = getAuthToken();
+    if(!token){ state = estadoPadrao(); return; }
+    const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if(!res.ok) throw new Error('Falha ao carregar (' + res.status + ')');
+    const data = await res.json();
+    state = data.valor ? JSON.parse(data.valor) : estadoPadrao();
+    if(!state.leaves) state.leaves = [];
+    if(!state.blockedDates) state.blockedDates = [];
+    if(!state.blockedWeekdays) state.blockedWeekdays = [];
+    if(!state.auditLog) state.auditLog = [];
+    if(!state.rolePasswords) state.rolePasswords = {...DEFAULT_ROLE_PASSWORDS};
+  }catch(e){
+    console.error('Erro ao carregar', e);
+    state = estadoPadrao();
+  }
+  loaded = true;
+}
+async function saveState(){
+  const token = getAuthToken();
+  if(!token){ console.error('Sem sessão do PharmaMind — não foi possível salvar.'); return; }
+  try{
+    await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ valor: JSON.stringify(state) })
+    });
+  }catch(e){ console.error('Erro ao salvar', e); }
+}
+
+function creditsOf(employeeId){ return state.credits.filter(c=>c.employeeId===employeeId); }
+function scheduledOf(employeeId){ return state.daysOff.filter(d=>d.employeeId===employeeId); }
+function balanceOf(employeeId){ return creditsOf(employeeId).length - scheduledOf(employeeId).length; }
+
+// Pareia cada crédito (do mais antigo pro mais novo) com a folga correspondente (também da mais antiga pra mais nova),
+// pra mostrar no histórico "trabalhou em X -> vai folgar em Y". Créditos sem folga pareada ainda estão disponíveis.
+function pairCreditsWithDaysOff(){
+  const map = new Map();
+  state.employees.forEach(emp=>{
+    const credits = creditsOf(emp.id).slice().sort((a,b)=> new Date(a.workedDate)-new Date(b.workedDate));
+    const offs = scheduledOf(emp.id).slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
+    credits.forEach((c, idx)=>{
+      if(offs[idx]) map.set(c.id, offs[idx].date);
+    });
+  });
+  return map;
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(()=> t.style.opacity = '0', 2200);
+}
+
+// ---------- Role navigation ----------
+const roleGate = document.getElementById('roleGate');
+const managerGate = document.getElementById('managerGate');
+const employeeView = document.getElementById('employeeView');
+const managerView = document.getElementById('managerView');
+const backBtn = document.getElementById('backBtn');
+const headerSub = document.getElementById('headerSub');
+
+function showOnly(el){
+  [roleGate, managerGate, employeeView, managerView].forEach(x=> x.hidden = (x !== el));
+  backBtn.hidden = (el === roleGate);
+}
+document.getElementById('goEmployee').addEventListener('click', ()=>{
+  headerSub.textContent = 'Banco de folgas — Funcionário';
+  showOnly(employeeView);
+  renderEmployeeLoginState();
+});
+document.getElementById('goManager').addEventListener('click', ()=>{
+  headerSub.textContent = 'Acesso administrativo';
+  document.getElementById('managerPassword').value = '';
+  document.getElementById('managerErr').textContent = '';
+  showOnly(managerGate);
+  document.getElementById('managerPassword').focus();
+});
+backBtn.addEventListener('click', ()=>{
+  headerSub.textContent = 'Banco de folgas';
+  currentRole = null;
+  showOnly(roleGate);
+});
+function tryManagerLogin(){
+  const val = document.getElementById('managerPassword').value;
+  const matchedRole = Object.keys(state.rolePasswords).find(role => state.rolePasswords[role] === val);
+  if(matchedRole){
+    currentRole = matchedRole;
+    headerSub.textContent = 'Gestão de folgas — ' + matchedRole;
+    document.getElementById('roleBadge').textContent = '🔐 ' + matchedRole;
+    document.getElementById('auditBtn').hidden = (matchedRole !== 'CEO');
+    document.getElementById('passwordsBtn').hidden = (matchedRole !== 'CEO');
+    showOnly(managerView);
+    renderManagerView();
+  } else {
+    document.getElementById('managerErr').textContent = 'Senha incorreta. Tente novamente.';
+  }
+}
+document.getElementById('managerLoginBtn').addEventListener('click', tryManagerLogin);
+document.getElementById('managerPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryManagerLogin(); });
+
+// ---------- Employee view ----------
+function renderEmployeeLoginState(){
+  currentEmployee = null;
+  document.getElementById('employeeCodeInput').value = '';
+  document.getElementById('codeErr').textContent = '';
+  document.getElementById('codeGate').hidden = false;
+  document.getElementById('employeeLoggedArea').hidden = true;
+  setTimeout(()=> document.getElementById('employeeCodeInput').focus(), 50);
+}
+function tryEmployeeLogin(){
+  const code = document.getElementById('employeeCodeInput').value.trim();
+  if(!code) return;
+  const emp = state.employees.find(e=>e.code===code);
+  if(!emp){
+    document.getElementById('codeErr').textContent = 'Código não encontrado. Confira com o gerente.';
+    return;
+  }
+  currentEmployee = emp;
+  document.getElementById('codeGate').hidden = true;
+  document.getElementById('employeeLoggedArea').hidden = false;
+  document.getElementById('greetingText').textContent = 'Olá, ' + emp.name + '!';
+  renderEmployeeDashboard();
+}
+document.getElementById('codeLoginBtn').addEventListener('click', tryEmployeeLogin);
+document.getElementById('employeeCodeInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryEmployeeLogin(); });
+document.getElementById('switchEmployeeBtn').addEventListener('click', renderEmployeeLoginState);
+
+function renderEmployeeDashboard(){
+  if(!currentEmployee) return;
+  const balance = balanceOf(currentEmployee.id);
+  document.getElementById('balanceNum').textContent = balance;
+  document.getElementById('scheduleBtn').disabled = balance <= 0;
+
+  const list = document.getElementById('myOffList');
+  list.innerHTML = '';
+  const mine = scheduledOf(currentEmployee.id).slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
+  if(mine.length === 0){
+    list.innerHTML = '<div class="empty-note">Você ainda não agendou nenhuma folga.</div>';
+  } else {
+    mine.forEach(off=>{
+      const item = document.createElement('div');
+      item.className = 'off-item';
+      item.innerHTML = `<span><span class="date">${fmtDateBr(off.date)}</span><span class="weekday">${weekdayName(off.date)}</span></span><button data-cancel="${off.id}">Cancelar</button>`;
+      list.appendChild(item);
+    });
+    list.querySelectorAll('[data-cancel]').forEach(btn=> btn.addEventListener('click', ()=> cancelMyDayOff(btn.dataset.cancel)));
+  }
+
+  const sickList = document.getElementById('mySickList');
+  sickList.innerHTML = '';
+  const mySick = state.leaves.filter(l=> l.employeeId===currentEmployee.id && l.type==='atestado')
+    .slice().sort((a,b)=> new Date(b.startDate)-new Date(a.startDate));
+  if(mySick.length === 0){
+    sickList.innerHTML = '<div class="empty-note">Nenhum atestado registrado.</div>';
+  } else {
+    mySick.forEach(s=>{
+      const item = document.createElement('div');
+      item.className = 'off-item';
+      item.style.alignItems = 'flex-start';
+      item.innerHTML = `<span><span class="date">${fmtDateBr(s.startDate)} a ${fmtDateBr(s.endDate)}</span><br><span style="font-size:12px;color:var(--ink-soft);">${s.note||'—'}</span></span>`;
+      sickList.appendChild(item);
+    });
+  }
+}
+
+async function cancelMyDayOff(offId){
+  if(!(await showConfirm('Cancelar essa folga agendada? A folga volta pro seu saldo disponível.'))) return;
+  state.daysOff = state.daysOff.filter(d=>d.id!==offId);
+  await saveState();
+  renderEmployeeDashboard();
+  showToast('Folga cancelada. Ela voltou pro seu saldo.');
+}
+
+// ---------- Schedule modal ----------
+const scheduleModal = document.getElementById('scheduleModal');
+function validateScheduleDate(){
+  const date = document.getElementById('scheduleDateInput').value;
+  const warning = document.getElementById('dayWarning');
+  const confirmBtn = document.getElementById('confirmScheduleBtn');
+  if(!date){ warning.classList.remove('show'); confirmBtn.disabled = false; return; }
+
+  if(isWeekdayBlocked(date)){
+    warning.textContent = '🚫 Toda(o) ' + weekdayName(date) + ' está bloqueada(o) pela gerência para folgas.';
+    warning.classList.add('show');
+    confirmBtn.disabled = true;
+    return;
+  }
+
+  const blocked = blockedDateInfo(date);
+  if(blocked){
+    warning.textContent = '🚫 Esse dia foi bloqueado pela gerência para folgas' + (blocked.reason ? (': ' + blocked.reason) : '.') ;
+    warning.classList.add('show');
+    confirmBtn.disabled = true;
+    return;
+  }
+
+  const onLeave = employeeOnLeaveAt(currentEmployee.id, date);
+  if(onLeave){
+    warning.textContent = '🚫 Você está de ' + (onLeave.type==='ferias'?'férias':'atestado') + ' nesse período — não é possível agendar folga.';
+    warning.classList.add('show');
+    confirmBtn.disabled = true;
+    return;
+  }
+
+  const takenBy = state.daysOff.find(d=> d.date===date && d.employeeId!==currentEmployee.id);
+  if(takenBy){
+    const emp = state.employees.find(e=>e.id===takenBy.employeeId);
+    warning.textContent = '🚫 ' + (emp?emp.name:'Outro colaborador') + ' já está de folga nesse dia. Só é permitida 1 folga por dia — escolha outra data.';
+    warning.classList.add('show');
+    confirmBtn.disabled = true;
+  } else {
+    warning.classList.remove('show');
+    confirmBtn.disabled = false;
+  }
+}
+
+document.getElementById('scheduleBtn').addEventListener('click', ()=>{
+  document.getElementById('scheduleDateInput').value = tomorrowStr();
+  document.getElementById('scheduleDateInput').min = tomorrowStr();
+  scheduleModal.classList.add('open');
+  validateScheduleDate();
+});
+document.getElementById('cancelScheduleBtn').addEventListener('click', ()=> scheduleModal.classList.remove('open'));
+scheduleModal.addEventListener('click', (e)=>{ if(e.target===scheduleModal) scheduleModal.classList.remove('open'); });
+
+document.getElementById('scheduleDateInput').addEventListener('change', validateScheduleDate);
+
+document.getElementById('confirmScheduleBtn').addEventListener('click', async ()=>{
+  if(!currentEmployee) return;
+  const date = document.getElementById('scheduleDateInput').value;
+  if(!date){ await showAlert('Escolha uma data.'); return; }
+  if(balanceOf(currentEmployee.id) <= 0){ await showAlert('Você não tem folgas disponíveis no momento.'); return; }
+  const already = state.daysOff.find(d=> d.employeeId===currentEmployee.id && d.date===date);
+  if(already){ await showAlert('Você já tem uma folga agendada nesse dia.'); return; }
+
+  if(isWeekdayBlocked(date)){ await showAlert('Toda(o) ' + weekdayName(date) + ' está bloqueada(o) pela gerência para folgas.'); return; }
+
+  const blocked = blockedDateInfo(date);
+  if(blocked){ await showAlert('Esse dia foi bloqueado pela gerência para folgas' + (blocked.reason?(': '+blocked.reason):'.')); return; }
+
+  const onLeave = employeeOnLeaveAt(currentEmployee.id, date);
+  if(onLeave){ await showAlert('Você está de ' + (onLeave.type==='ferias'?'férias':'atestado') + ' nesse período — não é possível agendar folga.'); return; }
+
+  const takenBy = state.daysOff.find(d=> d.date===date && d.employeeId!==currentEmployee.id);
+  if(takenBy){
+    const emp = state.employees.find(e=>e.id===takenBy.employeeId);
+    await showAlert('Só é permitida 1 folga por dia, e ' + (emp?emp.name:'outro colaborador') + ' já está de folga nesse dia. Escolha outra data.');
+    return;
+  }
+
+  state.daysOff.push({ id: uid('off'), employeeId: currentEmployee.id, date, createdAt: new Date().toISOString() });
+  await saveState();
+  scheduleModal.classList.remove('open');
+  renderEmployeeDashboard();
+  showToast('Folga agendada para ' + fmtDateBr(date) + '!');
+});
+
+// ---------- Employee: registrar atestado / ausência por saúde ----------
+const sickModal = document.getElementById('sickModal');
+document.getElementById('reportSickBtn').addEventListener('click', ()=>{
+  document.getElementById('sickStartInput').value = todayStr();
+  document.getElementById('sickEndInput').value = todayStr();
+  document.getElementById('sickReasonInput').value = '';
+  sickModal.classList.add('open');
+});
+document.getElementById('cancelSickBtn').addEventListener('click', ()=> sickModal.classList.remove('open'));
+sickModal.addEventListener('click', (e)=>{ if(e.target===sickModal) sickModal.classList.remove('open'); });
+
+document.getElementById('confirmSickBtn').addEventListener('click', async ()=>{
+  if(!currentEmployee) return;
+  const startDate = document.getElementById('sickStartInput').value;
+  const endDate = document.getElementById('sickEndInput').value;
+  const reason = document.getElementById('sickReasonInput').value.trim();
+  if(!startDate || !endDate){ await showAlert('Preencha a data de início e fim.'); return; }
+  if(endDate < startDate){ await showAlert('A data final não pode ser antes da data inicial.'); return; }
+  if(!reason){ await showAlert('Conte pra gente o que você tem — esse campo é obrigatório pra justificar a ausência.'); return; }
+
+  state.leaves.push({
+    id: uid('leave'), employeeId: currentEmployee.id, type: 'atestado',
+    startDate, endDate, note: reason, submittedBy: 'colaborador', createdAt: new Date().toISOString()
+  });
+  await saveState();
+  sickModal.classList.remove('open');
+  renderEmployeeDashboard();
+  showToast('Atestado enviado. Melhoras!');
+});
+
+// ---------- Manager: employees CRUD ----------
+const employeesModal = document.getElementById('employeesModal');
+function openEmployeesModal(){
+  editingEmployeeId = null;
+  document.getElementById('newEmpName').value = '';
+  document.getElementById('newEmpCode').value = '';
+  document.getElementById('saveEmployeeBtn').textContent = 'Adicionar';
+  renderEmployeesList();
+  employeesModal.classList.add('open');
+}
+document.getElementById('manageEmployeesBtn').addEventListener('click', openEmployeesModal);
+document.getElementById('closeEmployeesModalBtn').addEventListener('click', ()=> employeesModal.classList.remove('open'));
+employeesModal.addEventListener('click', (e)=>{ if(e.target===employeesModal) employeesModal.classList.remove('open'); });
+
+function renderEmployeesList(){
+  const el = document.getElementById('employeesList');
+  el.innerHTML = '';
+  if(state.employees.length === 0){
+    el.innerHTML = '<div class="empty-row" style="padding:10px 0;">Nenhum colaborador cadastrado ainda.</div>';
+    return;
+  }
+  state.employees.forEach(emp=>{
+    const row = document.createElement('div');
+    row.className = 'emp-manage-row';
+    const label = document.createElement('span');
+    label.textContent = emp.name + ' ';
+    const codeSpan = document.createElement('span');
+    codeSpan.className = 'ecode';
+    codeSpan.textContent = emp.code;
+    label.appendChild(codeSpan);
+
+    const actions = document.createElement('span');
+    actions.className = 'eactions';
+    const editBtn = document.createElement('button');
+    editBtn.type='button'; editBtn.textContent='Editar';
+    editBtn.addEventListener('click', ()=> startEditEmployee(emp.id));
+    const delBtn = document.createElement('button');
+    delBtn.type='button'; delBtn.className='del'; delBtn.textContent='Remover';
+    delBtn.addEventListener('click', ()=> deleteEmployee(emp.id));
+    actions.appendChild(editBtn); actions.appendChild(delBtn);
+
+    row.appendChild(label); row.appendChild(actions);
+    el.appendChild(row);
+  });
+}
+function startEditEmployee(id){
+  const emp = state.employees.find(e=>e.id===id);
+  if(!emp) return;
+  editingEmployeeId = id;
+  document.getElementById('newEmpName').value = emp.name;
+  document.getElementById('newEmpCode').value = emp.code;
+  document.getElementById('saveEmployeeBtn').textContent = 'Salvar alterações';
+}
+async function deleteEmployee(id){
+  if(!(await showConfirm('Remover este colaborador? O histórico de créditos e folgas dele é mantido.'))) return;
+  const emp = state.employees.find(e=>e.id===id);
+  state.employees = state.employees.filter(e=>e.id!==id);
+  await saveState();
+  await logAction('Removeu colaborador', emp ? emp.name : id);
+  renderEmployeesList();
+  renderManagerView();
+}
+document.getElementById('saveEmployeeBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('newEmpName').value.trim();
+  const code = document.getElementById('newEmpCode').value.trim();
+  if(!name){ await showAlert('Digite o nome do colaborador.'); return; }
+  if(!code){ await showAlert('Digite um código de acesso.'); return; }
+  const conflict = state.employees.find(e=> e.code===code && e.id!==editingEmployeeId);
+  if(conflict){ await showAlert('Esse código já está em uso por ' + conflict.name + '. Escolha outro.'); return; }
+
+  const wasEditing = !!editingEmployeeId;
+  if(editingEmployeeId){
+    const emp = state.employees.find(e=>e.id===editingEmployeeId);
+    Object.assign(emp, { name, code });
+  } else {
+    state.employees.push({ id: uid('emp'), name, code });
+  }
+  await saveState();
+  await logAction(wasEditing ? 'Editou colaborador' : 'Cadastrou colaborador', name);
+  editingEmployeeId = null;
+  document.getElementById('newEmpName').value = '';
+  document.getElementById('newEmpCode').value = '';
+  document.getElementById('saveEmployeeBtn').textContent = 'Adicionar';
+  renderEmployeesList();
+  renderManagerView();
+});
+
+// ---------- Manager: register credit ----------
+const creditModal = document.getElementById('creditModal');
+document.getElementById('addCreditBtn').addEventListener('click', ()=>{
+  const sel = document.getElementById('creditEmployeeSelect');
+  sel.innerHTML = state.employees.map(e=> `<option value="${e.id}">${e.name}</option>`).join('');
+  if(state.employees.length === 0){
+    sel.innerHTML = '<option value="">Cadastre um colaborador primeiro</option>';
+  }
+  document.getElementById('creditDateInput').value = todayStr();
+  document.getElementById('creditNoteInput').value = '';
+  creditModal.classList.add('open');
+});
+document.getElementById('cancelCreditBtn').addEventListener('click', ()=> creditModal.classList.remove('open'));
+creditModal.addEventListener('click', (e)=>{ if(e.target===creditModal) creditModal.classList.remove('open'); });
+
+document.getElementById('saveCreditBtn').addEventListener('click', async ()=>{
+  const employeeId = document.getElementById('creditEmployeeSelect').value;
+  const workedDate = document.getElementById('creditDateInput').value;
+  const note = document.getElementById('creditNoteInput').value.trim();
+  if(!employeeId){ await showAlert('Cadastre e selecione um colaborador.'); return; }
+  if(!workedDate){ await showAlert('Escolha a data trabalhada.'); return; }
+
+  const weekday = new Date(workedDate+'T00:00:00').getDay();
+  if(weekday !== 0){
+    const proceed = await showConfirm('Essa data não é um domingo. Se for feriado, pode confirmar mesmo assim. Deseja continuar?');
+    if(!proceed) return;
+  }
+
+  state.credits.push({ id: uid('cred'), employeeId, workedDate, note, createdAt: new Date().toISOString() });
+  await saveState();
+  const emp = state.employees.find(e=>e.id===employeeId);
+  await logAction('Registrou crédito de folga', (emp?emp.name:'') + ' — trabalhou em ' + fmtDateBr(workedDate));
+  creditModal.classList.remove('open');
+  renderManagerView();
+  showToast('Crédito de folga registrado!');
+});
+
+// ---------- Helpers: bloqueios (dia bloqueado pela gerência / colaborador de férias) ----------
+function blockedDateInfo(date){
+  return state.blockedDates.find(b=> b.date===date) || null;
+}
+function isWeekdayBlocked(date){
+  const wd = new Date(date+'T00:00:00').getDay();
+  return state.blockedWeekdays.includes(wd);
+}
+function employeeOnLeaveAt(employeeId, date){
+  return state.leaves.find(l=> l.employeeId===employeeId && date >= l.startDate && date <= l.endDate) || null;
+}
+
+// ---------- Manager: bloquear dias específicos ----------
+const blockedModal = document.getElementById('blockedModal');
+let pendingBlockedDates = []; // [{date, reason}] ainda não salvos
+
+const WEEKDAY_LABELS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
+function renderWeekdayToggles(){
+  const el = document.getElementById('weekdayToggles');
+  el.innerHTML = '';
+  WEEKDAY_LABELS.forEach((label, idx)=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'weekday-toggle' + (state.blockedWeekdays.includes(idx) ? ' active' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', ()=> toggleWeekdayBlock(idx));
+    el.appendChild(btn);
+  });
+}
+
+async function toggleWeekdayBlock(idx){
+  let action;
+  if(state.blockedWeekdays.includes(idx)){
+    state.blockedWeekdays = state.blockedWeekdays.filter(d=>d!==idx);
+    action = 'Desbloqueou dia da semana';
+  } else {
+    state.blockedWeekdays.push(idx);
+    action = 'Bloqueou dia da semana';
+  }
+  await saveState();
+  await logAction(action, WEEKDAY_LABELS[idx]);
+  renderWeekdayToggles();
+}
+
+function openBlockedModal(){
+  document.getElementById('blockedDateInput').value = tomorrowStr();
+  document.getElementById('blockedDateEndInput').value = '';
+  document.getElementById('blockedReasonInput').value = '';
+  pendingBlockedDates = [];
+  renderWeekdayToggles();
+  renderBlockedList();
+  renderPendingBlockedList();
+  blockedModal.classList.add('open');
+}
+document.getElementById('manageBlockedBtn').addEventListener('click', openBlockedModal);
+document.getElementById('closeBlockedModalBtn').addEventListener('click', ()=> blockedModal.classList.remove('open'));
+blockedModal.addEventListener('click', (e)=>{ if(e.target===blockedModal) blockedModal.classList.remove('open'); });
+
+function renderBlockedList(){
+  const el = document.getElementById('blockedList');
+  el.innerHTML = '';
+  if(state.blockedDates.length === 0){
+    el.innerHTML = '<div class="empty-row" style="padding:10px 0;">Nenhum dia bloqueado.</div>';
+    return;
+  }
+  const sorted = state.blockedDates.slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
+  sorted.forEach(b=>{
+    const row = document.createElement('div');
+    row.className = 'emp-manage-row';
+    row.innerHTML = `
+      <span>${fmtDateBr(b.date)} <span style="color:var(--ink-soft);font-size:11.5px;">(${weekdayName(b.date)})</span>${b.reason?' — '+b.reason:''}</span>
+      <span class="eactions"><button class="del" data-delblocked="${b.id}">Remover</button></span>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('[data-delblocked]').forEach(btn=> btn.addEventListener('click', ()=> deleteBlockedDate(btn.dataset.delblocked)));
+}
+
+async function deleteBlockedDate(id){
+  if(!(await showConfirm('Desbloquear esse dia? Colaboradores voltam a poder agendar folga nele.'))) return;
+  const blk = state.blockedDates.find(b=>b.id===id);
+  state.blockedDates = state.blockedDates.filter(b=>b.id!==id);
+  await saveState();
+  await logAction('Desbloqueou data', blk ? fmtDateBr(blk.date) : id);
+  renderBlockedList();
+}
+
+function renderPendingBlockedList(){
+  const el = document.getElementById('pendingBlockedList');
+  el.innerHTML = '';
+  pendingBlockedDates.forEach((item, idx)=>{
+    const chip = document.createElement('span');
+    chip.className = 'pending-chip';
+    chip.innerHTML = `${fmtDateBr(item.date)} <button type="button" title="Remover da lista">✕</button>`;
+    chip.querySelector('button').addEventListener('click', ()=>{
+      pendingBlockedDates.splice(idx,1);
+      renderPendingBlockedList();
+    });
+    el.appendChild(chip);
+  });
+  document.getElementById('saveBlockedBtn').textContent = pendingBlockedDates.length
+    ? 'Bloquear ' + pendingBlockedDates.length + ' dia(s) da lista'
+    : 'Bloquear dia(s) da lista';
+}
+
+function addDaysToPendingList(){
+  const start = document.getElementById('blockedDateInput').value;
+  const end = document.getElementById('blockedDateEndInput').value;
+  const reason = document.getElementById('blockedReasonInput').value.trim();
+  if(!start) return { added: 0, skipped: 0 };
+
+  const dates = [];
+  if(end && end >= start){
+    let d = new Date(start+'T00:00:00');
+    const last = new Date(end+'T00:00:00');
+    while(d <= last){
+      dates.push(d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()));
+      d.setDate(d.getDate()+1);
+    }
+  } else {
+    dates.push(start);
+  }
+
+  let added = 0, skipped = 0;
+  dates.forEach(date=>{
+    const alreadyBlocked = state.blockedDates.some(b=>b.date===date);
+    const alreadyPending = pendingBlockedDates.some(p=>p.date===date);
+    if(alreadyBlocked || alreadyPending){ skipped++; return; }
+    pendingBlockedDates.push({ date, reason });
+    added++;
+  });
+  return { added, skipped };
+}
+
+document.getElementById('addPendingBlockedBtn').addEventListener('click', async ()=>{
+  const start = document.getElementById('blockedDateInput').value;
+  if(!start){ await showAlert('Escolha pelo menos a data inicial.'); return; }
+  const { added, skipped } = addDaysToPendingList();
+  if(added === 0 && skipped > 0){ await showAlert('Essa(s) data(s) já está(ão) bloqueada(s) ou já está(ão) na lista.'); return; }
+  document.getElementById('blockedDateEndInput').value = '';
+  renderPendingBlockedList();
+});
+
+document.getElementById('saveBlockedBtn').addEventListener('click', async ()=>{
+  if(pendingBlockedDates.length === 0){
+    // conveniência: se a lista está vazia mas há uma data preenchida, tenta adicionar e bloquear direto
+    const start = document.getElementById('blockedDateInput').value;
+    if(!start){ await showAlert('Escolha ao menos uma data e clique em "+ Adicionar à lista", ou preencha a data para bloquear direto.'); return; }
+    addDaysToPendingList();
+  }
+  if(pendingBlockedDates.length === 0){ await showAlert('Nenhuma data nova para bloquear.'); return; }
+
+  const blockedDatesList = pendingBlockedDates.map(item=> fmtDateBr(item.date)).join(', ');
+  pendingBlockedDates.forEach(item=>{
+    state.blockedDates.push({ id: uid('blk'), date: item.date, reason: item.reason, createdAt: new Date().toISOString() });
+  });
+  const count = pendingBlockedDates.length;
+  pendingBlockedDates = [];
+  await saveState();
+  await logAction('Bloqueou data(s)', blockedDatesList);
+  document.getElementById('blockedDateEndInput').value = '';
+  renderBlockedList();
+  renderPendingBlockedList();
+  showToast(count + ' dia(s) bloqueado(s) para folga!');
+});
+
+// ---------- Manager: leaves (férias/atestados) ----------
+const leavesModal = document.getElementById('leavesModal');
+const LEAVE_LABELS = { ferias: '🏖️ Férias', atestado: '🩹 Atestado médico' };
+
+function openLeavesModal(){
+  const sel = document.getElementById('leaveEmployeeSelect');
+  sel.innerHTML = state.employees.length
+    ? state.employees.map(e=> `<option value="${e.id}">${e.name}</option>`).join('')
+    : '<option value="">Cadastre um colaborador primeiro</option>';
+  document.getElementById('leaveTypeSelect').value = 'ferias';
+  document.getElementById('leaveStartInput').value = todayStr();
+  document.getElementById('leaveEndInput').value = todayStr();
+  document.getElementById('leaveNoteInput').value = '';
+  renderLeavesList();
+  leavesModal.classList.add('open');
+}
+document.getElementById('manageLeavesBtn').addEventListener('click', openLeavesModal);
+document.getElementById('closeLeavesModalBtn').addEventListener('click', ()=> leavesModal.classList.remove('open'));
+leavesModal.addEventListener('click', (e)=>{ if(e.target===leavesModal) leavesModal.classList.remove('open'); });
+
+function leaveStatus(leave){
+  const today = todayStr();
+  if(today < leave.startDate) return { label:'Agendado', cls:'zero' };
+  if(today > leave.endDate) return { label:'Encerrado', cls:'zero' };
+  return { label:'Em andamento', cls:'pos' };
+}
+
+function renderLeavesList(){
+  const el = document.getElementById('leavesList');
+  el.innerHTML = '';
+  if(state.leaves.length === 0){
+    el.innerHTML = '<div class="empty-row" style="padding:10px 0;">Nenhuma férias ou atestado registrado ainda.</div>';
+    return;
+  }
+  const sorted = state.leaves.slice().sort((a,b)=> new Date(b.startDate)-new Date(a.startDate));
+  sorted.forEach(leave=>{
+    const emp = state.employees.find(e=>e.id===leave.employeeId);
+    const st = leaveStatus(leave);
+    const row = document.createElement('div');
+    row.className = 'emp-manage-row';
+    row.innerHTML = `
+      <span>${LEAVE_LABELS[leave.type]||leave.type} — ${emp?emp.name:'—'} ${leave.submittedBy==='colaborador' ? '<span class="balance-pill zero" style="font-size:10px;">enviado pelo colaborador</span>' : ''}<br>
+        <span style="font-size:11.5px;color:var(--ink-soft);">${fmtDateBr(leave.startDate)} a ${fmtDateBr(leave.endDate)}${leave.note?' · '+leave.note:''}</span>
+        <span class="balance-pill ${st.cls}" style="margin-left:6px;">${st.label}</span>
+      </span>
+      <span class="eactions"><button class="del" data-delleave="${leave.id}">Remover</button></span>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('[data-delleave]').forEach(btn=> btn.addEventListener('click', ()=> deleteLeave(btn.dataset.delleave)));
+}
+
+async function deleteLeave(id){
+  if(!(await showConfirm('Remover este registro de férias/atestado?'))) return;
+  const leave = state.leaves.find(l=>l.id===id);
+  const emp = leave ? state.employees.find(e=>e.id===leave.employeeId) : null;
+  state.leaves = state.leaves.filter(l=>l.id!==id);
+  await saveState();
+  await logAction('Removeu registro de ' + (leave&&leave.type==='ferias'?'férias':'atestado'), (emp?emp.name:'—'));
+  renderLeavesList();
+  renderManagerView();
+}
+
+document.getElementById('saveLeaveBtn').addEventListener('click', async ()=>{
+  const employeeId = document.getElementById('leaveEmployeeSelect').value;
+  const type = document.getElementById('leaveTypeSelect').value;
+  const startDate = document.getElementById('leaveStartInput').value;
+  const endDate = document.getElementById('leaveEndInput').value;
+  const note = document.getElementById('leaveNoteInput').value.trim();
+  if(!employeeId){ await showAlert('Cadastre e selecione um colaborador.'); return; }
+  if(!startDate || !endDate){ await showAlert('Preencha a data de início e fim.'); return; }
+  if(endDate < startDate){ await showAlert('A data final não pode ser antes da data inicial.'); return; }
+
+  state.leaves.push({ id: uid('leave'), employeeId, type, startDate, endDate, note, createdAt: new Date().toISOString() });
+  await saveState();
+  const emp = state.employees.find(e=>e.id===employeeId);
+  await logAction('Registrou ' + (type==='ferias'?'férias':'atestado'), (emp?emp.name:'') + ' — ' + fmtDateBr(startDate) + ' a ' + fmtDateBr(endDate));
+  document.getElementById('leaveNoteInput').value = '';
+  renderLeavesList();
+  renderManagerView();
+  showToast((type==='ferias'?'Férias':'Atestado') + ' registrado(a)!');
+});
+
+// ---------- CEO: gerenciar senhas (cargos + colaboradores) ----------
+const passwordsModal = document.getElementById('passwordsModal');
+
+function openPasswordsModal(){
+  if(currentRole !== 'CEO') return;
+  renderRolePasswordsList();
+  renderEmployeeCodesList();
+  passwordsModal.classList.add('open');
+}
+document.getElementById('passwordsBtn').addEventListener('click', openPasswordsModal);
+document.getElementById('closePasswordsModalBtn').addEventListener('click', ()=> passwordsModal.classList.remove('open'));
+passwordsModal.addEventListener('click', (e)=>{ if(e.target===passwordsModal) passwordsModal.classList.remove('open'); });
+
+function renderRolePasswordsList(){
+  const el = document.getElementById('rolePasswordsList');
+  el.innerHTML = '';
+  Object.keys(state.rolePasswords).forEach(role=>{
+    const row = document.createElement('div');
+    row.className = 'password-row';
+    row.innerHTML = `
+      <span class="prole">${role}</span>
+      <input type="text" inputmode="numeric" maxlength="10" value="${state.rolePasswords[role]}" data-roleinput="${role}">
+      <button type="button" data-rolesave="${role}">Salvar</button>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('[data-rolesave]').forEach(btn=>{
+    btn.addEventListener('click', ()=> saveRolePassword(btn.dataset.rolesave));
+  });
+}
+
+async function saveRolePassword(role){
+  const input = document.querySelector('[data-roleinput="'+role+'"]');
+  const newPass = input.value.trim();
+  if(!newPass){ await showAlert('A senha não pode ficar vazia.'); return; }
+  const conflictRole = Object.keys(state.rolePasswords).find(r => r!==role && state.rolePasswords[r]===newPass);
+  if(conflictRole){ await showAlert('Essa senha já está em uso pelo cargo ' + conflictRole + '. Escolha outra.'); return; }
+
+  state.rolePasswords[role] = newPass;
+  await saveState();
+  await logAction('Trocou senha do cargo', role);
+  showToast('Senha do cargo ' + role + ' atualizada!');
+}
+
+function renderEmployeeCodesList(){
+  const el = document.getElementById('employeeCodesList');
+  el.innerHTML = '';
+  if(state.employees.length === 0){
+    el.innerHTML = '<div class="empty-row" style="padding:10px 0;">Nenhum colaborador cadastrado.</div>';
+    return;
+  }
+  state.employees.forEach(emp=>{
+    const row = document.createElement('div');
+    row.className = 'password-row';
+    row.innerHTML = `
+      <span class="pname">${emp.name}</span>
+      <input type="text" inputmode="numeric" maxlength="8" value="${emp.code}" data-empinput="${emp.id}">
+      <button type="button" data-empsave="${emp.id}">Salvar</button>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('[data-empsave]').forEach(btn=>{
+    btn.addEventListener('click', ()=> saveEmployeeCode(btn.dataset.empsave));
+  });
+}
+
+async function saveEmployeeCode(employeeId){
+  const input = document.querySelector('[data-empinput="'+employeeId+'"]');
+  const newCode = input.value.trim();
+  const emp = state.employees.find(e=>e.id===employeeId);
+  if(!emp) return;
+  if(!newCode){ await showAlert('O código não pode ficar vazio.'); return; }
+  const conflict = state.employees.find(e=> e.code===newCode && e.id!==employeeId);
+  if(conflict){ await showAlert('Esse código já está em uso por ' + conflict.name + '. Escolha outro.'); return; }
+
+  emp.code = newCode;
+  await saveState();
+  await logAction('Trocou código de acesso do colaborador', emp.name);
+  showToast('Código de ' + emp.name + ' atualizado!');
+}
+
+// ---------- CEO: relatório de auditoria ----------
+const auditModal = document.getElementById('auditModal');
+function fmtDateTimeBr(iso){
+  const d = new Date(iso);
+  return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+' às '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function openAuditModal(){
+  if(currentRole !== 'CEO') return;
+  document.getElementById('auditRoleFilter').value = '';
+  renderAuditList();
+  auditModal.classList.add('open');
+}
+document.getElementById('auditBtn').addEventListener('click', openAuditModal);
+document.getElementById('closeAuditModalBtn').addEventListener('click', ()=> auditModal.classList.remove('open'));
+auditModal.addEventListener('click', (e)=>{ if(e.target===auditModal) auditModal.classList.remove('open'); });
+document.getElementById('auditRoleFilter').addEventListener('change', renderAuditList);
+
+function renderAuditList(){
+  const el = document.getElementById('auditList');
+  el.innerHTML = '';
+  const filterRole = document.getElementById('auditRoleFilter').value;
+  let entries = state.auditLog.slice().sort((a,b)=> new Date(b.timestamp)-new Date(a.timestamp));
+  if(filterRole) entries = entries.filter(e=> e.role === filterRole);
+
+  if(entries.length === 0){
+    el.innerHTML = '<div class="empty-row">Nenhuma ação registrada ainda.</div>';
+    return;
+  }
+  entries.forEach(entry=>{
+    const row = document.createElement('div');
+    row.className = 'emp-manage-row';
+    row.style.alignItems = 'flex-start';
+    row.innerHTML = `
+      <span>
+        <span class="balance-pill pos" style="margin-right:6px;">${entry.role}</span>
+        <b>${entry.action}</b>${entry.details ? ' — '+entry.details : ''}<br>
+        <span style="font-size:11px;color:var(--ink-soft);">${fmtDateTimeBr(entry.timestamp)}</span>
+      </span>
+    `;
+    el.appendChild(row);
+  });
+}
+
+// ---------- Manager: dashboard ----------
+function renderManagerView(){
+  document.getElementById('statEmployees').textContent = state.employees.length;
+  document.getElementById('statCredits').textContent = state.credits.length;
+  document.getElementById('statScheduled').textContent = state.daysOff.length;
+  const totalAvailable = state.employees.reduce((s,e)=> s + Math.max(0,balanceOf(e.id)), 0);
+  document.getElementById('statAvailable').textContent = totalAvailable;
+
+  const activeBody = document.getElementById('activeLeavesBody');
+  activeBody.innerHTML = '';
+  const today = todayStr();
+  const activeLeaves = state.leaves.filter(l=> today >= l.startDate && today <= l.endDate);
+  if(activeLeaves.length === 0){
+    activeBody.innerHTML = '<tr><td colspan="3" class="empty-row">Ninguém de férias ou atestado hoje.</td></tr>';
+  } else {
+    activeLeaves.forEach(leave=>{
+      const emp = state.employees.find(e=>e.id===leave.employeeId);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${emp?emp.name:'—'}</td><td>${LEAVE_LABELS[leave.type]||leave.type}</td><td>${fmtDateBr(leave.endDate)}</td>`;
+      activeBody.appendChild(tr);
+    });
+  }
+
+  const sickBody = document.getElementById('sickReportBody');
+  sickBody.innerHTML = '';
+  function daysBetweenInclusive(start, end){
+    const ms = new Date(end+'T00:00:00') - new Date(start+'T00:00:00');
+    return Math.round(ms / 86400000) + 1;
+  }
+  const sickStats = state.employees.map(emp=>{
+    const atestados = state.leaves.filter(l=> l.employeeId===emp.id && l.type==='atestado');
+    const totalDays = atestados.reduce((s,l)=> s + daysBetweenInclusive(l.startDate, l.endDate), 0);
+    return { emp, count: atestados.length, totalDays };
+  }).filter(s=> s.count > 0).sort((a,b)=> b.totalDays - a.totalDays);
+
+  if(sickStats.length === 0){
+    sickBody.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhum atestado registrado ainda.</td></tr>';
+  } else {
+    sickStats.forEach(s=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${s.emp.name}</td><td>${s.count}</td><td><b>${s.totalDays}</b> dia(s)</td>`;
+      sickBody.appendChild(tr);
+    });
+  }
+
+  const sickDetailBody = document.getElementById('sickDetailBody');
+  sickDetailBody.innerHTML = '';
+  const allSick = state.leaves.filter(l=> l.type==='atestado').slice().sort((a,b)=> new Date(b.startDate)-new Date(a.startDate));
+  if(allSick.length === 0){
+    sickDetailBody.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhum atestado registrado ainda.</td></tr>';
+  } else {
+    allSick.forEach(l=>{
+      const emp = state.employees.find(e=>e.id===l.employeeId);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${emp?emp.name:'—'}</td>
+        <td>${l.createdAt ? fmtDateTimeBr(l.createdAt) : '—'}</td>
+        <td>${fmtDateBr(l.startDate)}</td>
+        <td>${fmtDateBr(l.endDate)}</td>
+        <td>${daysBetweenInclusive(l.startDate, l.endDate)}</td>
+        <td>${l.note || '—'}</td>
+      `;
+      sickDetailBody.appendChild(tr);
+    });
+  }
+
+  const balanceBody = document.getElementById('balanceBody');
+  balanceBody.innerHTML = '';
+  if(state.employees.length === 0){
+    balanceBody.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhum colaborador cadastrado.</td></tr>';
+  } else {
+    state.employees.forEach(emp=>{
+      const earned = creditsOf(emp.id).length;
+      const used = scheduledOf(emp.id).length;
+      const bal = earned - used;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${emp.name}</td><td>${earned}</td><td>${used}</td><td><span class="balance-pill ${bal>0?'pos':'zero'}">${bal}</span></td>`;
+      balanceBody.appendChild(tr);
+    });
+  }
+
+  const schedBody = document.getElementById('scheduledBody');
+  schedBody.innerHTML = '';
+  const upcoming = state.daysOff.slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
+  if(upcoming.length === 0){
+    schedBody.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhuma folga agendada.</td></tr>';
+  } else {
+    upcoming.forEach(off=>{
+      const emp = state.employees.find(e=>e.id===off.employeeId);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${emp?emp.name:'—'}</td><td>${fmtDateBr(off.date)} <span style="color:var(--ink-soft);font-size:11.5px;">(${weekdayName(off.date)})</span></td><td class="row-actions"><button class="del" data-cancelsched="${off.id}">Cancelar</button></td>`;
+      schedBody.appendChild(tr);
+    });
+    schedBody.querySelectorAll('[data-cancelsched]').forEach(btn=> btn.addEventListener('click', ()=> cancelScheduled(btn.dataset.cancelsched)));
+  }
+
+  const credBody = document.getElementById('creditsBody');
+  credBody.innerHTML = '';
+  const creditsSorted = state.credits.slice().sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate));
+  if(creditsSorted.length === 0){
+    credBody.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhum crédito registrado.</td></tr>';
+  } else {
+    const usedDateByCredit = pairCreditsWithDaysOff();
+    creditsSorted.forEach(c=>{
+      const emp = state.employees.find(e=>e.id===c.employeeId);
+      const usedDate = usedDateByCredit.get(c.id);
+      const usedCell = usedDate
+        ? fmtDateBr(usedDate) + ' <span style="color:var(--ink-soft);font-size:11.5px;">('+weekdayName(usedDate)+')</span>'
+        : '<span class="balance-pill zero">Disponível</span>';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${emp?emp.name:'—'}</td><td>${fmtDateBr(c.workedDate)}${c.note?' — '+c.note:''}</td><td>${usedCell}</td><td class="row-actions"><button class="del" data-delcredit="${c.id}">Remover</button></td>`;
+      credBody.appendChild(tr);
+    });
+    credBody.querySelectorAll('[data-delcredit]').forEach(btn=> btn.addEventListener('click', ()=> deleteCredit(btn.dataset.delcredit)));
+  }
+}
+
+async function cancelScheduled(offId){
+  if(!(await showConfirm('Cancelar essa folga agendada? O crédito volta pro saldo do colaborador.'))) return;
+  const off = state.daysOff.find(d=>d.id===offId);
+  const emp = off ? state.employees.find(e=>e.id===off.employeeId) : null;
+  state.daysOff = state.daysOff.filter(d=>d.id!==offId);
+  await saveState();
+  await logAction('Apagou folga agendada', (emp?emp.name:'—') + ' — dia ' + (off?fmtDateBr(off.date):'?'));
+  renderManagerView();
+}
+async function deleteCredit(creditId){
+  if(!(await showConfirm('Remover este crédito? Se ele já tiver sido usado numa folga, o saldo do colaborador pode ficar negativo — ajuste com cuidado.'))) return;
+  const cred = state.credits.find(c=>c.id===creditId);
+  const emp = cred ? state.employees.find(e=>e.id===cred.employeeId) : null;
+  state.credits = state.credits.filter(c=>c.id!==creditId);
+  await saveState();
+  await logAction('Removeu crédito de folga', (emp?emp.name:'—') + ' — trabalhou em ' + (cred?fmtDateBr(cred.workedDate):'?'));
+  renderManagerView();
+}
+
+// ---------- Init ----------
+(async function init(){
+  if(!getAuthToken()){
+    roleGate.innerHTML = `
+      <h2>Faça login no PharmaMind primeiro</h2>
+      <p>Abra o PharmaMind numa aba dessa mesma janela — como gestor ou como funcionário — e volte aqui depois.
+      Essa ferramenta usa essa sessão pra saber de qual farmácia são os dados, e sem ela nada seria salvo de verdade.</p>
+    `;
+    showOnly(roleGate);
+    return;
+  }
+  await loadState();
+  showOnly(roleGate);
+})();
+</script>
+</body>
+</html>
