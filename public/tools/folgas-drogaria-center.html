@@ -6,6 +6,9 @@
 <title>Folgas — PharmaMind</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --green:#97D700; --green-deep:#436000; --green-mid:#628B00; --mint:#EAF7CC;
@@ -92,6 +95,11 @@
   @media (max-width:820px){ .cols{grid-template-columns:1fr;} }
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:20px;}
   h2.section-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:var(--green-deep);margin:0 0 14px;}
+  .section-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .section-head .section-title{margin:0;}
+  .report-dl{display:flex;gap:6px;flex-wrap:wrap;}
+  .btn-report{border:1px solid var(--line);background:var(--card);color:var(--green-deep);font-weight:600;font-size:11px;padding:5px 9px;border-radius:8px;cursor:pointer;white-space:nowrap;}
+  .btn-report:hover{background:var(--mint);}
 
   table{width:100%;border-collapse:collapse;font-size:13.5px;}
   thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);padding:8px 8px;border-bottom:1px solid var(--line);}
@@ -213,6 +221,8 @@
       <button class="btn-ghost" id="manageLeavesBtn">🏖️ Férias / Atestados</button>
       <button class="btn-ghost" id="manageBlockedBtn">🚫 Bloquear dias</button>
       <button class="btn-ghost" id="addCreditBtn">+ Registrar crédito (domingo/feriado)</button>
+      <button class="btn-ghost" id="downloadAllXlsxBtn">📊 Baixar tudo (Excel)</button>
+      <button class="btn-ghost" id="downloadAllPdfBtn">📄 Baixar tudo (PDF)</button>
       <button class="btn-ghost" id="auditBtn" hidden>📋 Auditoria (CEO)</button>
       <button class="btn-ghost" id="passwordsBtn" hidden>🔑 Senhas (CEO)</button>
     </div>
@@ -225,7 +235,13 @@
     </div>
 
     <div class="panel">
-      <h2 class="section-title">Ausências agora (férias / atestado)</h2>
+      <div class="section-head">
+        <h2 class="section-title">Ausências agora (férias / atestado)</h2>
+        <span class="report-dl">
+          <button class="btn-report" data-report="activeLeaves" data-fmt="xlsx">⬇️ Excel</button>
+          <button class="btn-report" data-report="activeLeaves" data-fmt="pdf">⬇️ PDF</button>
+        </span>
+      </div>
       <table>
         <thead><tr><th>Colaborador</th><th>Tipo</th><th>Até</th></tr></thead>
         <tbody id="activeLeavesBody"></tbody>
@@ -233,14 +249,26 @@
     </div>
 
     <div class="panel">
-      <h2 class="section-title">📊 Relatório de dias ausentes por doença / atestado</h2>
+      <div class="section-head">
+        <h2 class="section-title">📊 Relatório de dias ausentes por doença / atestado</h2>
+        <span class="report-dl">
+          <button class="btn-report" data-report="sickSummary" data-fmt="xlsx">⬇️ Excel</button>
+          <button class="btn-report" data-report="sickSummary" data-fmt="pdf">⬇️ PDF</button>
+        </span>
+      </div>
       <table>
         <thead><tr><th>Colaborador</th><th>Nº de atestados</th><th>Total de dias ausente</th></tr></thead>
         <tbody id="sickReportBody"></tbody>
       </table>
       <div class="footnote">Soma todos os períodos de atestado registrados (pelo colaborador ou pela gerência), do início ao fim de cada um.</div>
 
-      <h2 class="section-title" style="margin-top:22px;">Detalhamento de cada atestado</h2>
+      <div class="section-head" style="margin-top:22px;">
+        <h2 class="section-title">Detalhamento de cada atestado</h2>
+        <span class="report-dl">
+          <button class="btn-report" data-report="sickDetail" data-fmt="xlsx">⬇️ Excel</button>
+          <button class="btn-report" data-report="sickDetail" data-fmt="pdf">⬇️ PDF</button>
+        </span>
+      </div>
       <div style="overflow-x:auto;">
         <table>
           <thead><tr><th>Colaborador</th><th>Registrado em</th><th>Ausente de</th><th>Ausente até</th><th>Dias</th><th>Motivo</th></tr></thead>
@@ -251,7 +279,13 @@
     </div>
 
     <div class="panel">
-      <h2 class="section-title">Saldo por colaborador</h2>
+      <div class="section-head">
+        <h2 class="section-title">Saldo por colaborador</h2>
+        <span class="report-dl">
+          <button class="btn-report" data-report="balance" data-fmt="xlsx">⬇️ Excel</button>
+          <button class="btn-report" data-report="balance" data-fmt="pdf">⬇️ PDF</button>
+        </span>
+      </div>
       <table>
         <thead><tr><th>Colaborador</th><th>Créditos</th><th>Usadas</th><th>Saldo</th></tr></thead>
         <tbody id="balanceBody"></tbody>
@@ -260,14 +294,26 @@
 
     <div class="cols">
       <div class="panel">
-        <h2 class="section-title">Próximas folgas agendadas</h2>
+        <div class="section-head">
+          <h2 class="section-title">Próximas folgas agendadas</h2>
+          <span class="report-dl">
+            <button class="btn-report" data-report="scheduled" data-fmt="xlsx">⬇️ Excel</button>
+            <button class="btn-report" data-report="scheduled" data-fmt="pdf">⬇️ PDF</button>
+          </span>
+        </div>
         <table>
           <thead><tr><th>Colaborador</th><th>Data</th><th></th></tr></thead>
           <tbody id="scheduledBody"></tbody>
         </table>
       </div>
       <div class="panel">
-        <h2 class="section-title">Histórico de créditos concedidos</h2>
+        <div class="section-head">
+          <h2 class="section-title">Histórico de créditos concedidos</h2>
+          <span class="report-dl">
+            <button class="btn-report" data-report="credits" data-fmt="xlsx">⬇️ Excel</button>
+            <button class="btn-report" data-report="credits" data-fmt="pdf">⬇️ PDF</button>
+          </span>
+        </div>
         <table>
           <thead><tr><th>Colaborador</th><th>Trabalhou em</th><th>Vai folgar em</th><th></th></tr></thead>
           <tbody id="creditsBody"></tbody>
@@ -523,6 +569,10 @@ function fmtDateBr(iso){ const [y,m,d] = iso.split('-'); return d+'/'+m+'/'+y; }
 function weekdayName(iso){
   const d = new Date(iso+'T00:00:00');
   return ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][d.getDay()];
+}
+function daysBetweenInclusive(start, end){
+  const ms = new Date(end+'T00:00:00') - new Date(start+'T00:00:00');
+  return Math.round(ms / 86400000) + 1;
 }
 
 // Base da API e sessão do PharmaMind — lidas do link que abriu essa ferramenta
@@ -1420,10 +1470,6 @@ function renderManagerView(){
 
   const sickBody = document.getElementById('sickReportBody');
   sickBody.innerHTML = '';
-  function daysBetweenInclusive(start, end){
-    const ms = new Date(end+'T00:00:00') - new Date(start+'T00:00:00');
-    return Math.round(ms / 86400000) + 1;
-  }
   const sickStats = state.employees.map(emp=>{
     const atestados = state.leaves.filter(l=> l.employeeId===emp.id && l.type==='atestado');
     const totalDays = atestados.reduce((s,l)=> s + daysBetweenInclusive(l.startDate, l.endDate), 0);
@@ -1511,6 +1557,147 @@ function renderManagerView(){
     credBody.querySelectorAll('[data-delcredit]').forEach(btn=> btn.addEventListener('click', ()=> deleteCredit(btn.dataset.delcredit)));
   }
 }
+
+// ---------- Relatórios (Excel / PDF) ----------
+// Cada relatório monta seus próprios dados (não lê da tabela renderizada),
+// pra funcionar igual em qualquer navegador e ficar limpo pra exportação
+// (sem os botões de ação, badges de status etc. que aparecem na tela).
+const REPORTS = {
+  activeLeaves: {
+    title: 'Ausências agora (férias-atestado)',
+    build(){
+      const today = todayStr();
+      const rows = state.leaves
+        .filter(l=> today >= l.startDate && today <= l.endDate)
+        .map(l=>{
+          const emp = state.employees.find(e=>e.id===l.employeeId);
+          return [emp?emp.name:'—', LEAVE_LABELS[l.type]||l.type, fmtDateBr(l.endDate)];
+        });
+      return { headers: ['Colaborador','Tipo','Até'], rows };
+    }
+  },
+  sickSummary: {
+    title: 'Relatório de dias ausentes por doença-atestado',
+    build(){
+      const rows = state.employees.map(emp=>{
+        const atestados = state.leaves.filter(l=> l.employeeId===emp.id && l.type==='atestado');
+        const totalDays = atestados.reduce((s,l)=> s + daysBetweenInclusive(l.startDate, l.endDate), 0);
+        return { emp, count: atestados.length, totalDays };
+      }).filter(s=> s.count > 0).sort((a,b)=> b.totalDays - a.totalDays)
+        .map(s=> [s.emp.name, s.count, s.totalDays]);
+      return { headers: ['Colaborador','Nº de atestados','Total de dias ausente'], rows };
+    }
+  },
+  sickDetail: {
+    title: 'Detalhamento de cada atestado',
+    build(){
+      const rows = state.leaves.filter(l=> l.type==='atestado')
+        .slice().sort((a,b)=> new Date(b.startDate)-new Date(a.startDate))
+        .map(l=>{
+          const emp = state.employees.find(e=>e.id===l.employeeId);
+          return [
+            emp?emp.name:'—',
+            l.createdAt ? fmtDateTimeBr(l.createdAt) : '—',
+            fmtDateBr(l.startDate),
+            fmtDateBr(l.endDate),
+            daysBetweenInclusive(l.startDate, l.endDate),
+            l.note || '—',
+          ];
+        });
+      return { headers: ['Colaborador','Registrado em','Ausente de','Ausente até','Dias','Motivo'], rows };
+    }
+  },
+  balance: {
+    title: 'Saldo por colaborador',
+    build(){
+      const rows = state.employees.map(emp=>{
+        const earned = creditsOf(emp.id).length;
+        const used = scheduledOf(emp.id).length;
+        return [emp.name, earned, used, earned - used];
+      });
+      return { headers: ['Colaborador','Créditos','Usadas','Saldo'], rows };
+    }
+  },
+  scheduled: {
+    title: 'Próximas folgas agendadas',
+    build(){
+      const rows = state.daysOff.slice().sort((a,b)=> new Date(a.date)-new Date(b.date))
+        .map(off=>{
+          const emp = state.employees.find(e=>e.id===off.employeeId);
+          return [emp?emp.name:'—', fmtDateBr(off.date), weekdayName(off.date)];
+        });
+      return { headers: ['Colaborador','Data','Dia da semana'], rows };
+    }
+  },
+  credits: {
+    title: 'Histórico de créditos concedidos',
+    build(){
+      const usedDateByCredit = pairCreditsWithDaysOff();
+      const rows = state.credits.slice().sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate))
+        .map(c=>{
+          const emp = state.employees.find(e=>e.id===c.employeeId);
+          const usedDate = usedDateByCredit.get(c.id);
+          return [emp?emp.name:'—', fmtDateBr(c.workedDate), c.note || '—', usedDate ? fmtDateBr(usedDate) : 'Disponível'];
+        });
+      return { headers: ['Colaborador','Trabalhou em','Observação','Vai folgar em / Status'], rows };
+    }
+  },
+};
+
+function nomeArquivo(base, ext){
+  return base.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') + '-' + todayStr() + '.' + ext;
+}
+
+function baixarRelatorioExcel(chave){
+  const { title, build } = REPORTS[chave];
+  const { headers, rows } = build();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, title.slice(0,31));
+  XLSX.writeFile(wb, nomeArquivo(title, 'xlsx'));
+}
+
+function baixarRelatorioPdf(chave){
+  const { title, build } = REPORTS[chave];
+  const { headers, rows } = build();
+  const doc = new window.jspdf.jsPDF();
+  doc.setFontSize(13);
+  doc.text(title, 14, 15);
+  doc.autoTable({ head: [headers], body: rows.length ? rows : [['Nenhum dado encontrado.']], startY: 20, styles: { fontSize: 9 } });
+  doc.save(nomeArquivo(title, 'pdf'));
+}
+
+document.querySelectorAll('.btn-report').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const { report, fmt } = btn.dataset;
+    if(fmt === 'xlsx') baixarRelatorioExcel(report);
+    else baixarRelatorioPdf(report);
+  });
+});
+
+document.getElementById('downloadAllXlsxBtn').addEventListener('click', ()=>{
+  const wb = XLSX.utils.book_new();
+  Object.values(REPORTS).forEach(r=>{
+    const { headers, rows } = r.build();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    XLSX.utils.book_append_sheet(wb, ws, r.title.slice(0,31));
+  });
+  XLSX.writeFile(wb, nomeArquivo('relatorios-folgas', 'xlsx'));
+});
+
+document.getElementById('downloadAllPdfBtn').addEventListener('click', ()=>{
+  const doc = new window.jspdf.jsPDF();
+  let first = true;
+  Object.values(REPORTS).forEach(r=>{
+    if(!first) doc.addPage();
+    first = false;
+    const { headers, rows } = r.build();
+    doc.setFontSize(13);
+    doc.text(r.title, 14, 15);
+    doc.autoTable({ head: [headers], body: rows.length ? rows : [['Nenhum dado encontrado.']], startY: 20, styles: { fontSize: 9 } });
+  });
+  doc.save(nomeArquivo('relatorios-folgas', 'pdf'));
+});
 
 async function cancelScheduled(offId){
   if(!(await showConfirm('Cancelar essa folga agendada? O crédito volta pro saldo do colaborador.'))) return;
