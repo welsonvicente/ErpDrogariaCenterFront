@@ -30,12 +30,16 @@
 
   /* GATES */
   .gate-box{max-width:340px;margin:50px auto;text-align:center;}
+  .gate-box .gate-icon{font-size:46px;line-height:1;margin-bottom:12px;}
   .gate-box h2{font-family:'Space Grotesk',sans-serif;font-size:18px;color:var(--green-deep);margin-bottom:6px;}
   .gate-box p{color:var(--ink-soft);font-size:13px;margin-bottom:20px;}
   .gate-box input{width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:20px;letter-spacing:6px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card);color:var(--ink);margin-bottom:12px;}
   .gate-box .err{color:var(--red);font-size:12.5px;font-weight:600;min-height:18px;margin-bottom:8px;}
   .gate-box button{width:100%;border:none;background:var(--green-mid);color:#fff;font-weight:700;padding:12px;border-radius:12px;font-size:14px;cursor:pointer;}
   .gate-box button:hover{background:var(--green-deep);}
+  .gate-box .gate-hint{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);text-align:left;display:flex;flex-direction:column;gap:10px;}
+  .gate-box .gate-hint div{font-size:12px;color:var(--ink-soft);line-height:1.4;}
+  .gate-box .gate-hint strong{color:var(--ink);}
 
   .greeting-bar{max-width:640px;margin:0 auto 22px;display:flex;justify-content:space-between;align-items:center;}
   .greeting-bar .hi{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;color:var(--green-deep);}
@@ -154,11 +158,16 @@
   <!-- EMPLOYEE VIEW -->
   <div id="employeeView" hidden>
     <div class="gate-box" id="codeGate">
+      <div class="gate-icon">🪪</div>
       <h2>Identifique-se</h2>
-      <p>Digite seu código de acesso</p>
+      <p>Digite seu código de colaborador — ou, se você for Supervisor, Gerência ou CEO, a senha da sua área.</p>
       <input type="password" id="employeeCodeInput" maxlength="10" inputmode="numeric" placeholder="••••">
       <div class="err" id="codeErr"></div>
       <button id="codeLoginBtn">Entrar</button>
+      <div class="gate-hint">
+        <div>🧑‍💼 <strong>Colaborador</strong> — digite seu código pra ver e agendar suas folgas</div>
+        <div>🔐 <strong>Supervisor, Gerência ou CEO</strong> — digite a senha da sua área pra gerenciar a equipe</div>
+      </div>
     </div>
 
     <div id="employeeLoggedArea" hidden>
@@ -1526,6 +1535,7 @@ async function deleteCredit(creditId){
 (async function init(){
   if(!getAuthToken()){
     document.getElementById('codeGate').innerHTML = `
+      <div class="gate-icon">🔒</div>
       <h2>Faça login no PharmaMind primeiro</h2>
       <p>Abra o PharmaMind numa aba dessa mesma janela — como gestor ou como funcionário — e volte aqui depois.
       Essa ferramenta usa essa sessão pra saber de qual farmácia são os dados, e sem ela nada seria salvo de verdade.</p>
