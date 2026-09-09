@@ -307,7 +307,7 @@
         <div class="field"><label>Cor da descrição</label><input id="flyerDescColor" type="color" value="#173C3A"></div>
         <div class="field"><label>Cor do preço</label><input id="flyerPriceColor" type="color" value="#436000"></div>
       </div>
-      <div class="field"><label>Cor de fundo da área dos produtos</label><input id="flyerGridBgColor" type="color" value="#FFFFFF"></div>
+      <div class="field"><label>Cor de fundo dos quadrantes dos produtos</label><input id="flyerGridBgColor" type="color" value="#FBFDF9"></div>
       <div class="field-row">
         <div class="field"><label>Tamanho da descrição <span id="flyerNameSizeVal">15</span>px</label><input id="flyerNameSize" type="range" min="10" max="24" value="15"></div>
         <div class="field"><label>Tamanho do preço <span id="flyerPriceSizeVal">19</span>px</label><input id="flyerPriceSize" type="range" min="13" max="30" value="19"></div>
@@ -377,6 +377,7 @@
           <button class="btn-ghost" style="width:auto;margin:0;" id="batchToFlyerBtn">🗞️ Usar no panfleto</button>
           <button class="btn-ghost" style="width:auto;margin:0;" id="batchCopyTextBtn">📋 Copiar texto pronto</button>
           <button class="btn-primary" style="width:auto;" id="batchZipBtn">📦 Baixar todos os stories (.zip)</button>
+          <button class="btn-ghost" style="width:auto;margin:0;" id="batchClearAllBtn">🗑️ Remover todos</button>
         </div>
       </div>
       <div class="footnote" style="text-align:left;margin-bottom:12px;">A busca automática de imagem nem sempre funciona (muitos sites bloqueiam uso externo da foto) — quando falhar, use "Trocar imagem" pra enviar a foto manualmente.</div>
@@ -1173,14 +1174,10 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
   const priceFontSize = Number(document.getElementById('flyerPriceSize').value) || 19;
   const deFontSize = Math.max(10, priceFontSize - 5);
 
+  const cardBgColor = document.getElementById('flyerGridBgColor').value || '#FBFDF9';
+
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0,0,W,H);
-
-  // Fundo só da área dos produtos (entre cabeçalho e rodapé) — some se houver
-  // imagem de fundo, já que ela é desenhada por cima logo em seguida.
-  const gridBgColor = document.getElementById('flyerGridBgColor').value || '#FFFFFF';
-  ctx.fillStyle = gridBgColor;
-  ctx.fillRect(0, headerH, W, H - headerH - footerH);
 
   // Quando há imagem de fundo e o criador desmarcar a opção, remove faixas brancas E as linhas divisórias
   const keepWhiteBars = flyerBackgroundImage ? document.getElementById('flyerBgWhiteBars').checked : true;
@@ -1232,7 +1229,7 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
     const x = pad + col*(cardW+gap);
     const y = headerH + row*(cardH+gap);
 
-    ctx.fillStyle = '#FBFDF9';
+    ctx.fillStyle = cardBgColor;
     ctx.strokeStyle = '#E4E9E0';
     ctx.lineWidth = 1;
     roundRect(ctx, x, y, cardW, cardH, 14);
@@ -1601,6 +1598,13 @@ function renderBatchList(){
     renderBatchList();
   }));
 }
+
+document.getElementById('batchClearAllBtn').addEventListener('click', ()=>{
+  if(batchProducts.length === 0) return;
+  if(!confirm('Remover todos os ' + batchProducts.length + ' produtos importados?')) return;
+  batchProducts = [];
+  renderBatchList();
+});
 
 document.getElementById('batchManualImageInput').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
