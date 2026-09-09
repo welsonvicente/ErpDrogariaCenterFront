@@ -224,12 +224,19 @@
       </div>
       <button class="btn-primary" id="flyerAddBtn">+ Adicionar ao panfleto</button>
 
-      <h2 class="section-title" style="margin-top:20px;">Produtos no panfleto</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:20px;">
+        <h2 class="section-title" style="margin:0;">Produtos no panfleto</h2>
+        <button class="btn-ghost" id="flyerClearAllBtn" style="width:auto;margin:0;font-size:12px;padding:6px 10px;">🗑️ Remover todos</button>
+      </div>
       <div class="product-list" id="flyerProductList"></div>
 
       <hr style="border:none;border-top:1px solid var(--line);margin:16px 0;">
 
       <h2 class="section-title">Textos do cabeçalho</h2>
+      <label style="display:flex;align-items:center;gap:8px;margin:-4px 0 10px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;">
+        <input type="checkbox" id="flyerShowHeaderTexts" checked style="width:auto;">
+        Mostrar textos do cabeçalho
+      </label>
       <div class="field-row">
         <div class="field" style="flex:2;"><label>Nome da loja</label><input id="flyerStoreName" value="Drogaria Center"></div>
         <div class="field"><label>Posição</label>
@@ -252,6 +259,10 @@
       </div>
 
       <h2 class="section-title" style="margin-top:18px;">Textos do rodapé</h2>
+      <label style="display:flex;align-items:center;gap:8px;margin:-4px 0 10px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;">
+        <input type="checkbox" id="flyerShowFooterTexts" checked style="width:auto;">
+        Mostrar textos do rodapé
+      </label>
       <div class="field-row">
         <div class="field" style="flex:2;"><label>Frase principal do rodapé</label><input id="flyerFooterText1" value="Feito com carinho pela Drogaria Center"></div>
         <div class="field"><label>Posição</label>
@@ -296,6 +307,7 @@
         <div class="field"><label>Cor da descrição</label><input id="flyerDescColor" type="color" value="#173C3A"></div>
         <div class="field"><label>Cor do preço</label><input id="flyerPriceColor" type="color" value="#436000"></div>
       </div>
+      <div class="field"><label>Cor de fundo da área dos produtos</label><input id="flyerGridBgColor" type="color" value="#FFFFFF"></div>
       <div class="field-row">
         <div class="field"><label>Tamanho da descrição <span id="flyerNameSizeVal">15</span>px</label><input id="flyerNameSize" type="range" min="10" max="24" value="15"></div>
         <div class="field"><label>Tamanho do preço <span id="flyerPriceSizeVal">19</span>px</label><input id="flyerPriceSize" type="range" min="13" max="30" value="19"></div>
@@ -1101,6 +1113,16 @@ document.getElementById('flyerLink').addEventListener('input', drawFlyer);
 document.getElementById('flyerLogoColor').addEventListener('input', drawFlyer);
 document.getElementById('flyerDescColor').addEventListener('input', drawFlyer);
 document.getElementById('flyerPriceColor').addEventListener('input', drawFlyer);
+document.getElementById('flyerGridBgColor').addEventListener('input', drawFlyer);
+document.getElementById('flyerShowHeaderTexts').addEventListener('change', drawFlyer);
+document.getElementById('flyerShowFooterTexts').addEventListener('change', drawFlyer);
+document.getElementById('flyerClearAllBtn').addEventListener('click', ()=>{
+  if(flyerProducts.length === 0) return;
+  if(!confirm('Remover todos os ' + flyerProducts.length + ' produtos do panfleto?')) return;
+  flyerProducts = [];
+  renderProductList();
+  drawFlyer();
+});
 
 // O layout do panfleto é desenhado em coordenadas "lógicas" pequenas (poucas
 // centenas de px) porque cada foto de produto ocupa um card pequeno na
@@ -1154,6 +1176,12 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0,0,W,H);
 
+  // Fundo só da área dos produtos (entre cabeçalho e rodapé) — some se houver
+  // imagem de fundo, já que ela é desenhada por cima logo em seguida.
+  const gridBgColor = document.getElementById('flyerGridBgColor').value || '#FFFFFF';
+  ctx.fillStyle = gridBgColor;
+  ctx.fillRect(0, headerH, W, H - headerH - footerH);
+
   // Quando há imagem de fundo e o criador desmarcar a opção, remove faixas brancas E as linhas divisórias
   const keepWhiteBars = flyerBackgroundImage ? document.getElementById('flyerBgWhiteBars').checked : true;
 
@@ -1170,20 +1198,23 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
   }
 
   // header
-  const storeName = document.getElementById('flyerStoreName').value.trim() || 'Drogaria Center';
-  const storeNameAlign = document.getElementById('flyerStoreNameAlign').value;
-  ctx.fillStyle = logoColor;
-  ctx.font = '700 34px "Space Grotesk"';
-  ctx.textBaseline = 'alphabetic';
-  drawAlignedText(ctx, storeName, 56, storeNameAlign, pad, W);
+  const showHeaderTexts = document.getElementById('flyerShowHeaderTexts').checked;
+  if(showHeaderTexts){
+    const storeName = document.getElementById('flyerStoreName').value.trim() || 'Drogaria Center';
+    const storeNameAlign = document.getElementById('flyerStoreNameAlign').value;
+    ctx.fillStyle = logoColor;
+    ctx.font = '700 34px "Space Grotesk"';
+    ctx.textBaseline = 'alphabetic';
+    drawAlignedText(ctx, storeName, 56, storeNameAlign, pad, W);
 
-  const title = document.getElementById('flyerTitle').value || 'Ofertas';
-  const titleAlign = document.getElementById('flyerTitleAlign').value;
-  ctx.fillStyle = logoColor;
-  ctx.font = '600 22px Inter';
-  let titleText = title;
-  if(totalPages > 1) titleText += ' — parte ' + pageNum + '/' + totalPages;
-  drawAlignedText(ctx, titleText, 88, titleAlign, pad, W);
+    const title = document.getElementById('flyerTitle').value || 'Ofertas';
+    const titleAlign = document.getElementById('flyerTitleAlign').value;
+    ctx.fillStyle = logoColor;
+    ctx.font = '600 22px Inter';
+    let titleText = title;
+    if(totalPages > 1) titleText += ' — parte ' + pageNum + '/' + totalPages;
+    drawAlignedText(ctx, titleText, 88, titleAlign, pad, W);
+  }
 
   if(keepWhiteBars){
     ctx.strokeStyle = '#D8E7E2';
@@ -1274,18 +1305,21 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
     renderQrToCanvas(ctx, link, qrX, footerY+30, 130);
   }
 
-  const footerText1 = document.getElementById('flyerFooterText1').value;
-  const footerText1Align = document.getElementById('flyerFooterText1Align').value;
-  const footerText2 = document.getElementById('flyerFooterText2').value;
-  const footerText2Align = document.getElementById('flyerFooterText2Align').value;
+  const showFooterTexts = document.getElementById('flyerShowFooterTexts').checked;
+  if(showFooterTexts){
+    const footerText1 = document.getElementById('flyerFooterText1').value;
+    const footerText1Align = document.getElementById('flyerFooterText1Align').value;
+    const footerText2 = document.getElementById('flyerFooterText2').value;
+    const footerText2Align = document.getElementById('flyerFooterText2Align').value;
 
-  ctx.fillStyle = '#173C3A';
-  ctx.font = '600 16px Inter';
-  if(footerText1) drawAlignedText(ctx, footerText1, footerY+55, footerText1Align, pad, W);
+    ctx.fillStyle = '#173C3A';
+    ctx.font = '600 16px Inter';
+    if(footerText1) drawAlignedText(ctx, footerText1, footerY+55, footerText1Align, pad, W);
 
-  ctx.fillStyle = '#628B00';
-  ctx.font = '400 13px Inter';
-  if(footerText2) drawAlignedText(ctx, footerText2, footerY+78, footerText2Align, pad, W);
+    ctx.fillStyle = '#628B00';
+    ctx.font = '400 13px Inter';
+    if(footerText2) drawAlignedText(ctx, footerText2, footerY+78, footerText2Align, pad, W);
+  }
 }
 
 function buildFlyerPages(){
