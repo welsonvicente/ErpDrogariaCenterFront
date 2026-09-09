@@ -101,6 +101,12 @@
   .btn-report{border:1px solid var(--line);background:var(--card);color:var(--green-deep);font-weight:600;font-size:11px;padding:5px 9px;border-radius:8px;cursor:pointer;white-space:nowrap;}
   .btn-report:hover{background:var(--mint);}
 
+  .folga-hoje-linhas{display:flex;flex-direction:column;gap:8px;}
+  .folga-hoje-linhas div{font-size:13.5px;color:var(--ink);}
+  .folga-hoje-linhas strong{color:var(--green-deep);}
+  .folga-consulta-form{display:flex;gap:10px;flex-wrap:wrap;align-items:end;}
+  .folga-consulta-form select,.folga-consulta-form input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:13.5px;font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);}
+
   table{width:100%;border-collapse:collapse;font-size:13.5px;}
   thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);padding:8px 8px;border-bottom:1px solid var(--line);}
   tbody td{padding:9px 8px;border-bottom:1px solid var(--line);}
@@ -232,6 +238,43 @@
       <div class="stat"><div class="num" id="statCredits">0</div><div class="lbl">Créditos concedidos</div></div>
       <div class="stat"><div class="num" id="statScheduled">0</div><div class="lbl">Folgas agendadas</div></div>
       <div class="stat"><div class="num" id="statAvailable">0</div><div class="lbl">Saldo total disponível</div></div>
+    </div>
+
+    <div class="panel">
+      <h2 class="section-title">🗓️ Quem está de folga</h2>
+      <div class="folga-hoje-linhas">
+        <div><strong>Quem folga hoje:</strong> <span id="folgaHojeNomes">Ninguém</span></div>
+        <div><strong>Quem folgará amanhã:</strong> <span id="folgaAmanhaNomes">Ninguém</span></div>
+      </div>
+      <div class="footnote" style="margin:16px 0 8px;">Consultar outra data, mês ou período:</div>
+      <div class="folga-consulta-form">
+        <div class="field" style="flex:0 0 130px;margin-bottom:0;">
+          <label>Tipo</label>
+          <select id="folgaConsultaTipo">
+            <option value="dia">Um dia</option>
+            <option value="mes">Um mês</option>
+            <option value="periodo">Período</option>
+          </select>
+        </div>
+        <div class="field" id="folgaConsultaDiaField" style="flex:1;min-width:140px;margin-bottom:0;">
+          <label>Data</label>
+          <input type="date" id="folgaConsultaDia">
+        </div>
+        <div class="field" id="folgaConsultaMesField" style="flex:1;min-width:140px;margin-bottom:0;display:none;">
+          <label>Mês</label>
+          <input type="month" id="folgaConsultaMes">
+        </div>
+        <div class="field" id="folgaConsultaInicioField" style="flex:1;min-width:130px;margin-bottom:0;display:none;">
+          <label>De</label>
+          <input type="date" id="folgaConsultaInicio">
+        </div>
+        <div class="field" id="folgaConsultaFimField" style="flex:1;min-width:130px;margin-bottom:0;display:none;">
+          <label>Até</label>
+          <input type="date" id="folgaConsultaFim">
+        </div>
+        <button class="btn-ghost" id="folgaConsultaBtn" style="width:auto;margin:0;">Ver</button>
+      </div>
+      <div id="folgaConsultaResultado"></div>
     </div>
 
     <div class="panel">
@@ -1447,6 +1490,7 @@ function renderAuditList(){
 
 // ---------- Manager: dashboard ----------
 function renderManagerView(){
+  renderFolgaHojeAmanha();
   document.getElementById('statEmployees').textContent = state.employees.length;
   document.getElementById('statCredits').textContent = state.credits.length;
   document.getElementById('statScheduled').textContent = state.daysOff.length;
@@ -1558,6 +1602,69 @@ function renderManagerView(){
   }
 }
 
+// ---------- Quem está de folga (hoje / amanhã / consulta livre) ----------
+const MESES_LABEL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+/** Colaboradores com folga agendada dentro de [dataInicio, dataFim] (inclusive), ordenado por data. */
+function folgasNoIntervalo(dataInicio, dataFim){
+  return state.daysOff
+    .filter(d=> d.date >= dataInicio && d.date <= dataFim)
+    .map(d=> ({ nome: (state.employees.find(e=>e.id===d.employeeId)||{}).name || '—', data: d.date }))
+    .sort((a,b)=> a.data.localeCompare(b.data) || a.nome.localeCompare(b.nome));
+}
+
+function renderFolgaHojeAmanha(){
+  const hoje = folgasNoIntervalo(todayStr(), todayStr());
+  const amanha = folgasNoIntervalo(tomorrowStr(), tomorrowStr());
+  document.getElementById('folgaHojeNomes').textContent = hoje.length ? hoje.map(x=>x.nome).join(', ') : 'Ninguém';
+  document.getElementById('folgaAmanhaNomes').textContent = amanha.length ? amanha.map(x=>x.nome).join(', ') : 'Ninguém';
+}
+
+function atualizarCamposConsultaFolga(){
+  const tipo = document.getElementById('folgaConsultaTipo').value;
+  document.getElementById('folgaConsultaDiaField').style.display = tipo==='dia' ? '' : 'none';
+  document.getElementById('folgaConsultaMesField').style.display = tipo==='mes' ? '' : 'none';
+  document.getElementById('folgaConsultaInicioField').style.display = tipo==='periodo' ? '' : 'none';
+  document.getElementById('folgaConsultaFimField').style.display = tipo==='periodo' ? '' : 'none';
+}
+document.getElementById('folgaConsultaTipo').addEventListener('change', atualizarCamposConsultaFolga);
+
+document.getElementById('folgaConsultaBtn').addEventListener('click', async ()=>{
+  const tipo = document.getElementById('folgaConsultaTipo').value;
+  let inicio, fim, label;
+
+  if(tipo === 'dia'){
+    inicio = fim = document.getElementById('folgaConsultaDia').value;
+    if(!inicio){ await showAlert('Escolha uma data.'); return; }
+    label = fmtDateBr(inicio);
+  } else if(tipo === 'mes'){
+    const mes = document.getElementById('folgaConsultaMes').value; // "AAAA-MM"
+    if(!mes){ await showAlert('Escolha um mês.'); return; }
+    const [ano, mesNum] = mes.split('-').map(Number);
+    inicio = mes + '-01';
+    fim = mes + '-' + pad(new Date(ano, mesNum, 0).getDate());
+    label = MESES_LABEL[mesNum-1] + '/' + ano;
+  } else {
+    inicio = document.getElementById('folgaConsultaInicio').value;
+    fim = document.getElementById('folgaConsultaFim').value;
+    if(!inicio || !fim){ await showAlert('Escolha as duas datas do período.'); return; }
+    if(fim < inicio){ await showAlert('A data final não pode ser antes da inicial.'); return; }
+    label = fmtDateBr(inicio) + ' a ' + fmtDateBr(fim);
+  }
+
+  const lista = folgasNoIntervalo(inicio, fim);
+  const el = document.getElementById('folgaConsultaResultado');
+  if(lista.length === 0){
+    el.innerHTML = '<div class="empty-note">Ninguém de folga em ' + label + '.</div>';
+  } else {
+    el.innerHTML = '<div class="footnote" style="margin:0 0 8px;">Folgas em ' + label + ':</div>' +
+      lista.map(x=> '<div class="off-item"><span><span class="date">'+x.nome+'</span><span class="weekday">'+fmtDateBr(x.data)+' ('+weekdayName(x.data)+')</span></span></div>').join('');
+  }
+});
+
+atualizarCamposConsultaFolga();
+document.getElementById('folgaConsultaDia').value = todayStr();
+
 // ---------- Relatórios (Excel / PDF) ----------
 // Cada relatório monta seus próprios dados (não lê da tabela renderizada),
 // pra funcionar igual em qualquer navegador e ficar limpo pra exportação
@@ -1657,12 +1764,29 @@ function baixarRelatorioExcel(chave){
   XLSX.writeFile(wb, nomeArquivo(title, 'xlsx'));
 }
 
+// A fonte padrão do jsPDF (Helvetica/WinAnsi) só cobre Latin-1 — qualquer
+// emoji (🏖️, 🩹 etc, usados nos rótulos de férias/atestado) vira caractere
+// corrompido no PDF. Não acontece no Excel (UTF-8) nem na tela, só no PDF —
+// por isso limpamos só aqui, mantendo o emoji nos outros lugares.
+function limparParaPdf(valor){
+  if(valor === null || valor === undefined) return valor;
+  if(typeof valor !== 'string') return valor;
+  return valor.replace(/[^\x00-\xFF]/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+function limparTabelaParaPdf(headers, rows){
+  return {
+    headers: headers.map(limparParaPdf),
+    rows: rows.map(row => row.map(limparParaPdf)),
+  };
+}
+
 function baixarRelatorioPdf(chave){
   const { title, build } = REPORTS[chave];
-  const { headers, rows } = build();
+  const dados = build();
+  const { headers, rows } = limparTabelaParaPdf(dados.headers, dados.rows);
   const doc = new window.jspdf.jsPDF();
   doc.setFontSize(13);
-  doc.text(title, 14, 15);
+  doc.text(limparParaPdf(title), 14, 15);
   doc.autoTable({ head: [headers], body: rows.length ? rows : [['Nenhum dado encontrado.']], startY: 20, styles: { fontSize: 9 } });
   doc.save(nomeArquivo(title, 'pdf'));
 }
@@ -1691,9 +1815,10 @@ document.getElementById('downloadAllPdfBtn').addEventListener('click', ()=>{
   Object.values(REPORTS).forEach(r=>{
     if(!first) doc.addPage();
     first = false;
-    const { headers, rows } = r.build();
+    const dados = r.build();
+    const { headers, rows } = limparTabelaParaPdf(dados.headers, dados.rows);
     doc.setFontSize(13);
-    doc.text(r.title, 14, 15);
+    doc.text(limparParaPdf(r.title), 14, 15);
     doc.autoTable({ head: [headers], body: rows.length ? rows : [['Nenhum dado encontrado.']], startY: 20, styles: { fontSize: 9 } });
   });
   doc.save(nomeArquivo('relatorios-folgas', 'pdf'));
