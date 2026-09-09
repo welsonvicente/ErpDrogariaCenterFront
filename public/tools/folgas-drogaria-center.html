@@ -694,9 +694,17 @@ function tryManagerLogin(){
   const matchedRole = Object.keys(state.rolePasswords).find(role => state.rolePasswords[role] === val);
   if(matchedRole){
     enterManagerView(matchedRole);
-  } else {
-    document.getElementById('managerErr').textContent = 'Senha incorreta. Tente novamente.';
+    return;
   }
+  // Também aceita, no mesmo campo, o código de acesso de um colaborador que o
+  // CEO promoveu a um cargo — assim ele entra direto na supervisão com o
+  // próprio código, sem precisar saber a senha genérica do cargo.
+  const emp = state.employees.find(e=> e.role && e.code === val);
+  if(emp){
+    enterManagerView(emp.role, emp);
+    return;
+  }
+  document.getElementById('managerErr').textContent = 'Senha incorreta. Tente novamente.';
 }
 document.getElementById('managerLoginBtn').addEventListener('click', tryManagerLogin);
 document.getElementById('managerPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryManagerLogin(); });
