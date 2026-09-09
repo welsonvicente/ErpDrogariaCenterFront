@@ -1157,7 +1157,12 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
   const { cardW, cardH, photoH } = sizing;
   const gap = 24, pad = Number(document.getElementById('flyerPad').value) || 40;
   const headerH = 130;
-  const footerH = 190;
+  // O rodapé só precisa da altura toda (pra caber o QR Code de 130px) quando
+  // há um link configurado — sem QR, reservar esse espaço deixava um vão
+  // vazio grande entre os produtos e o texto do rodapé.
+  const link = document.getElementById('flyerLink').value.trim();
+  const hasQr = link && window.QRCode;
+  const footerH = hasQr ? 190 : 100;
   const rows = Math.max(1, Math.ceil(pageProducts.length / cols));
   const W = pad*2 + cols*cardW + (cols-1)*gap;
   const H = headerH + rows*cardH + (rows-1)*gap + footerH + pad;
@@ -1222,11 +1227,14 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
     ctx.stroke();
   }
 
-  // grid
+  // grid — quando a última fileira não fecha as 3 colunas, centraliza os
+  // cards dela em vez de deixá-los colados à esquerda com um vão à direita.
   pageProducts.forEach((p, idx)=>{
     const col = idx % cols;
     const row = Math.floor(idx / cols);
-    const x = pad + col*(cardW+gap);
+    const itemsInRow = (row === rows-1) ? (pageProducts.length - row*cols) : cols;
+    const rowOffsetX = (cols - itemsInRow) * (cardW+gap) / 2;
+    const x = pad + rowOffsetX + col*(cardW+gap);
     const y = headerH + row*(cardH+gap);
 
     ctx.fillStyle = cardBgColor;
@@ -1294,9 +1302,7 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
     ctx.stroke();
   }
 
-  const link = document.getElementById('flyerLink').value.trim();
   const qrAlign = document.getElementById('flyerQrAlign').value;
-  const hasQr = link && window.QRCode;
   if(hasQr){
     const qrX = (qrAlign === 'right') ? (W - pad - 130) : pad;
     renderQrToCanvas(ctx, link, qrX, footerY+30, 130);
