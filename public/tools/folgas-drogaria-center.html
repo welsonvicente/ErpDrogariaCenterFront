@@ -202,7 +202,10 @@
     <div id="employeeLoggedArea" hidden>
       <div class="greeting-bar">
         <span class="hi" id="greetingText">Olá!</span>
-        <button id="switchEmployeeBtn">Trocar colaborador</button>
+        <span>
+          <button id="goSupervisionBtn" hidden>🔐 Área de supervisão</button>
+          <button id="switchEmployeeBtn">Trocar colaborador</button>
+        </span>
       </div>
 
       <div class="balance-card">
@@ -402,6 +405,7 @@
       <label>Bloquear um dia da semana inteiro (todo domingo, todo sábado etc.)</label>
       <div class="weekday-toggles" id="weekdayToggles"></div>
       <div class="footnote" style="margin-top:6px;">Isso bloqueia esse dia da semana pra sempre, todas as semanas — não precisa marcar data por data.</div>
+      <div id="weekdayBlockedInfo" style="font-size:12.5px;color:var(--ink-soft);margin-top:10px;display:flex;flex-direction:column;gap:4px;"></div>
     </div>
 
     <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
@@ -525,11 +529,14 @@ let currentRole = null; // 'Supervisor' | 'Gerência' | 'CEO'
 let currentManagerEmployee = null; // colaborador dono do cargo, quando o acesso veio do código dele (não da senha genérica)
 const CARGOS = ['Supervisor', 'Gerência', 'CEO'];
 
+/** Identifica quem está logado na área de supervisão agora, pra registrar em bloqueios/auditoria. */
+function currentActorLabel(){
+  return currentManagerEmployee ? (currentRole + ' — ' + currentManagerEmployee.name) : (currentRole || '—');
+}
 async function logAction(action, details){
-  const quem = currentManagerEmployee ? (currentRole + ' — ' + currentManagerEmployee.name) : (currentRole || '—');
   state.auditLog.push({
     id: uid('log'),
-    role: quem,
+    role: currentActorLabel(),
     action,
     details: details || '',
     timestamp: new Date().toISOString()
@@ -585,6 +592,9 @@ async function loadState(){
     if(!state.leaves) state.leaves = [];
     if(!state.blockedDates) state.blockedDates = [];
     if(!state.blockedWeekdays) state.blockedWeekdays = [];
+    // Migração: blockedWeekdays era só uma lista de números (0-6). Agora cada
+    // item registra também quem bloqueou — dado antigo vira "quem bloqueou: —".
+    state.blockedWeekdays = state.blockedWeekdays.map(b=> typeof b === 'number' ? { weekday: b, by: null, at: null } : b);
     if(!state.auditLog) state.auditLog = [];
     if(!state.rolePasswords) state.rolePasswords = {...DEFAULT_ROLE_PASSWORDS};
   }catch(e){
@@ -708,20 +718,21 @@ function tryEmployeeLogin(){
     document.getElementById('codeErr').textContent = 'Código não encontrado. Confira com o gerente.';
     return;
   }
-  if(emp.role){
-    document.getElementById('employeeCodeInput').value = '';
-    enterManagerView(emp.role, emp);
-    return;
-  }
   currentEmployee = emp;
   document.getElementById('codeGate').hidden = true;
   document.getElementById('employeeLoggedArea').hidden = false;
   document.getElementById('greetingText').textContent = 'Olá, ' + emp.name + '!';
+  // Ter um cargo não tira o acesso normal de funcionário — só soma um botão
+  // extra pra entrar na área de supervisão quando quiser (ver "goSupervisionBtn").
+  document.getElementById('goSupervisionBtn').hidden = !emp.role;
   renderEmployeeDashboard();
 }
 document.getElementById('codeLoginBtn').addEventListener('click', tryEmployeeLogin);
 document.getElementById('employeeCodeInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryEmployeeLogin(); });
 document.getElementById('switchEmployeeBtn').addEventListener('click', renderEmployeeLoginState);
+document.getElementById('goSupervisionBtn').addEventListener('click', ()=>{
+  if(currentEmployee && currentEmployee.role) enterManagerView(currentEmployee.role, currentEmployee);
+});
 
 function renderEmployeeDashboard(){
   if(!currentEmployee) return;
@@ -1038,7 +1049,7 @@ function blockedDateInfo(date){
 }
 function isWeekdayBlocked(date){
   const wd = new Date(date+'T00:00:00').getDay();
-  return state.blockedWeekdays.includes(wd);
+  return state.blockedWeekdays.some(b=> b.weekday === wd);
 }
 function employeeOnLeaveAt(employeeId, date){
   return state.leaves.find(l=> l.employeeId===employeeId && date >= l.startDate && date <= l.endDate) || null;
@@ -1056,20 +1067,34 @@ function renderWeekdayToggles(){
   WEEKDAY_LABELS.forEach((label, idx)=>{
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'weekday-toggle' + (state.blockedWeekdays.includes(idx) ? ' active' : '');
+    btn.className = 'weekday-toggle' + (state.blockedWeekdays.some(b=>b.weekday===idx) ? ' active' : '');
     btn.textContent = label;
     btn.addEventListener('click', ()=> toggleWeekdayBlock(idx));
     el.appendChild(btn);
   });
+
+  // Observação: quem bloqueou cada dia da semana ativo — visível pra
+  // qualquer cargo (Supervisor, Gerência ou CEO) que abrir essa tela.
+  const infoEl = document.getElementById('weekdayBlockedInfo');
+  const blocked = state.blockedWeekdays.slice().sort((a,b)=> a.weekday-b.weekday);
+  if(blocked.length === 0){
+    infoEl.innerHTML = '';
+  } else {
+    infoEl.innerHTML = blocked.map(b=>{
+      const quem = b.by || 'não registrado (bloqueado antes desse recurso existir)';
+      const quando = b.at ? ' em ' + fmtDateBr(b.at.slice(0,10)) : '';
+      return '<div>🚫 <strong>' + WEEKDAY_LABELS[b.weekday] + '</strong> — bloqueado por ' + quem + quando + '</div>';
+    }).join('');
+  }
 }
 
 async function toggleWeekdayBlock(idx){
   let action;
-  if(state.blockedWeekdays.includes(idx)){
-    state.blockedWeekdays = state.blockedWeekdays.filter(d=>d!==idx);
+  if(state.blockedWeekdays.some(b=>b.weekday===idx)){
+    state.blockedWeekdays = state.blockedWeekdays.filter(b=>b.weekday!==idx);
     action = 'Desbloqueou dia da semana';
   } else {
-    state.blockedWeekdays.push(idx);
+    state.blockedWeekdays.push({ weekday: idx, by: currentActorLabel(), at: new Date().toISOString() });
     action = 'Bloqueou dia da semana';
   }
   await saveState();
@@ -1102,8 +1127,9 @@ function renderBlockedList(){
   sorted.forEach(b=>{
     const row = document.createElement('div');
     row.className = 'emp-manage-row';
+    const quem = b.by || 'não registrado';
     row.innerHTML = `
-      <span>${fmtDateBr(b.date)} <span style="color:var(--ink-soft);font-size:11.5px;">(${weekdayName(b.date)})</span>${b.reason?' — '+b.reason:''}</span>
+      <span>${fmtDateBr(b.date)} <span style="color:var(--ink-soft);font-size:11.5px;">(${weekdayName(b.date)})</span>${b.reason?' — '+b.reason:''}<br><span style="color:var(--ink-soft);font-size:11px;">bloqueado por ${quem}</span></span>
       <span class="eactions"><button class="del" data-delblocked="${b.id}">Remover</button></span>
     `;
     el.appendChild(row);
@@ -1187,7 +1213,7 @@ document.getElementById('saveBlockedBtn').addEventListener('click', async ()=>{
 
   const blockedDatesList = pendingBlockedDates.map(item=> fmtDateBr(item.date)).join(', ');
   pendingBlockedDates.forEach(item=>{
-    state.blockedDates.push({ id: uid('blk'), date: item.date, reason: item.reason, createdAt: new Date().toISOString() });
+    state.blockedDates.push({ id: uid('blk'), date: item.date, reason: item.reason, by: currentActorLabel(), createdAt: new Date().toISOString() });
   });
   const count = pendingBlockedDates.length;
   pendingBlockedDates = [];
