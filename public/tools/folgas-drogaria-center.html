@@ -28,17 +28,6 @@
   .back-link{border:none;background:none;color:var(--ink-soft);font-weight:600;font-size:13px;cursor:pointer;padding:6px 0;}
   .back-link:hover{color:var(--green-deep);}
 
-  /* ROLE GATE */
-  .role-gate{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;}
-  .role-gate h2{font-family:'Space Grotesk',sans-serif;font-size:22px;color:var(--green-deep);margin:0 0 8px;}
-  .role-gate p{color:var(--ink-soft);font-size:14px;margin:0 0 32px;}
-  .role-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;}
-  .role-card{width:220px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px 20px;cursor:pointer;box-shadow:var(--shadow);transition:transform .12s ease;}
-  .role-card:hover{transform:translateY(-3px);border-color:var(--green-mid);}
-  .role-card .icon{font-size:38px;margin-bottom:10px;}
-  .role-card .title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;color:var(--ink);}
-  .role-card .sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px;}
-
   /* GATES */
   .gate-box{max-width:340px;margin:50px auto;text-align:center;}
   .gate-box h2{font-family:'Space Grotesk',sans-serif;font-size:18px;color:var(--green-deep);margin-bottom:6px;}
@@ -162,39 +151,12 @@
     <button class="back-link" id="backBtn" hidden>← Trocar de tela</button>
   </header>
 
-  <!-- ROLE GATE -->
-  <div class="role-gate" id="roleGate">
-    <h2>Quem está acessando?</h2>
-    <p>Quem trabalha no domingo ou feriado ganha 1 folga para usar quando quiser</p>
-    <div class="role-cards">
-      <div class="role-card" id="goEmployee">
-        <div class="icon">🧑‍💼</div>
-        <div class="title">Sou Funcionário</div>
-        <div class="sub">Ver e agendar minha folga</div>
-      </div>
-      <div class="role-card" id="goManager">
-        <div class="icon">🔐</div>
-        <div class="title">Administração</div>
-        <div class="sub">Supervisor, Gerência ou CEO</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MANAGER PASSWORD GATE -->
-  <div class="gate-box" id="managerGate" hidden>
-    <h2>Acesso administrativo</h2>
-    <p>Digite a senha do seu cargo (Supervisor, Gerência ou CEO)</p>
-    <input type="password" id="managerPassword" maxlength="10" placeholder="•••••" inputmode="numeric">
-    <div class="err" id="managerErr"></div>
-    <button id="managerLoginBtn">Entrar</button>
-  </div>
-
   <!-- EMPLOYEE VIEW -->
   <div id="employeeView" hidden>
     <div class="gate-box" id="codeGate">
       <h2>Identifique-se</h2>
-      <p>Digite seu código de acesso da farmácia</p>
-      <input type="password" id="employeeCodeInput" maxlength="8" inputmode="numeric" placeholder="••••">
+      <p>Digite seu código de acesso</p>
+      <input type="password" id="employeeCodeInput" maxlength="10" inputmode="numeric" placeholder="••••">
       <div class="err" id="codeErr"></div>
       <button id="codeLoginBtn">Entrar</button>
     </div>
@@ -640,42 +602,33 @@ function showToast(msg){
   setTimeout(()=> t.style.opacity = '0', 2200);
 }
 
-// ---------- Role navigation ----------
-const roleGate = document.getElementById('roleGate');
-const managerGate = document.getElementById('managerGate');
+// ---------- Login único ----------
+// Não existe mais tela de escolha de papel: um só campo de código/senha.
+// Colaborador (com ou sem cargo) sempre cai no próprio painel; as 3 senhas
+// genéricas de cargo (Supervisor/Gerência/CEO) vão direto pra supervisão,
+// já que não representam um colaborador específico.
 const employeeView = document.getElementById('employeeView');
 const managerView = document.getElementById('managerView');
 const backBtn = document.getElementById('backBtn');
 const headerSub = document.getElementById('headerSub');
 
 function showOnly(el){
-  [roleGate, managerGate, employeeView, managerView].forEach(x=> x.hidden = (x !== el));
-  backBtn.hidden = (el === roleGate);
+  [employeeView, managerView].forEach(x=> x.hidden = (x !== el));
 }
-document.getElementById('goEmployee').addEventListener('click', ()=>{
-  headerSub.textContent = 'Banco de folgas — Funcionário';
-  showOnly(employeeView);
-  renderEmployeeLoginState();
-});
-document.getElementById('goManager').addEventListener('click', ()=>{
-  headerSub.textContent = 'Acesso administrativo';
-  document.getElementById('managerPassword').value = '';
-  document.getElementById('managerErr').textContent = '';
-  showOnly(managerGate);
-  document.getElementById('managerPassword').focus();
-});
+
 backBtn.addEventListener('click', ()=>{
   headerSub.textContent = 'Banco de folgas';
   currentRole = null;
   currentManagerEmployee = null;
-  showOnly(roleGate);
+  showOnly(employeeView);
+  renderEmployeeLoginState();
 });
 
 /**
  * Entra na área de supervisão com um cargo — seja pela senha genérica do
- * cargo (tryManagerLogin) ou pelo código de um colaborador que o CEO
- * promoveu a Supervisor/Gerência/CEO (tryEmployeeLogin). `employee`, quando
- * presente, é só pra exibir/atribuir quem fez cada ação no log.
+ * cargo, pelo código de um colaborador promovido digitado direto no login
+ * único, ou pelo botão "Área de supervisão" dentro do painel dele.
+ * `employee`, quando presente, é só pra exibir/atribuir quem fez cada ação.
  */
 function enterManagerView(role, employee){
   currentRole = role;
@@ -685,29 +638,10 @@ function enterManagerView(role, employee){
   document.getElementById('roleBadge').textContent = '🔐 ' + quemLabel;
   document.getElementById('auditBtn').hidden = (role !== 'CEO');
   document.getElementById('passwordsBtn').hidden = (role !== 'CEO');
+  backBtn.hidden = false;
   showOnly(managerView);
   renderManagerView();
 }
-
-function tryManagerLogin(){
-  const val = document.getElementById('managerPassword').value;
-  const matchedRole = Object.keys(state.rolePasswords).find(role => state.rolePasswords[role] === val);
-  if(matchedRole){
-    enterManagerView(matchedRole);
-    return;
-  }
-  // Também aceita, no mesmo campo, o código de acesso de um colaborador que o
-  // CEO promoveu a um cargo — assim ele entra direto na supervisão com o
-  // próprio código, sem precisar saber a senha genérica do cargo.
-  const emp = state.employees.find(e=> e.role && e.code === val);
-  if(emp){
-    enterManagerView(emp.role, emp);
-    return;
-  }
-  document.getElementById('managerErr').textContent = 'Senha incorreta. Tente novamente.';
-}
-document.getElementById('managerLoginBtn').addEventListener('click', tryManagerLogin);
-document.getElementById('managerPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryManagerLogin(); });
 
 // ---------- Employee view ----------
 function renderEmployeeLoginState(){
@@ -716,14 +650,25 @@ function renderEmployeeLoginState(){
   document.getElementById('codeErr').textContent = '';
   document.getElementById('codeGate').hidden = false;
   document.getElementById('employeeLoggedArea').hidden = true;
+  backBtn.hidden = true;
   setTimeout(()=> document.getElementById('employeeCodeInput').focus(), 50);
 }
-function tryEmployeeLogin(){
-  const code = document.getElementById('employeeCodeInput').value.trim();
-  if(!code) return;
-  const emp = state.employees.find(e=>e.code===code);
+function tryLogin(){
+  const val = document.getElementById('employeeCodeInput').value.trim();
+  if(!val) return;
+
+  // 1) senha genérica de cargo (Supervisor/Gerência/CEO) — sem colaborador específico.
+  const matchedRole = Object.keys(state.rolePasswords).find(role => state.rolePasswords[role] === val);
+  if(matchedRole){
+    document.getElementById('employeeCodeInput').value = '';
+    enterManagerView(matchedRole);
+    return;
+  }
+
+  // 2) código de colaborador — sempre entra no painel normal dele.
+  const emp = state.employees.find(e=>e.code===val);
   if(!emp){
-    document.getElementById('codeErr').textContent = 'Código não encontrado. Confira com o gerente.';
+    document.getElementById('codeErr').textContent = 'Código ou senha incorretos. Confira com o gerente.';
     return;
   }
   currentEmployee = emp;
@@ -733,10 +678,11 @@ function tryEmployeeLogin(){
   // Ter um cargo não tira o acesso normal de funcionário — só soma um botão
   // extra pra entrar na área de supervisão quando quiser (ver "goSupervisionBtn").
   document.getElementById('goSupervisionBtn').hidden = !emp.role;
+  backBtn.hidden = false;
   renderEmployeeDashboard();
 }
-document.getElementById('codeLoginBtn').addEventListener('click', tryEmployeeLogin);
-document.getElementById('employeeCodeInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryEmployeeLogin(); });
+document.getElementById('codeLoginBtn').addEventListener('click', tryLogin);
+document.getElementById('employeeCodeInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryLogin(); });
 document.getElementById('switchEmployeeBtn').addEventListener('click', renderEmployeeLoginState);
 document.getElementById('goSupervisionBtn').addEventListener('click', ()=>{
   if(currentEmployee && currentEmployee.role) enterManagerView(currentEmployee.role, currentEmployee);
@@ -1579,16 +1525,17 @@ async function deleteCredit(creditId){
 // ---------- Init ----------
 (async function init(){
   if(!getAuthToken()){
-    roleGate.innerHTML = `
+    document.getElementById('codeGate').innerHTML = `
       <h2>Faça login no PharmaMind primeiro</h2>
       <p>Abra o PharmaMind numa aba dessa mesma janela — como gestor ou como funcionário — e volte aqui depois.
       Essa ferramenta usa essa sessão pra saber de qual farmácia são os dados, e sem ela nada seria salvo de verdade.</p>
     `;
-    showOnly(roleGate);
+    showOnly(employeeView);
     return;
   }
   await loadState();
-  showOnly(roleGate);
+  showOnly(employeeView);
+  renderEmployeeLoginState();
 })();
 </script>
 </body>
