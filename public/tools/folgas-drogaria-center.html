@@ -522,11 +522,14 @@ let loaded = false;
 let editingEmployeeId = null;
 let currentEmployee = null;
 let currentRole = null; // 'Supervisor' | 'Gerência' | 'CEO'
+let currentManagerEmployee = null; // colaborador dono do cargo, quando o acesso veio do código dele (não da senha genérica)
+const CARGOS = ['Supervisor', 'Gerência', 'CEO'];
 
 async function logAction(action, details){
+  const quem = currentManagerEmployee ? (currentRole + ' — ' + currentManagerEmployee.name) : (currentRole || '—');
   state.auditLog.push({
     id: uid('log'),
-    role: currentRole || '—',
+    role: quem,
     action,
     details: details || '',
     timestamp: new Date().toISOString()
@@ -654,19 +657,33 @@ document.getElementById('goManager').addEventListener('click', ()=>{
 backBtn.addEventListener('click', ()=>{
   headerSub.textContent = 'Banco de folgas';
   currentRole = null;
+  currentManagerEmployee = null;
   showOnly(roleGate);
 });
+
+/**
+ * Entra na área de supervisão com um cargo — seja pela senha genérica do
+ * cargo (tryManagerLogin) ou pelo código de um colaborador que o CEO
+ * promoveu a Supervisor/Gerência/CEO (tryEmployeeLogin). `employee`, quando
+ * presente, é só pra exibir/atribuir quem fez cada ação no log.
+ */
+function enterManagerView(role, employee){
+  currentRole = role;
+  currentManagerEmployee = employee || null;
+  const quemLabel = employee ? (role + ' — ' + employee.name) : role;
+  headerSub.textContent = 'Gestão de folgas — ' + quemLabel;
+  document.getElementById('roleBadge').textContent = '🔐 ' + quemLabel;
+  document.getElementById('auditBtn').hidden = (role !== 'CEO');
+  document.getElementById('passwordsBtn').hidden = (role !== 'CEO');
+  showOnly(managerView);
+  renderManagerView();
+}
+
 function tryManagerLogin(){
   const val = document.getElementById('managerPassword').value;
   const matchedRole = Object.keys(state.rolePasswords).find(role => state.rolePasswords[role] === val);
   if(matchedRole){
-    currentRole = matchedRole;
-    headerSub.textContent = 'Gestão de folgas — ' + matchedRole;
-    document.getElementById('roleBadge').textContent = '🔐 ' + matchedRole;
-    document.getElementById('auditBtn').hidden = (matchedRole !== 'CEO');
-    document.getElementById('passwordsBtn').hidden = (matchedRole !== 'CEO');
-    showOnly(managerView);
-    renderManagerView();
+    enterManagerView(matchedRole);
   } else {
     document.getElementById('managerErr').textContent = 'Senha incorreta. Tente novamente.';
   }
@@ -689,6 +706,11 @@ function tryEmployeeLogin(){
   const emp = state.employees.find(e=>e.code===code);
   if(!emp){
     document.getElementById('codeErr').textContent = 'Código não encontrado. Confira com o gerente.';
+    return;
+  }
+  if(emp.role){
+    document.getElementById('employeeCodeInput').value = '';
+    enterManagerView(emp.role, emp);
     return;
   }
   currentEmployee = emp;
@@ -892,6 +914,22 @@ function renderEmployeesList(){
     codeSpan.textContent = emp.code;
     label.appendChild(codeSpan);
 
+    // Cargo: só o CEO pode escolher/trocar. Supervisor e Gerência só veem, se houver.
+    let cargoEl;
+    if(currentRole === 'CEO'){
+      cargoEl = document.createElement('select');
+      cargoEl.style.cssText = 'font-size:12px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--card);color:var(--ink);';
+      cargoEl.innerHTML = '<option value="">Sem acesso à supervisão</option>' +
+        CARGOS.map(c=> `<option value="${c}"${emp.role===c?' selected':''}>${c}</option>`).join('');
+      cargoEl.addEventListener('change', ()=> setEmployeeRole(emp.id, cargoEl.value || null));
+    } else if(emp.role){
+      cargoEl = document.createElement('span');
+      cargoEl.className = 'ecode';
+      cargoEl.textContent = '🔐 ' + emp.role;
+    } else {
+      cargoEl = document.createElement('span');
+    }
+
     const actions = document.createElement('span');
     actions.className = 'eactions';
     const editBtn = document.createElement('button');
@@ -902,9 +940,18 @@ function renderEmployeesList(){
     delBtn.addEventListener('click', ()=> deleteEmployee(emp.id));
     actions.appendChild(editBtn); actions.appendChild(delBtn);
 
-    row.appendChild(label); row.appendChild(actions);
+    row.appendChild(label); row.appendChild(cargoEl); row.appendChild(actions);
     el.appendChild(row);
   });
+}
+/** Só chamado quando currentRole === 'CEO' (o <select> de cargo só existe na tela pra ele). */
+async function setEmployeeRole(id, role){
+  const emp = state.employees.find(e=>e.id===id);
+  if(!emp) return;
+  emp.role = role;
+  await saveState();
+  await logAction('Alterou cargo do colaborador', emp.name + ' → ' + (role || 'sem acesso à supervisão'));
+  renderEmployeesList();
 }
 function startEditEmployee(id){
   const emp = state.employees.find(e=>e.id===id);
