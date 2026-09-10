@@ -638,6 +638,22 @@ function getAuthToken(){
   }catch(e){ /* sem sessão salva */ }
   return null;
 }
+/** Lê o slug da organização de qualquer sessão salva, mesmo expirada — só o token vence, o resto do objeto continua no localStorage. */
+function getOrgSlugSalvo(){
+  try{
+    for(const key of ['drogaria:session:gestor', 'drogaria:session:funcionario']){
+      const raw = localStorage.getItem(key);
+      if(raw){ const slug = (JSON.parse(raw)||{}).orgSlug; if(slug) return slug; }
+    }
+  }catch(e){ /* sem sessão salva */ }
+  return null;
+}
+/** Monta o link de login do PharmaMind pra essa organização — funcionário por padrão (tela pública), gestor se pedido. */
+function urlLoginPharmaMind(comoGestor){
+  const slug = getOrgSlugSalvo();
+  if(!slug) return location.origin + '/';
+  return location.origin + '/' + slug + (comoGestor ? '/gestor/login' : '/funcionario');
+}
 
 function estadoPadrao(){
   return { employees: [], credits: [], daysOff: [], leaves: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
@@ -1875,19 +1891,22 @@ const TELAS_ERRO_CARREGAMENTO = {
   'sem-sessao': {
     icone: '🔒',
     titulo: 'Faça login no PharmaMind primeiro',
-    texto: 'Abra o PharmaMind numa aba dessa mesma janela — como gestor ou como funcionário — e volte aqui depois. Essa ferramenta usa essa sessão pra saber de qual farmácia são os dados.',
+    texto: 'Essa ferramenta usa a sua sessão do PharmaMind pra saber de qual farmácia são os dados. Entre por um dos links abaixo (abre numa aba nova) e depois volte aqui e recarregue.',
+    mostrarLinksLogin: true,
     botao: null,
   },
   'sessao-expirada': {
     icone: '⚠️',
     titulo: 'Sua sessão do PharmaMind expirou',
-    texto: 'O login expira depois de algumas horas. Abra o PharmaMind numa aba dessa mesma janela, faça login de novo, e depois volte e recarregue esta página.',
+    texto: 'O login expira depois de algumas horas. Entre de novo por um dos links abaixo (abre numa aba nova) e depois volte aqui e clique em recarregar.',
+    mostrarLinksLogin: true,
     botao: '🔄 Recarregar agora',
   },
   'erro-conexao': {
     icone: '📡',
     titulo: 'Não foi possível carregar os dados',
     texto: 'Houve um problema de conexão com o servidor. Confira sua internet e tente de novo — enquanto isso não for resolvido, nada digitado aqui vai ser salvo.',
+    mostrarLinksLogin: false,
     botao: '🔄 Tentar de novo',
   },
 };
@@ -1900,10 +1919,17 @@ const TELAS_ERRO_CARREGAMENTO = {
   // isso é o que fazia parecer que "nada salvava" quando a sessão expirava.
   if(loadErro){
     const tela = TELAS_ERRO_CARREGAMENTO[loadErro];
+    const linksLogin = tela.mostrarLinksLogin ? `
+      <div style="display:flex;gap:10px;justify-content:center;margin:16px 0;flex-wrap:wrap;">
+        <a class="btn-ghost" style="display:inline-block;text-decoration:none;" href="${urlLoginPharmaMind(false)}" target="_blank" rel="noopener noreferrer">🧑‍💼 Entrar como funcionário</a>
+        <a class="btn-ghost" style="display:inline-block;text-decoration:none;" href="${urlLoginPharmaMind(true)}" target="_blank" rel="noopener noreferrer">🔐 Entrar como gestor</a>
+      </div>
+    ` : '';
     document.getElementById('codeGate').innerHTML = `
       <div class="gate-icon">${tela.icone}</div>
       <h2>${tela.titulo}</h2>
       <p>${tela.texto}</p>
+      ${linksLogin}
       ${tela.botao ? '<button class="btn-primary" id="recarregarAppBtn">' + tela.botao + '</button>' : ''}
     `;
     if(tela.botao) document.getElementById('recarregarAppBtn').addEventListener('click', ()=> location.reload());
