@@ -643,13 +643,23 @@ function estadoPadrao(){
   return { employees: [], credits: [], daysOff: [], leaves: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
 }
 
+// Guarda por que loadState falhou (token ausente/expirado, erro de rede...) —
+// usado pra NUNCA confundir "não consegui carregar" com "não tem nada
+// cadastrado ainda". Antes, qualquer falha (ex.: sessão expirada depois de
+// 8h) fazia a tela mostrar tudo vazio e as próximas gravações falhavam
+// caladas — parecia que "nada salvava" quando na real ninguém tinha
+// conseguido nem carregar os dados reais.
+let loadErro = null;
+
 async function loadState(){
+  loadErro = null;
   try{
     const token = getAuthToken();
-    if(!token){ state = estadoPadrao(); return; }
+    if(!token){ state = estadoPadrao(); loadErro = 'sem-sessao'; loaded = true; return; }
     const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
+    if(res.status === 401){ state = estadoPadrao(); loadErro = 'sessao-expirada'; loaded = true; return; }
     if(!res.ok) throw new Error('Falha ao carregar (' + res.status + ')');
     const data = await res.json();
     state = data.valor ? JSON.parse(data.valor) : estadoPadrao();
@@ -664,19 +674,36 @@ async function loadState(){
   }catch(e){
     console.error('Erro ao carregar', e);
     state = estadoPadrao();
+    loadErro = 'erro-conexao';
   }
   loaded = true;
 }
 async function saveState(){
   const token = getAuthToken();
-  if(!token){ console.error('Sem sessão do PharmaMind — não foi possível salvar.'); return; }
+  if(!token){
+    await showAlert('⚠️ Sua sessão do PharmaMind expirou ou não foi encontrada — isso que você acabou de fazer NÃO foi salvo. Saia e entre de novo (recarregue a página) antes de continuar.');
+    return false;
+  }
   try{
-    await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
+    const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ valor: JSON.stringify(state) })
     });
-  }catch(e){ console.error('Erro ao salvar', e); }
+    if(res.status === 401){
+      await showAlert('⚠️ Sua sessão do PharmaMind expirou — isso que você acabou de fazer NÃO foi salvo. Recarregue a página, faça login de novo no PharmaMind e repita a última ação.');
+      return false;
+    }
+    if(!res.ok){
+      await showAlert('⚠️ Não foi possível salvar (erro ' + res.status + '). Recarregue a página e tente de novo — se continuar acontecendo, avise o suporte.');
+      return false;
+    }
+    return true;
+  }catch(e){
+    console.error('Erro ao salvar', e);
+    await showAlert('⚠️ Não foi possível salvar por um problema de conexão. Confira sua internet e tente de novo — o que você acabou de fazer NÃO foi salvo.');
+    return false;
+  }
 }
 
 function creditsOf(employeeId){ return state.credits.filter(c=>c.employeeId===employeeId); }
@@ -1844,18 +1871,46 @@ async function deleteCredit(creditId){
 }
 
 // ---------- Init ----------
+const TELAS_ERRO_CARREGAMENTO = {
+  'sem-sessao': {
+    icone: '🔒',
+    titulo: 'Faça login no PharmaMind primeiro',
+    texto: 'Abra o PharmaMind numa aba dessa mesma janela — como gestor ou como funcionário — e volte aqui depois. Essa ferramenta usa essa sessão pra saber de qual farmácia são os dados.',
+    botao: null,
+  },
+  'sessao-expirada': {
+    icone: '⚠️',
+    titulo: 'Sua sessão do PharmaMind expirou',
+    texto: 'O login expira depois de algumas horas. Abra o PharmaMind numa aba dessa mesma janela, faça login de novo, e depois volte e recarregue esta página.',
+    botao: '🔄 Recarregar agora',
+  },
+  'erro-conexao': {
+    icone: '📡',
+    titulo: 'Não foi possível carregar os dados',
+    texto: 'Houve um problema de conexão com o servidor. Confira sua internet e tente de novo — enquanto isso não for resolvido, nada digitado aqui vai ser salvo.',
+    botao: '🔄 Tentar de novo',
+  },
+};
+
 (async function init(){
-  if(!getAuthToken()){
+  await loadState();
+
+  // Nunca deixa a pessoa usar a ferramenta achando que os dados são "do
+  // zero" quando na real é só que não conseguimos carregar os de verdade —
+  // isso é o que fazia parecer que "nada salvava" quando a sessão expirava.
+  if(loadErro){
+    const tela = TELAS_ERRO_CARREGAMENTO[loadErro];
     document.getElementById('codeGate').innerHTML = `
-      <div class="gate-icon">🔒</div>
-      <h2>Faça login no PharmaMind primeiro</h2>
-      <p>Abra o PharmaMind numa aba dessa mesma janela — como gestor ou como funcionário — e volte aqui depois.
-      Essa ferramenta usa essa sessão pra saber de qual farmácia são os dados, e sem ela nada seria salvo de verdade.</p>
+      <div class="gate-icon">${tela.icone}</div>
+      <h2>${tela.titulo}</h2>
+      <p>${tela.texto}</p>
+      ${tela.botao ? '<button class="btn-primary" id="recarregarAppBtn">' + tela.botao + '</button>' : ''}
     `;
+    if(tela.botao) document.getElementById('recarregarAppBtn').addEventListener('click', ()=> location.reload());
     showOnly(employeeView);
     return;
   }
-  await loadState();
+
   showOnly(employeeView);
   renderEmployeeLoginState();
 })();
