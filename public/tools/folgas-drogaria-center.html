@@ -216,6 +216,11 @@
         <h3>Meus atestados / ausências por saúde</h3>
         <div id="mySickList"></div>
       </div>
+
+      <div class="my-list" style="margin-top:24px;">
+        <h3>Folgas trocadas por pagamento</h3>
+        <div id="mySwapList"></div>
+      </div>
     </div>
   </div>
 
@@ -330,7 +335,7 @@
         </span>
       </div>
       <table>
-        <thead><tr><th>Colaborador</th><th>Créditos</th><th>Usadas</th><th>Saldo</th></tr></thead>
+        <thead><tr><th>Colaborador</th><th>Créditos</th><th>Usadas</th><th>Saldo</th><th></th></tr></thead>
         <tbody id="balanceBody"></tbody>
       </table>
     </div>
@@ -412,6 +417,27 @@
     <div class="modal-actions">
       <button class="btn-cancel" id="cancelCreditBtn">Cancelar</button>
       <button class="btn-primary" id="saveCreditBtn">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: vender/trocar folga por pagamento (gerente) -->
+<div class="modal-overlay" id="sellModal">
+  <div class="modal">
+    <h3>💰 Vender/trocar folga por pagamento</h3>
+    <div class="footnote" style="margin-bottom:10px;">Remove 1 folga disponível de <strong id="sellEmployeeName">—</strong> e registra que ela foi trocada por um pagamento, em vez de tirada como folga.</div>
+    <div class="field"><label>Valor pago (R$)</label><input id="sellValorInput" type="number" step="0.01" min="0" placeholder="Ex: 100,00"></div>
+    <div class="field"><label>Forma de pagamento</label>
+      <select id="sellFormaSelect">
+        <option value="dinheiro">Dinheiro</option>
+        <option value="pix">Pix</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+    <div class="field"><label>Observação (opcional)</label><input id="sellNoteInput" placeholder="Ex: Trocada a pedido da colaboradora"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelSellBtn">Cancelar</button>
+      <button class="btn-primary" id="confirmSellBtn">Confirmar troca</button>
     </div>
   </div>
 </div>
@@ -581,7 +607,7 @@ const DEFAULT_ROLE_PASSWORDS = {
   'CEO': '99999'
 };
 
-let state = { employees: [], credits: [], daysOff: [], leaves: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
+let state = { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
 let loaded = false;
 let editingEmployeeId = null;
 let currentEmployee = null;
@@ -609,6 +635,8 @@ function pad(n){ return n.toString().padStart(2,'0'); }
 function todayStr(){ const d = new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function tomorrowStr(){ const d = new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function fmtDateBr(iso){ const [y,m,d] = iso.split('-'); return d+'/'+m+'/'+y; }
+function fmtMoney(v){ return Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+const FORMA_PAGAMENTO_FOLGA_LABEL = { dinheiro: 'dinheiro', pix: 'Pix', outro: 'outro' };
 function weekdayName(iso){
   const d = new Date(iso+'T00:00:00');
   return ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][d.getDay()];
@@ -656,7 +684,7 @@ function urlLoginPharmaMind(comoGestor){
 }
 
 function estadoPadrao(){
-  return { employees: [], credits: [], daysOff: [], leaves: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
+  return { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
 }
 
 // Guarda por que loadState falhou (token ausente/expirado, erro de rede...) —
@@ -680,6 +708,7 @@ async function loadState(){
     const data = await res.json();
     state = data.valor ? JSON.parse(data.valor) : estadoPadrao();
     if(!state.leaves) state.leaves = [];
+    if(!state.creditSwaps) state.creditSwaps = [];
     if(!state.blockedDates) state.blockedDates = [];
     if(!state.blockedWeekdays) state.blockedWeekdays = [];
     // Migração: blockedWeekdays era só uma lista de números (0-6). Agora cada
@@ -867,6 +896,22 @@ function renderEmployeeDashboard(){
       item.style.alignItems = 'flex-start';
       item.innerHTML = `<span><span class="date">${fmtDateBr(s.startDate)} a ${fmtDateBr(s.endDate)}</span><br><span style="font-size:12px;color:var(--ink-soft);">${s.note||'—'}</span></span>`;
       sickList.appendChild(item);
+    });
+  }
+
+  const swapList = document.getElementById('mySwapList');
+  swapList.innerHTML = '';
+  const mySwaps = state.creditSwaps.filter(s=> s.employeeId===currentEmployee.id)
+    .slice().sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt));
+  if(mySwaps.length === 0){
+    swapList.innerHTML = '<div class="empty-note">Nenhuma folga trocada por pagamento.</div>';
+  } else {
+    mySwaps.forEach(s=>{
+      const item = document.createElement('div');
+      item.className = 'off-item';
+      item.style.alignItems = 'flex-start';
+      item.innerHTML = `<span><span class="date">Folga do dia trabalhado ${fmtDateBr(s.workedDate)}</span><br><span style="font-size:12px;color:var(--ink-soft);">Trocada por R$ ${fmtMoney(s.valor)} (${FORMA_PAGAMENTO_FOLGA_LABEL[s.forma]||s.forma}) em ${fmtDateBr(s.createdAt.slice(0,10))}${s.nota ? ' — ' + s.nota : ''}</span></span>`;
+      swapList.appendChild(item);
     });
   }
 }
@@ -1140,6 +1185,64 @@ document.getElementById('saveCreditBtn').addEventListener('click', async ()=>{
   creditModal.classList.remove('open');
   renderManagerView();
   showToast('Crédito de folga registrado!');
+});
+
+// ---------- Manager: vender/trocar folga por pagamento ----------
+// A folga é "fungível" (o saldo é só créditos menos usadas, sem vínculo fixo
+// a uma data) — então vender 1 folga consome o crédito disponível mais
+// antigo do colaborador, igual já acontece visualmente no pareamento do
+// histórico de créditos.
+function oldestAvailableCredit(employeeId){
+  const paired = pairCreditsWithDaysOff();
+  const sorted = creditsOf(employeeId).slice().sort((a,b)=> new Date(a.workedDate)-new Date(b.workedDate));
+  return sorted.find(c=> !paired.has(c.id)) || null;
+}
+const sellModal = document.getElementById('sellModal');
+let sellTargetEmployeeId = null;
+function openSellModal(employeeId){
+  const emp = state.employees.find(e=>e.id===employeeId);
+  if(!emp) return;
+  if(balanceOf(employeeId) <= 0){ showAlert('Esse colaborador não tem folga disponível pra vender/trocar.'); return; }
+  sellTargetEmployeeId = employeeId;
+  document.getElementById('sellEmployeeName').textContent = emp.name;
+  document.getElementById('sellValorInput').value = '';
+  document.getElementById('sellFormaSelect').value = 'dinheiro';
+  document.getElementById('sellNoteInput').value = '';
+  sellModal.classList.add('open');
+}
+document.getElementById('cancelSellBtn').addEventListener('click', ()=> sellModal.classList.remove('open'));
+sellModal.addEventListener('click', (e)=>{ if(e.target===sellModal) sellModal.classList.remove('open'); });
+
+document.getElementById('confirmSellBtn').addEventListener('click', async ()=>{
+  const employeeId = sellTargetEmployeeId;
+  const emp = state.employees.find(e=>e.id===employeeId);
+  if(!emp) return;
+  const valor = Number(document.getElementById('sellValorInput').value);
+  const forma = document.getElementById('sellFormaSelect').value;
+  const nota = document.getElementById('sellNoteInput').value.trim();
+  if(!valor || valor <= 0){ await showAlert('Informe o valor pago pela folga.'); return; }
+
+  const credit = oldestAvailableCredit(employeeId);
+  if(!credit){ await showAlert('Esse colaborador não tem folga disponível pra vender/trocar.'); return; }
+
+  const proceed = await showConfirm('Remover 1 folga disponível de ' + emp.name + ' e registrar a troca por R$ ' + fmtMoney(valor) + ' (' + FORMA_PAGAMENTO_FOLGA_LABEL[forma] + ')?');
+  if(!proceed) return;
+
+  state.credits = state.credits.filter(c=> c.id !== credit.id);
+  state.creditSwaps.push({
+    id: uid('swap'),
+    employeeId,
+    workedDate: credit.workedDate,
+    valor,
+    forma,
+    nota,
+    createdAt: new Date().toISOString(),
+  });
+  await saveState();
+  await logAction('Vendeu/trocou folga por pagamento', emp.name + ' — R$ ' + fmtMoney(valor) + ' (' + FORMA_PAGAMENTO_FOLGA_LABEL[forma] + ')' + (nota ? ' — ' + nota : ''));
+  sellModal.classList.remove('open');
+  renderManagerView();
+  showToast('Folga trocada por pagamento!');
 });
 
 // ---------- Helpers: bloqueios (dia bloqueado pela gerência / colaborador de férias) ----------
@@ -1597,16 +1700,17 @@ function renderManagerView(){
   const balanceBody = document.getElementById('balanceBody');
   balanceBody.innerHTML = '';
   if(state.employees.length === 0){
-    balanceBody.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhum colaborador cadastrado.</td></tr>';
+    balanceBody.innerHTML = '<tr><td colspan="5" class="empty-row">Nenhum colaborador cadastrado.</td></tr>';
   } else {
     state.employees.forEach(emp=>{
       const earned = creditsOf(emp.id).length;
       const used = scheduledOf(emp.id).length;
       const bal = earned - used;
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${emp.name}</td><td>${earned}</td><td>${used}</td><td><span class="balance-pill ${bal>0?'pos':'zero'}">${bal}</span></td>`;
+      tr.innerHTML = `<td>${emp.name}</td><td>${earned}</td><td>${used}</td><td><span class="balance-pill ${bal>0?'pos':'zero'}">${bal}</span></td><td class="row-actions">${bal>0 ? `<button class="del" data-sellcredit="${emp.id}" style="color:var(--green-deep);">💰 Vender/trocar</button>` : ''}</td>`;
       balanceBody.appendChild(tr);
     });
+    balanceBody.querySelectorAll('[data-sellcredit]').forEach(btn=> btn.addEventListener('click', ()=> openSellModal(btn.dataset.sellcredit)));
   }
 
   const schedBody = document.getElementById('scheduledBody');
