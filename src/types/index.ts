@@ -7,6 +7,8 @@ export interface UsuarioSessao {
   email: string | null;
   perfil: PerfilUsuario;
   icone?: string;
+  /** Só relevante para FUNCIONARIO — mostra o atalho pro login do gestor no painel dele. */
+  podeAcessarGestor?: boolean;
 }
 
 export interface Organizacao {
@@ -24,8 +26,16 @@ export interface Funcionario {
   icone: string;
   perfil: PerfilUsuario;
   ativo: boolean;
+  podeAcessarGestor: boolean;
   criadoEm: string;
   atualizadoEm: string;
+}
+
+/** Versão enxuta de Funcionario usada no seletor "quem recebeu a diária" (ver GET /usuarios/colegas). */
+export interface Colega {
+  id: string;
+  nome: string;
+  icone: string;
 }
 
 export interface Categoria {
@@ -57,6 +67,8 @@ export interface Despesa {
   categoriaId: string;
   usuario: Funcionario;
   categoria: Categoria;
+  beneficiarioId: string | null;
+  beneficiario: Funcionario | null;
   criadoEm: string;
   atualizadoEm: string;
 }

@@ -16,6 +16,8 @@ interface CriarDespesaPayload {
   formaPagamento: FormaPagamento;
   descricao?: string;
   categoriaId: string;
+  /** Obrigatório apenas para a categoria "Diária de domingo ou feriado". */
+  beneficiarioId?: string;
 }
 
 /** Baixa um blob retornado pela API como arquivo, disparando o download do navegador. */

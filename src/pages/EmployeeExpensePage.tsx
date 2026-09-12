@@ -1,12 +1,16 @@
 import { BrandLogo } from '../components/BrandLogo';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { categoriaService } from '../services/categoriaService';
 import { despesaService } from '../services/despesaService';
+import { funcionarioService } from '../services/funcionarioService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { FORMA_PAGAMENTO_LABEL, type Categoria, type Despesa, type FormaPagamento } from '../types';
+import { FORMA_PAGAMENTO_LABEL, type Categoria, type Colega, type Despesa, type FormaPagamento } from '../types';
+
+/** Nome exato da categoria que exige escolher quem recebe o valor — precisa bater com o seed (categoriasPadrao.ts). */
+const CATEGORIA_DIARIA_NOME = 'Diária de domingo ou feriado';
 
 function todayStr() {
   const d = new Date();
@@ -15,6 +19,10 @@ function todayStr() {
 
 function fmtMoney(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function fmtHora(iso: string) {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -61,6 +69,10 @@ export function EmployeeExpensePage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
 
+  const [colegas, setColegas] = useState<Colega[]>([]);
+  const [beneficiarioId, setBeneficiarioId] = useState('');
+  const precisaBeneficiario = categoriaSelecionada?.nome === CATEGORIA_DIARIA_NOME;
+
   const [meusLancamentos, setMeusLancamentos] = useState<Despesa[]>([]);
   const [carregandoMeus, setCarregandoMeus] = useState(false);
 
@@ -70,6 +82,7 @@ export function EmployeeExpensePage() {
       return;
     }
     categoriaService.list().then(setCategorias);
+    funcionarioService.listColegas().then(setColegas);
   }, [usuario, orgSlug, navigate]);
 
   useEffect(() => {
@@ -94,9 +107,19 @@ export function EmployeeExpensePage() {
     navigate(`/${orgSlug}/funcionario`);
   }
 
+  function handleEscolherCategoria(cat: Categoria) {
+    setError('');
+    setBeneficiarioId('');
+    setCategoriaSelecionada(cat);
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!categoriaSelecionada) return;
+    if (precisaBeneficiario && !beneficiarioId) {
+      setError('Selecione o colaborador que vai receber a diária.');
+      return;
+    }
     setError('');
     setSaving(true);
     try {
@@ -106,12 +129,14 @@ export function EmployeeExpensePage() {
         formaPagamento,
         descricao: descricao || undefined,
         categoriaId: categoriaSelecionada.id,
+        beneficiarioId: precisaBeneficiario ? beneficiarioId : undefined,
       });
       setToast('Gasto lançado com sucesso!');
       setCategoriaSelecionada(null);
       setValor('');
       setFormaPagamento('DINHEIRO');
       setDescricao('');
+      setBeneficiarioId('');
       setData(todayStr());
     } catch {
       setError('Não foi possível lançar o gasto. Tente novamente.');
@@ -137,6 +162,11 @@ export function EmployeeExpensePage() {
           <a className="btn-ghost" href={urlFerramentaFolgas()} target="_blank" rel="noopener noreferrer">
             📅 Folgas
           </a>
+          {usuario.podeAcessarGestor && (
+            <Link className="btn-ghost" to={`/${orgSlug}/gestor/login`}>
+              🔐 Painel do Gestor — Gastos
+            </Link>
+          )}
           <button className="btn-ghost" onClick={handleTrocarFuncionario}>
             Trocar funcionário
           </button>
@@ -174,7 +204,7 @@ export function EmployeeExpensePage() {
                 key={cat.id}
                 type="button"
                 className="card cat-card"
-                onClick={() => setCategoriaSelecionada(cat)}
+                onClick={() => handleEscolherCategoria(cat)}
               >
                 <div className="icon-badge">{cat.icone}</div>
                 <div className="cname">{cat.nome}</div>
@@ -203,6 +233,24 @@ export function EmployeeExpensePage() {
                   required
                 />
               </div>
+              {precisaBeneficiario && (
+                <div className="field">
+                  <label htmlFor="beneficiario">Colaborador que vai receber a diária</label>
+                  <select
+                    id="beneficiario"
+                    value={beneficiarioId}
+                    onChange={(e) => setBeneficiarioId(e.target.value)}
+                    required
+                  >
+                    <option value="">Selecione...</option>
+                    {colegas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icone} {c.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="field">
                 <label htmlFor="formaPagamento">Forma de pagamento</label>
                 <select
@@ -228,7 +276,14 @@ export function EmployeeExpensePage() {
               </div>
               <p className="error-text">{error}</p>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" className="btn-ghost" onClick={() => setCategoriaSelecionada(null)}>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => {
+                    setCategoriaSelecionada(null);
+                    setBeneficiarioId('');
+                  }}
+                >
                   Voltar
                 </button>
                 <button className="btn-primary" style={{ flex: 1 }} type="submit" disabled={saving}>
@@ -248,7 +303,9 @@ export function EmployeeExpensePage() {
               <thead>
                 <tr>
                   <th>Data</th>
+                  <th>Horário</th>
                   <th>Categoria</th>
+                  <th>Recebeu</th>
                   <th>Forma de pagamento</th>
                   <th>Descrição</th>
                   <th>Valor</th>
@@ -258,9 +315,11 @@ export function EmployeeExpensePage() {
                 {meusLancamentos.map((despesa) => (
                   <tr key={despesa.id}>
                     <td>{new Date(despesa.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                    <td>{fmtHora(despesa.criadoEm)}</td>
                     <td>
                       {despesa.categoria.icone} {despesa.categoria.nome}
                     </td>
+                    <td>{despesa.beneficiario ? `${despesa.beneficiario.icone} ${despesa.beneficiario.nome}` : '—'}</td>
                     <td>{FORMA_PAGAMENTO_LABEL[despesa.formaPagamento]}</td>
                     <td>{despesa.descricao ?? '—'}</td>
                     <td>{fmtMoney(Number(despesa.valor))}</td>
@@ -268,7 +327,7 @@ export function EmployeeExpensePage() {
                 ))}
                 {meusLancamentos.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--ink-soft)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--ink-soft)' }}>
                       Você ainda não lançou nenhum gasto.
                     </td>
                   </tr>

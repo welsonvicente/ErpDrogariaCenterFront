@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { Funcionario } from '../types';
+import type { Colega, Funcionario } from '../types';
 
 /** Gestão de funcionários pelo gestor (endpoints /usuarios, restritos a ADMIN/GESTOR). */
 export const funcionarioService = {
@@ -8,12 +8,21 @@ export const funcionarioService = {
     return data;
   },
 
+  /** Lista enxuta (id/nome/ícone) aberta a qualquer autenticado — funcionário escolhendo um colega num seletor. */
+  async listColegas() {
+    const { data } = await api.get<Colega[]>('/usuarios/colegas');
+    return data;
+  },
+
   async create(payload: { nome: string; codigo: string; pin: string; icone: string }) {
     const { data } = await api.post<Funcionario>('/usuarios', payload);
     return data;
   },
 
-  async update(id: string, payload: Partial<{ nome: string; codigo: string; pin: string; icone: string; ativo: boolean }>) {
+  async update(
+    id: string,
+    payload: Partial<{ nome: string; codigo: string; pin: string; icone: string; ativo: boolean; podeAcessarGestor: boolean }>,
+  ) {
     const { data } = await api.put<Funcionario>(`/usuarios/${id}`, payload);
     return data;
   },

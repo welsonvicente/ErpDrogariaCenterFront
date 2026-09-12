@@ -88,6 +88,12 @@ export function ManagerFuncionariosPage() {
     reload();
   }
 
+  async function handleToggleAcessoGestor(funcionario: Funcionario) {
+    setRowError(null);
+    await funcionarioService.update(funcionario.id, { podeAcessarGestor: !funcionario.podeAcessarGestor });
+    reload();
+  }
+
   function startEditNome(funcionario: Funcionario) {
     setRowError(null);
     setEditingNomeId(funcionario.id);
@@ -153,6 +159,7 @@ export function ManagerFuncionariosPage() {
                 <th>Funcionário</th>
                 <th>Código</th>
                 <th>Status</th>
+                <th>Painel do gestor</th>
                 <th></th>
               </tr>
             </thead>
@@ -201,6 +208,16 @@ export function ManagerFuncionariosPage() {
                   </td>
                   <td>{f.codigo}</td>
                   <td>{f.ativo ? 'Ativo' : 'Inativo'}</td>
+                  <td>
+                    <button
+                      className="btn-ghost"
+                      type="button"
+                      title="Mostra/esconde, no painel desse funcionário, um atalho pra tela de login do gestor"
+                      onClick={() => handleToggleAcessoGestor(f)}
+                    >
+                      {f.podeAcessarGestor ? '🔐 Concedido' : 'Conceder acesso'}
+                    </button>
+                  </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                       <button className="btn-ghost" type="button" onClick={() => setFuncionarioParaRedefinirPin(f)}>

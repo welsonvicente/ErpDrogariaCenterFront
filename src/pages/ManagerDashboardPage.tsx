@@ -19,6 +19,10 @@ function fmtMoney(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function fmtHora(iso: string) {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
 /** Dashboard principal: filtros de período/funcionário/categoria + estatísticas + tabela de lançamentos. */
 export function ManagerDashboardPage() {
   useDocumentTitle('Painel do Gestor');
@@ -143,8 +147,10 @@ export function ManagerDashboardPage() {
             <thead>
               <tr>
                 <th>Data</th>
+                <th>Horário</th>
                 <th>Funcionário</th>
                 <th>Categoria</th>
+                <th>Recebeu</th>
                 <th>Forma de pagamento</th>
                 <th>Descrição</th>
                 <th>Valor</th>
@@ -155,12 +161,14 @@ export function ManagerDashboardPage() {
               {result?.items.map((despesa) => (
                 <tr key={despesa.id}>
                   <td>{new Date(despesa.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                  <td>{fmtHora(despesa.criadoEm)}</td>
                   <td>
                     {despesa.usuario.icone} {despesa.usuario.nome}
                   </td>
                   <td>
                     {despesa.categoria.icone} {despesa.categoria.nome}
                   </td>
+                  <td>{despesa.beneficiario ? `${despesa.beneficiario.icone} ${despesa.beneficiario.nome}` : '—'}</td>
                   <td>{FORMA_PAGAMENTO_LABEL[despesa.formaPagamento]}</td>
                   <td>{despesa.descricao ?? '—'}</td>
                   <td>{fmtMoney(Number(despesa.valor))}</td>
@@ -180,7 +188,7 @@ export function ManagerDashboardPage() {
               ))}
               {result && result.items.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', color: 'var(--ink-soft)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', color: 'var(--ink-soft)' }}>
                     Nenhum lançamento encontrado para os filtros selecionados.
                   </td>
                 </tr>
