@@ -624,6 +624,7 @@ const DEFAULT_ROLE_PASSWORDS = {
 
 let state = { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
 let loaded = false;
+let versaoAtual = 0; // controle de concorrência otimista — ver loadState()/saveState()
 let editingEmployeeId = null;
 let currentEmployee = null;
 let currentRole = null; // 'Supervisor' | 'Gerência' | 'CEO'
@@ -761,6 +762,7 @@ async function loadState(){
     if(!res.ok) throw new Error('Falha ao carregar (' + res.status + ')');
     const data = await res.json();
     state = data.valor ? JSON.parse(data.valor) : estadoPadrao();
+    versaoAtual = data.versao || 0; // controle de concorrência otimista — ver saveState()
     if(!state.leaves) state.leaves = [];
     if(!state.creditSwaps) state.creditSwaps = [];
     if(!state.blockedDates) state.blockedDates = [];
@@ -795,16 +797,29 @@ async function saveState(){
     const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ valor: JSON.stringify(state) })
+      body: JSON.stringify({ valor: JSON.stringify(state), versaoEsperada: versaoAtual })
     });
     if(res.status === 401){
       await showAlert('⚠️ Sua sessão do PharmaMind expirou — isso que você acabou de fazer NÃO foi salvo. Recarregue a página, faça login de novo no PharmaMind e repita a última ação.');
+      return false;
+    }
+    if(res.status === 409){
+      // Alguém mais salvou uma mudança aqui nesse meio-tempo (ex.: gestor e
+      // funcionário mexendo ao mesmo tempo) — recarrega o que está
+      // realmente salvo em vez de sobrescrever sem avisar. O que você
+      // acabou de fazer não foi salvo; repita a ação depois de conferir.
+      await showAlert('⚠️ Outra pessoa salvou uma alteração aqui enquanto você mexia — pra não perder o trabalho de ninguém, isso que você acabou de fazer NÃO foi salvo. Vamos recarregar os dados mais recentes; confira e repita sua ação.');
+      await loadState();
+      renderEmployeeDashboard();
+      if(!managerView.hidden) renderManagerView();
       return false;
     }
     if(!res.ok){
       await showAlert('⚠️ Não foi possível salvar (erro ' + res.status + '). Recarregue a página e tente de novo — se continuar acontecendo, avise o suporte.');
       return false;
     }
+    const data = await res.json();
+    versaoAtual = data.versao || versaoAtual;
     return true;
   }catch(e){
     console.error('Erro ao salvar', e);
