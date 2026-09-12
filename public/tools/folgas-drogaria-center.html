@@ -369,6 +369,21 @@
         <div class="footnote">Cada linha aqui representa 1 dia de domingo/feriado trabalhado = 1 folga ganha.</div>
       </div>
     </div>
+
+    <div class="panel">
+      <div class="section-head">
+        <h2 class="section-title">Folgas trocadas por pagamento</h2>
+        <span class="report-dl">
+          <button class="btn-report" data-report="swaps" data-fmt="xlsx">⬇️ Excel</button>
+          <button class="btn-report" data-report="swaps" data-fmt="pdf">⬇️ PDF</button>
+        </span>
+      </div>
+      <table>
+        <thead><tr><th>Colaborador</th><th>Trabalhou em</th><th>Trocada em</th><th>Valor</th><th>Forma</th><th>Observação</th><th></th></tr></thead>
+        <tbody id="swapsBody"></tbody>
+      </table>
+      <div class="footnote">Cancelar aqui devolve a folga pro saldo do colaborador — se o pagamento já tiver sido feito, o estorno do dinheiro precisa ser tratado à parte.</div>
+    </div>
   </div>
 </div>
 
@@ -1237,6 +1252,8 @@ document.getElementById('confirmSellBtn').addEventListener('click', async ()=>{
     forma,
     nota,
     createdAt: new Date().toISOString(),
+    createdBy: currentActorLabel(),
+    originalCredit: credit, // guardado pra poder devolver exatamente esse crédito se a troca for cancelada
   });
   await saveState();
   await logAction('Vendeu/trocou folga por pagamento', emp.name + ' — R$ ' + fmtMoney(valor) + ' (' + FORMA_PAGAMENTO_FOLGA_LABEL[forma] + ')' + (nota ? ' — ' + nota : ''));
@@ -1244,6 +1261,21 @@ document.getElementById('confirmSellBtn').addEventListener('click', async ()=>{
   renderManagerView();
   showToast('Folga trocada por pagamento!');
 });
+
+async function cancelSwap(swapId){
+  const swap = state.creditSwaps.find(s=> s.id===swapId);
+  if(!swap) return;
+  const emp = state.employees.find(e=>e.id===swap.employeeId);
+  const proceed = await showConfirm('Cancelar essa troca? A folga volta pro saldo de ' + (emp?emp.name:'—') + '. Se o pagamento de R$ ' + fmtMoney(swap.valor) + ' já tiver sido feito, o estorno do dinheiro precisa ser resolvido separadamente.');
+  if(!proceed) return;
+
+  state.creditSwaps = state.creditSwaps.filter(s=> s.id!==swapId);
+  state.credits.push(swap.originalCredit || { id: uid('cred'), employeeId: swap.employeeId, workedDate: swap.workedDate, note: '', createdAt: new Date().toISOString() });
+  await saveState();
+  await logAction('Cancelou troca de folga por pagamento', (emp?emp.name:'—') + ' — R$ ' + fmtMoney(swap.valor) + ' (' + (FORMA_PAGAMENTO_FOLGA_LABEL[swap.forma]||swap.forma) + ')');
+  renderManagerView();
+  showToast('Troca cancelada — a folga voltou pro saldo do colaborador.');
+}
 
 // ---------- Helpers: bloqueios (dia bloqueado pela gerência / colaborador de férias) ----------
 function blockedDateInfo(date){
@@ -1747,6 +1779,21 @@ function renderManagerView(){
     });
     credBody.querySelectorAll('[data-delcredit]').forEach(btn=> btn.addEventListener('click', ()=> deleteCredit(btn.dataset.delcredit)));
   }
+
+  const swapsBody = document.getElementById('swapsBody');
+  swapsBody.innerHTML = '';
+  const swapsSorted = state.creditSwaps.slice().sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt));
+  if(swapsSorted.length === 0){
+    swapsBody.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhuma folga trocada por pagamento.</td></tr>';
+  } else {
+    swapsSorted.forEach(s=>{
+      const emp = state.employees.find(e=>e.id===s.employeeId);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${emp?emp.name:'—'}</td><td>${fmtDateBr(s.workedDate)}</td><td>${fmtDateTimeBr(s.createdAt)}</td><td>R$ ${fmtMoney(s.valor)}</td><td>${FORMA_PAGAMENTO_FOLGA_LABEL[s.forma]||s.forma}</td><td>${s.nota||'—'}</td><td class="row-actions"><button class="del" data-cancelswap="${s.id}">↩️ Cancelar troca</button></td>`;
+      swapsBody.appendChild(tr);
+    });
+    swapsBody.querySelectorAll('[data-cancelswap]').forEach(btn=> btn.addEventListener('click', ()=> cancelSwap(btn.dataset.cancelswap)));
+  }
 }
 
 // ---------- Quem está de folga (hoje / amanhã / consulta livre) ----------
@@ -1894,6 +1941,17 @@ const REPORTS = {
           return [emp?emp.name:'—', fmtDateBr(c.workedDate), c.note || '—', usedDate ? fmtDateBr(usedDate) : 'Disponível'];
         });
       return { headers: ['Colaborador','Trabalhou em','Observação','Vai folgar em / Status'], rows };
+    }
+  },
+  swaps: {
+    title: 'Folgas trocadas por pagamento',
+    build(){
+      const rows = state.creditSwaps.slice().sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))
+        .map(s=>{
+          const emp = state.employees.find(e=>e.id===s.employeeId);
+          return [emp?emp.name:'—', fmtDateBr(s.workedDate), fmtDateTimeBr(s.createdAt), 'R$ ' + fmtMoney(s.valor), FORMA_PAGAMENTO_FOLGA_LABEL[s.forma]||s.forma, s.nota || '—'];
+        });
+      return { headers: ['Colaborador','Trabalhou em','Trocada em','Valor','Forma','Observação'], rows };
     }
   },
 };
