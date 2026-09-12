@@ -698,6 +698,44 @@ function urlLoginPharmaMind(comoGestor){
   return location.origin + '/' + slug + (comoGestor ? '/gestor/login' : '/funcionario');
 }
 
+// ---------- Elevação de acesso (senhas de papel / atestados ficam ocultos até provar acesso de gestor) ----------
+// O servidor esconde dado sensível (senhas de papel, motivo de atestado) de
+// quem não provou ter acesso de gestor — ver backend/FolgasSigiloService.
+// "Elevar" aqui é chamar /elevar com uma credencial (senha de papel, ou o
+// próprio código de um colaborador promovido) e guardar o token de curta
+// duração que isso devolve, usado nas próximas chamadas de carregar/salvar.
+const ELEVACAO_STORAGE_KEY = 'drogaria:folgas:elevacao';
+let acessoRestrito = false; // true quando o último carregamento veio com dado sensível oculto
+function getElevacaoToken(){
+  try{ return sessionStorage.getItem(ELEVACAO_STORAGE_KEY); }catch(e){ return null; }
+}
+function setElevacaoToken(token){
+  try{ sessionStorage.setItem(ELEVACAO_STORAGE_KEY, token); }catch(e){ /* sem storage disponível — segue sem persistir */ }
+}
+function limparElevacaoToken(){
+  try{ sessionStorage.removeItem(ELEVACAO_STORAGE_KEY); }catch(e){ /* nada a limpar */ }
+}
+/** Tenta provar uma credencial de gestor no servidor. Devolve o papel concedido (string) ou null se inválida/erro. */
+async function elevarAcesso(credencial){
+  const token = getAuthToken();
+  if(!token) return null;
+  try{
+    const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY + '/elevar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(credencial)
+    });
+    if(!res.ok) return null;
+    const data = await res.json();
+    setElevacaoToken(data.token);
+    await loadState(); // recarrega já sem a ocultação, agora que provamos acesso
+    return data.papel;
+  }catch(e){
+    console.error('Erro ao elevar acesso', e);
+    return null;
+  }
+}
+
 function estadoPadrao(){
   return { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
 }
@@ -715,9 +753,10 @@ async function loadState(){
   try{
     const token = getAuthToken();
     if(!token){ state = estadoPadrao(); loadErro = 'sem-sessao'; loaded = true; return; }
-    const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
+    const headers = { 'Authorization': 'Bearer ' + token };
+    const elevacao = getElevacaoToken();
+    if(elevacao) headers['X-Elevacao-Token'] = elevacao;
+    const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, { headers });
     if(res.status === 401){ state = estadoPadrao(); loadErro = 'sessao-expirada'; loaded = true; return; }
     if(!res.ok) throw new Error('Falha ao carregar (' + res.status + ')');
     const data = await res.json();
@@ -730,7 +769,12 @@ async function loadState(){
     // item registra também quem bloqueou — dado antigo vira "quem bloqueou: —".
     state.blockedWeekdays = state.blockedWeekdays.map(b=> typeof b === 'number' ? { weekday: b, by: null, at: null } : b);
     if(!state.auditLog) state.auditLog = [];
-    if(!state.rolePasswords) state.rolePasswords = {...DEFAULT_ROLE_PASSWORDS};
+    // `_acessoRestrito` (ver backend/FolgasSigiloService) avisa que rolePasswords
+    // e as notas de atestado vieram ocultas de propósito — nesse caso NÃO
+    // preenche com as senhas padrão (senão pareceria que são as senhas reais).
+    acessoRestrito = !!state._acessoRestrito;
+    delete state._acessoRestrito;
+    if(!state.rolePasswords && !acessoRestrito) state.rolePasswords = {...DEFAULT_ROLE_PASSWORDS};
   }catch(e){
     console.error('Erro ao carregar', e);
     state = estadoPadrao();
@@ -745,9 +789,12 @@ async function saveState(){
     return false;
   }
   try{
+    const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+    const elevacao = getElevacaoToken();
+    if(elevacao) headers['X-Elevacao-Token'] = elevacao;
     const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      headers,
       body: JSON.stringify({ valor: JSON.stringify(state) })
     });
     if(res.status === 401){
@@ -833,7 +880,7 @@ function enterManagerView(role, employee){
 }
 
 // ---------- Employee view ----------
-function renderEmployeeLoginState(){
+async function renderEmployeeLoginState(){
   currentEmployee = null;
   document.getElementById('employeeCodeInput').value = '';
   document.getElementById('codeErr').textContent = '';
@@ -841,40 +888,60 @@ function renderEmployeeLoginState(){
   document.getElementById('employeeLoggedArea').hidden = true;
   backBtn.hidden = true;
   setTimeout(()=> document.getElementById('employeeCodeInput').focus(), 50);
+
+  // Terminal costuma ser compartilhado (balcão) — ao voltar pra essa tela,
+  // esquece a elevação de acesso e descarta da memória o que tinha sido
+  // carregado sem ocultação, pra quem usar o aparelho em seguida não herdar
+  // dado sensível de quem usou antes.
+  if(acessoRestrito === false && loaded){
+    limparElevacaoToken();
+    await loadState();
+  }
 }
-function tryLogin(){
+async function tryLogin(){
   const val = document.getElementById('employeeCodeInput').value.trim();
   if(!val) return;
 
-  // 1) senha genérica de cargo (Supervisor/Gerência/CEO) — sem colaborador específico.
-  const matchedRole = Object.keys(state.rolePasswords).find(role => state.rolePasswords[role] === val);
-  if(matchedRole){
-    document.getElementById('employeeCodeInput').value = '';
-    enterManagerView(matchedRole);
-    return;
-  }
+  // 1) senha genérica de cargo (Supervisor/Gerência/CEO) — verificada no
+  // servidor, já que o cliente não enxerga mais as senhas reais (ver
+  // elevarAcesso). Só quem sabe uma senha válida ganha o token de acesso.
+  const btn = document.getElementById('codeLoginBtn');
+  btn.disabled = true;
+  try{
+    const papel = await elevarAcesso({ tipo: 'papel', senha: val });
+    if(papel){
+      document.getElementById('employeeCodeInput').value = '';
+      enterManagerView(papel);
+      return;
+    }
 
-  // 2) código de colaborador — sempre entra no painel normal dele.
-  const emp = state.employees.find(e=>e.code===val);
-  if(!emp){
-    document.getElementById('codeErr').textContent = 'Código ou senha incorretos. Confira com o gerente.';
-    return;
+    // 2) código de colaborador — sempre entra no painel normal dele.
+    const emp = state.employees.find(e=>e.code===val);
+    if(!emp){
+      document.getElementById('codeErr').textContent = 'Código ou senha incorretos. Confira com o gerente.';
+      return;
+    }
+    currentEmployee = emp;
+    document.getElementById('codeGate').hidden = true;
+    document.getElementById('employeeLoggedArea').hidden = false;
+    document.getElementById('greetingText').textContent = 'Olá, ' + emp.name + '!';
+    // Ter um cargo não tira o acesso normal de funcionário — só soma um botão
+    // extra pra entrar na área de supervisão quando quiser (ver "goSupervisionBtn").
+    document.getElementById('goSupervisionBtn').hidden = !emp.role;
+    backBtn.hidden = false;
+    renderEmployeeDashboard();
+  } finally {
+    btn.disabled = false;
   }
-  currentEmployee = emp;
-  document.getElementById('codeGate').hidden = true;
-  document.getElementById('employeeLoggedArea').hidden = false;
-  document.getElementById('greetingText').textContent = 'Olá, ' + emp.name + '!';
-  // Ter um cargo não tira o acesso normal de funcionário — só soma um botão
-  // extra pra entrar na área de supervisão quando quiser (ver "goSupervisionBtn").
-  document.getElementById('goSupervisionBtn').hidden = !emp.role;
-  backBtn.hidden = false;
-  renderEmployeeDashboard();
 }
 document.getElementById('codeLoginBtn').addEventListener('click', tryLogin);
 document.getElementById('employeeCodeInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryLogin(); });
 document.getElementById('switchEmployeeBtn').addEventListener('click', renderEmployeeLoginState);
-document.getElementById('goSupervisionBtn').addEventListener('click', ()=>{
-  if(currentEmployee && currentEmployee.role) enterManagerView(currentEmployee.role, currentEmployee);
+document.getElementById('goSupervisionBtn').addEventListener('click', async ()=>{
+  if(!currentEmployee || !currentEmployee.role) return;
+  const papel = await elevarAcesso({ tipo: 'funcionario', funcionarioId: currentEmployee.id, codigo: currentEmployee.code });
+  if(papel) enterManagerView(papel, currentEmployee);
+  else await showAlert('Não foi possível confirmar seu acesso de supervisão. Tente entrar de novo com seu código.');
 });
 
 function renderEmployeeDashboard(){
