@@ -1817,7 +1817,20 @@ async function openCamera(callback){
     return;
   }
   try{
-    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    // Pede a maior resolução que a câmera aguentar (o "ideal" é só uma
+    // preferência — nunca falha por causa disso, o navegador só aproxima o
+    // que der). Sem isso, o navegador usava um padrão bem mais baixo que o
+    // sensor da câmera. Não deixa o arquivo final mais pesado: o canvas de
+    // exportação continua fixo em 1080x1920, só melhora o quanto de detalhe
+    // real existe pra preencher esse recorte.
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 3840 },
+        height: { ideal: 2160 },
+      },
+      audio: false,
+    });
     const video = document.getElementById('cameraVideo');
     video.srcObject = cameraStream;
     // No iPhone (Safari/Chrome), o autoplay às vezes não "pega" sozinho —
