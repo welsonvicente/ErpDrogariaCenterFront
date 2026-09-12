@@ -112,6 +112,22 @@
   .drag-guide.price-guide{background:rgba(227,6,19,0.45);}
   .drag-guide.extra-guide{background:rgba(23,60,58,0.5);}
   .drag-hint{font-size:9.5px;font-weight:600;background:rgba(0,0,0,0.35);padding:2px 6px;border-radius:6px;}
+
+  .recent-list{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;}
+  .recent-item{flex-shrink:0;width:74px;cursor:pointer;text-align:center;border:1px solid var(--line);border-radius:10px;padding:6px;background:var(--bg);}
+  .recent-item:hover{border-color:var(--green-mid);background:var(--mint);}
+  .recent-item img{width:100%;height:52px;object-fit:cover;border-radius:6px;display:block;margin-bottom:4px;}
+  .recent-item .rname{font-size:9.5px;font-weight:600;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .recent-item .rprice{font-size:9.5px;color:var(--green-deep);font-weight:700;}
+  .recent-empty{font-size:11.5px;color:var(--ink-soft);padding:8px 0;}
+
+  .product-row button[data-adjust]{background:var(--mint);color:var(--green-deep);border-radius:8px;padding:5px 8px;font-size:14px;}
+  .product-row button[data-adjust]:hover{background:var(--green);color:#fff;}
+  .batch-row .bactions button[data-adjustbatch]{background:var(--mint);}
+
+  #adjustOverlay .adjust-frame{position:relative;width:220px;aspect-ratio:1080/1920;background:#111;border-radius:12px;overflow:hidden;margin:0 auto 14px;cursor:grab;touch-action:none;}
+  #adjustOverlay .adjust-frame canvas{width:100%;height:100%;display:block;}
+  #adjustOverlay .adjust-frame:active{cursor:grabbing;}
 </style>
 </head>
 <body>
@@ -132,12 +148,18 @@
     <div class="panel">
       <h2 class="section-title">Dados do produto</h2>
 
-      <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <div class="field" style="margin-bottom:10px;">
+        <label>Últimos produtos usados</label>
+        <div class="recent-list" id="storyRecentList"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
         <div class="upload-box" id="storyUploadBox" style="flex:1;margin-bottom:0;">
           📷 Escolher foto
         </div>
         <button class="btn-ghost" id="storyCameraBtn" style="width:auto;margin:0;white-space:nowrap;">📸 Tirar foto</button>
       </div>
+      <button class="btn-ghost" id="storyAdjustBtn" style="width:auto;margin:0 0 14px;font-size:12px;padding:6px 10px;display:none;">🖼️ Ajustar enquadramento da foto</button>
       <input type="file" id="storyFileInput" accept="image/*" style="display:none;">
       <div class="footnote" style="text-align:left;margin:-8px 0 14px;">Arraste as faixas verde, rosa e escura no preview ao lado (pra qualquer direção) pra escolher onde cada informação vai ficar na foto.</div>
 
@@ -208,6 +230,11 @@
   <div id="flyerMode" class="cols" style="display:none;">
     <div class="panel">
       <h2 class="section-title">Adicionar produto ao panfleto</h2>
+
+      <div class="field" style="margin-bottom:10px;">
+        <label>Últimos produtos usados</label>
+        <div class="recent-list" id="flyerRecentList"></div>
+      </div>
 
       <div style="display:flex;gap:8px;margin-bottom:14px;">
         <div class="upload-box" id="flyerUploadBox" style="flex:1;margin-bottom:0;">
@@ -429,6 +456,26 @@
   </div>
 </div>
 
+<!-- MODAL: reposicionar/dar zoom na foto dentro do enquadramento (formato story 1080x1920) -->
+<div id="adjustOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,30,28,0.75);z-index:85;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;padding:20px;max-width:320px;width:100%;text-align:center;">
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-size:15px;color:var(--green-deep);margin:0 0 10px;">Ajustar enquadramento</h3>
+    <div class="footnote" style="text-align:left;margin:0 0 12px;">Arraste a foto pra reposicionar e use o controle de zoom — sem precisar tirar/escolher a foto de novo.</div>
+    <div class="adjust-frame" id="adjustFrame">
+      <canvas id="adjustCanvas" width="270" height="480"></canvas>
+    </div>
+    <div class="field" style="text-align:left;">
+      <label>Zoom</label>
+      <input type="range" id="adjustZoom" min="1" max="3" step="0.02" value="1">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button id="adjustResetBtn" style="flex:1;border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-weight:600;font-size:12.5px;padding:10px;border-radius:10px;cursor:pointer;">Redefinir</button>
+      <button id="adjustCancelBtn" style="flex:1;border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-weight:600;font-size:12.5px;padding:10px;border-radius:10px;cursor:pointer;">Cancelar</button>
+      <button id="adjustSaveBtn" style="flex:1;border:none;background:var(--green-mid);color:#fff;font-weight:700;font-size:12.5px;padding:10px;border-radius:10px;cursor:pointer;">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 function showAlert(msg){
   document.getElementById('customAlertMsg').textContent = msg;
@@ -528,12 +575,38 @@ function loadImageFromFile(file){
     const reader = new FileReader();
     reader.onload = ()=>{
       const img = new Image();
-      img.onload = ()=> resolve(img);
+      img.onload = async ()=>{
+        try{ resolve(await downscaleImageIfNeeded(img)); }
+        catch(e){ resolve(img); }
+      };
       img.onerror = reject;
       img.src = reader.result;
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
+  });
+}
+// Fotos da galeria (câmera do celular) costumam vir bem maiores do que
+// qualquer formato exportado aqui (o maior é o story, 1080x1920) — sem
+// reduzir, cada uma ocupa vários MB como dataURL, o que trava rascunho
+// automático e a lista de "últimos produtos" (ambos guardados no
+// localStorage, que tem uns 5-10MB de limite no total). Reduz só quando a
+// foto é bem maior que o necessário; fotos já pequenas ficam como estão.
+const MAX_IMAGE_DIM = 1600;
+function downscaleImageIfNeeded(img){
+  return new Promise((resolve)=>{
+    const { w, h } = sourceSize(img);
+    if(Math.max(w, h) <= MAX_IMAGE_DIM){ resolve(img); return; }
+    const scale = MAX_IMAGE_DIM / Math.max(w, h);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const smaller = new Image();
+    smaller.onload = ()=> resolve(smaller);
+    smaller.onerror = ()=> resolve(img);
+    smaller.src = canvas.toDataURL('image/jpeg', 0.85);
   });
 }
 // video.width/height (atributo HTML) fica 0 quando não setado — a dimensão
@@ -546,22 +619,29 @@ function sourceSize(img){
     h: img.videoHeight || img.naturalHeight || img.height,
   };
 }
-function drawImageCover(ctx, img, x, y, w, h){
+// transform (opcional) = {scale, panX, panY} — permite reenquadrar/dar zoom
+// na foto dentro do recorte sem reenviar/retirar a foto. scale=1 e
+// panX=panY=0.5 reproduzem exatamente o recorte centralizado padrão.
+function drawImageCover(ctx, img, x, y, w, h, transform){
   const { w: iw, h: ih } = sourceSize(img);
   const imgRatio = iw / ih;
   const boxRatio = w / h;
-  let sx, sy, sw, sh;
+  let baseSw, baseSh;
   if(imgRatio > boxRatio){
-    sh = ih;
-    sw = sh * boxRatio;
-    sx = (iw - sw) / 2;
-    sy = 0;
+    baseSh = ih;
+    baseSw = baseSh * boxRatio;
   } else {
-    sw = iw;
-    sh = sw / boxRatio;
-    sx = 0;
-    sy = (ih - sh) / 2;
+    baseSw = iw;
+    baseSh = baseSw / boxRatio;
   }
+  const scale = Math.max(1, (transform && transform.scale) || 1);
+  const panX = (transform && transform.panX !== undefined) ? transform.panX : 0.5;
+  const panY = (transform && transform.panY !== undefined) ? transform.panY : 0.5;
+  const sw = baseSw / scale;
+  const sh = baseSh / scale;
+  const maxSx = iw - sw, maxSy = ih - sh;
+  const sx = Math.max(0, Math.min(maxSx, maxSx * panX));
+  const sy = Math.max(0, Math.min(maxSy, maxSy * panY));
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
 function drawImageContain(ctx, img, x, y, w, h){
@@ -587,6 +667,7 @@ function roundRect(ctx, x, y, w, h, r){
 
 // ==================== STORY ====================
 let storyImage = null;
+let storyImageTransform = { scale: 1, panX: 0.5, panY: 0.5 };
 
 // Posição da máscara (nome/preço/frases extras) em pixels no espaço do canvas 1080x1920 — arrastável em qualquer direção
 let guideNameY = 130, guideNameOffsetX = 0;
@@ -666,7 +747,7 @@ function makeGuideDraggable(guideEl, frameEl, getPos, setPos){
     syncGuideVisuals();
     drawStory();
   });
-  guideEl.addEventListener('pointerup', ()=>{ dragging = false; });
+  guideEl.addEventListener('pointerup', ()=>{ dragging = false; scheduleSaveSettings(); });
   guideEl.addEventListener('pointercancel', ()=>{ dragging = false; });
 }
 const STORY_EMOJIS = ['🤩😱','🔥🔥','😍','🎉','💚','⚡'];
@@ -675,10 +756,12 @@ let storyEmoji = STORY_EMOJIS[0];
 const storyUploadBox = document.getElementById('storyUploadBox');
 const storyFileInput = document.getElementById('storyFileInput');
 storyUploadBox.addEventListener('click', ()=> storyFileInput.click());
-function setStoryImage(img){
+function setStoryImage(img, transform){
   storyImage = img;
+  storyImageTransform = transform || { scale: 1, panX: 0.5, panY: 0.5 };
   storyUploadBox.classList.add('has-image');
   storyUploadBox.innerHTML = '<img src="'+img.src+'">';
+  document.getElementById('storyAdjustBtn').style.display = 'block';
   drawStory();
 }
 storyFileInput.addEventListener('change', async (e)=>{
@@ -722,13 +805,24 @@ buildEmojiRow();
 
 document.getElementById('storyPor').addEventListener('input', drawStory);
 document.getElementById('storyName').addEventListener('input', drawStory);
+['storyName','storyDe','storyPor'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=> scheduleDraftSave());
+});
+document.getElementById('storyAdjustBtn').addEventListener('click', ()=>{
+  if(!storyImage) return;
+  openAdjustModal(storyImage, storyImageTransform, (t)=>{
+    storyImageTransform = t;
+    drawStory();
+    scheduleDraftSave();
+  });
+});
 document.getElementById('storyLogoColor').addEventListener('input', drawStory);
 document.getElementById('storyDescColor').addEventListener('input', drawStory);
 document.getElementById('storyPriceColor').addEventListener('input', drawStory);
 
 // Função genérica de pintura do story — usada tanto pelo preview ao vivo quanto
 // pelo botão "gerar story individual" de cada produto do panfleto.
-function paintStoryArt(ctx, W, H, { image, name, de, por, emoji, logoColor, descColor, priceColor, nameY, priceY, nameFontSize, priceFontSize, extraText, extraY, extraBgColor, extraTextColor, extraFontSize, nameMargin, priceMargin, extraMargin, nameOffsetX, priceOffsetX, extraOffsetX }){
+function paintStoryArt(ctx, W, H, { image, imageTransform, name, de, por, emoji, logoColor, descColor, priceColor, nameY, priceY, nameFontSize, priceFontSize, extraText, extraY, extraBgColor, extraTextColor, extraFontSize, nameMargin, priceMargin, extraMargin, nameOffsetX, priceOffsetX, extraOffsetX }){
   logoColor = logoColor || '#436000';
   descColor = descColor || '#FFFFFF';
   priceColor = priceColor || '#E30613';
@@ -744,7 +838,7 @@ function paintStoryArt(ctx, W, H, { image, name, de, por, emoji, logoColor, desc
   ctx.clearRect(0,0,W,H);
 
   if(image){
-    drawImageCover(ctx, image, 0, 0, W, H);
+    drawImageCover(ctx, image, 0, 0, W, H, imageTransform);
   } else {
     ctx.fillStyle = '#DDEBD8';
     ctx.fillRect(0,0,W,H);
@@ -871,6 +965,7 @@ function drawStory(){
   const ctx = canvas.getContext('2d');
   paintStoryArt(ctx, canvas.width, canvas.height, {
     image: storyImage,
+    imageTransform: storyImageTransform,
     name: isNameEnabled() ? document.getElementById('storyName').value.trim() : '',
     de: isPriceEnabled() ? document.getElementById('storyDe').value : '',
     por: isPriceEnabled() ? document.getElementById('storyPor').value : '',
@@ -932,7 +1027,12 @@ document.getElementById('storyExtraEnabled').addEventListener('change', ()=>{ sy
 document.getElementById('storyDownloadBtn').addEventListener('click', async ()=>{
   const canvas = document.getElementById('storyCanvas');
   const productName = document.getElementById('storyName').value.trim() || 'Story';
-  const shareTitle = buildShareTitle(productName, document.getElementById('storyDe').value, document.getElementById('storyPor').value);
+  const de = document.getElementById('storyDe').value;
+  const por = document.getElementById('storyPor').value;
+  const shareTitle = buildShareTitle(productName, de, por);
+  if(storyImage && document.getElementById('storyName').value.trim()){
+    saveRecentProduct({ img: storyImage, name: productName, de, por });
+  }
   await saveOrShareFile(canvas.toDataURL('image/png'), 'story-' + Date.now() + '.png', 'image/png', shareTitle);
 });
 
@@ -949,6 +1049,7 @@ function generateIndividualStory(idx){
     const ctx = tempCanvas.getContext('2d');
     paintStoryArt(ctx, tempCanvas.width, tempCanvas.height, {
       image: p.img,
+      imageTransform: p.transform,
       name: isNameEnabled() ? p.name : '',
       de: isPriceEnabled() ? p.de : '',
       por: isPriceEnabled() ? p.por : '',
@@ -1024,9 +1125,12 @@ document.getElementById('flyerCameraBtn').addEventListener('click', ()=>{
 document.getElementById('flyerSwapImageInput').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
   if(file && flyerSwapTargetIdx !== null){
-    flyerProducts[flyerSwapTargetIdx].img = await loadImageFromFile(file);
+    const p = flyerProducts[flyerSwapTargetIdx];
+    p.img = await loadImageFromFile(file);
+    p.transform = { scale: 1, panX: 0.5, panY: 0.5 };
     renderProductList();
     drawFlyer();
+    scheduleDraftSave();
   }
   e.target.value = '';
   flyerSwapTargetIdx = null;
@@ -1040,7 +1144,8 @@ document.getElementById('flyerAddBtn').addEventListener('click', ()=>{
   if(!name){ showAlert('Digite o nome do produto.'); return; }
   if(!por){ showAlert('Digite o preço "Por".'); return; }
 
-  flyerProducts.push({ img: flyerPendingImage, name, de, por });
+  flyerProducts.push({ img: flyerPendingImage, name, de, por, transform: { scale: 1, panX: 0.5, panY: 0.5 } });
+  saveRecentProduct({ img: flyerPendingImage, name, de, por });
 
   flyerPendingImage = null;
   flyerUploadBox.classList.remove('has-image');
@@ -1052,6 +1157,7 @@ document.getElementById('flyerAddBtn').addEventListener('click', ()=>{
 
   renderProductList();
   drawFlyer();
+  scheduleDraftSave();
 });
 
 function renderProductList(){
@@ -1072,6 +1178,7 @@ function renderProductList(){
       </div>
       <button data-swap="${idx}" title="Trocar foto (galeria)">🔄</button>
       <button data-camswap="${idx}" title="Trocar foto (câmera)">📸</button>
+      <button data-adjust="${idx}" title="Ajustar enquadramento da foto (usado ao gerar story)">🖼️</button>
       <button data-story="${idx}" title="Gerar story individual deste produto">📱</button>
       <button data-remove="${idx}">Remover</button>
     `;
@@ -1079,6 +1186,16 @@ function renderProductList(){
   });
   el.querySelectorAll('[data-story]').forEach(btn=>{
     btn.addEventListener('click', ()=> generateIndividualStory(Number(btn.dataset.story)));
+  });
+  el.querySelectorAll('[data-adjust]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = Number(btn.dataset.adjust);
+      const p = flyerProducts[idx];
+      openAdjustModal(p.img, p.transform, (t)=>{
+        p.transform = t;
+        scheduleDraftSave();
+      });
+    });
   });
   el.querySelectorAll('[data-swap]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1089,9 +1206,12 @@ function renderProductList(){
   el.querySelectorAll('[data-camswap]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       openCamera((img)=>{
-        flyerProducts[Number(btn.dataset.camswap)].img = img;
+        const p = flyerProducts[Number(btn.dataset.camswap)];
+        p.img = img;
+        p.transform = { scale: 1, panX: 0.5, panY: 0.5 };
         renderProductList();
         drawFlyer();
+        scheduleDraftSave();
       });
     });
   });
@@ -1100,6 +1220,7 @@ function renderProductList(){
       flyerProducts.splice(Number(btn.dataset.remove), 1);
       renderProductList();
       drawFlyer();
+      scheduleDraftSave();
     });
   });
 }
@@ -1123,6 +1244,7 @@ document.getElementById('flyerClearAllBtn').addEventListener('click', ()=>{
   flyerProducts = [];
   renderProductList();
   drawFlyer();
+  scheduleDraftSave();
 });
 
 // O layout do panfleto é desenhado em coordenadas "lógicas" pequenas (poucas
@@ -1573,6 +1695,7 @@ function renderBatchList(){
         <button data-search="${idx}">🔍 Buscar</button>
         <button data-manual="${idx}">📤 Trocar</button>
         <button data-cam="${idx}">📸 Foto</button>
+        ${p.img ? `<button data-adjustbatch="${idx}">🖼️ Ajustar</button>` : ''}
         <button data-copyitem="${idx}">📋 Copiar texto</button>
         <button class="del" data-delbatch="${idx}">Remover</button>
       </div>
@@ -1591,8 +1714,14 @@ function renderBatchList(){
     openCamera((img)=>{
       batchProducts[idx].img = img;
       batchProducts[idx].imgStatus = 'manual';
+      batchProducts[idx].transform = { scale: 1, panX: 0.5, panY: 0.5 };
       renderBatchList();
     });
+  }));
+  el.querySelectorAll('[data-adjustbatch]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const idx = Number(btn.dataset.adjustbatch);
+    const p = batchProducts[idx];
+    openAdjustModal(p.img, p.transform, (t)=>{ p.transform = t; });
   }));
   el.querySelectorAll('[data-copyitem]').forEach(btn=> btn.addEventListener('click', ()=>{
     const p = batchProducts[Number(btn.dataset.copyitem)];
@@ -1618,6 +1747,7 @@ document.getElementById('batchManualImageInput').addEventListener('change', asyn
     const img = await loadImageFromFile(file);
     batchProducts[batchManualTargetIdx].img = img;
     batchProducts[batchManualTargetIdx].imgStatus = 'manual';
+    batchProducts[batchManualTargetIdx].transform = { scale: 1, panX: 0.5, panY: 0.5 };
     renderBatchList();
   }
   e.target.value = '';
@@ -1715,9 +1845,10 @@ document.getElementById('batchSearchAllBtn').addEventListener('click', async ()=
 document.getElementById('batchToFlyerBtn').addEventListener('click', ()=>{
   const withImage = batchProducts.filter(p=> p.img);
   if(withImage.length === 0){ showAlert('Nenhum produto tem imagem ainda. Busque ou envie fotos antes de usar no panfleto.'); return; }
-  flyerProducts = withImage.map(p=> ({ img: p.img, name: p.description, de: p.normal, por: p.promo }));
+  flyerProducts = withImage.map(p=> ({ img: p.img, name: p.description, de: p.normal, por: p.promo, transform: p.transform || { scale: 1, panX: 0.5, panY: 0.5 } }));
   renderProductList();
   drawFlyer();
+  scheduleDraftSave();
   switchMode('flyer');
   document.getElementById('tabFlyer').classList.add('active');
   document.getElementById('tabBatch').classList.remove('active');
@@ -1759,7 +1890,7 @@ document.getElementById('batchZipBtn').addEventListener('click', async ()=>{
       tempCanvas.width = 1080; tempCanvas.height = 1920;
       const ctx = tempCanvas.getContext('2d');
       paintStoryArt(ctx, 1080, 1920, {
-        image: p.img, name: isNameEnabled() ? p.description : '', de: isPriceEnabled() ? p.normal : '', por: isPriceEnabled() ? p.promo : '',
+        image: p.img, imageTransform: p.transform, name: isNameEnabled() ? p.description : '', de: isPriceEnabled() ? p.normal : '', por: isPriceEnabled() ? p.promo : '',
         emoji: STORY_EMOJIS[0], logoColor, descColor, priceColor, nameY: guideNameY, priceY: guidePriceY,
         nameOffsetX: guideNameOffsetX, priceOffsetX: guidePriceOffsetX, extraOffsetX: guideExtraOffsetX,
         nameFontSize: Number(document.getElementById('storyNameSize').value),
@@ -1956,10 +2087,279 @@ document.getElementById('batchCopyTextBtn').addEventListener('click', ()=>{
   copyToClipboard(text);
 });
 
+// ==================== CONFIGURAÇÕES DA LOJA (lembradas entre sessões) ====================
+// Guarda cores, tamanhos, textos de rodapé etc. no localStorage do próprio
+// navegador/aparelho — sem isso, toda vez que a ferramenta é reaberta as
+// configurações voltavam pro padrão de fábrica e o funcionário tinha que
+// reconfigurar tudo de novo.
+const SETTINGS_STORAGE_KEY = 'cartazes_settings_v1';
+const SETTINGS_FIELD_IDS = [
+  'storyLogoColor','storyDescColor','storyPriceColor','storyNameSize','storyPriceSize',
+  'storyNameMargin','storyPriceMargin','storyExtraBgColor','storyExtraTextColor','storyExtraSize','storyExtraMargin',
+  'storyNameEnabled','storyPriceEnabled','storyExtraEnabled','storyExtraText',
+  'flyerStoreName','flyerStoreNameAlign','flyerTitle','flyerTitleAlign','flyerShowHeaderTexts','flyerShowFooterTexts',
+  'flyerFooterText1','flyerFooterText1Align','flyerFooterText2','flyerFooterText2Align','flyerQrAlign','flyerPerPage',
+  'flyerLogoColor','flyerDescColor','flyerPriceColor','flyerGridBgColor','flyerNameSize','flyerPriceSize','flyerPad','flyerBadgeSize',
+  'flyerBgWhiteBars','flyerLink',
+  'batchLogoColor','batchDescColor','batchPriceColor'
+];
+function saveSettings(){
+  const data = {};
+  SETTINGS_FIELD_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    data[id] = (el.type === 'checkbox') ? el.checked : el.value;
+  });
+  data._guides = { guideNameY, guideNameOffsetX, guidePriceY, guidePriceOffsetX, guideExtraY, guideExtraOffsetX };
+  try{ localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data)); }catch(e){ /* armazenamento indisponível/cheio — ignora */ }
+}
+function loadSettings(){
+  let data;
+  try{ data = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || 'null'); }catch(e){ data = null; }
+  if(!data) return;
+  SETTINGS_FIELD_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el || !(id in data)) return;
+    if(el.type === 'checkbox') el.checked = data[id];
+    else el.value = data[id];
+    const valEl = document.getElementById(id + 'Val');
+    if(valEl) valEl.textContent = el.value;
+  });
+  if(data._guides){
+    const g = data._guides;
+    if(typeof g.guideNameY === 'number') guideNameY = g.guideNameY;
+    if(typeof g.guideNameOffsetX === 'number') guideNameOffsetX = g.guideNameOffsetX;
+    if(typeof g.guidePriceY === 'number') guidePriceY = g.guidePriceY;
+    if(typeof g.guidePriceOffsetX === 'number') guidePriceOffsetX = g.guidePriceOffsetX;
+    if(typeof g.guideExtraY === 'number') guideExtraY = g.guideExtraY;
+    if(typeof g.guideExtraOffsetX === 'number') guideExtraOffsetX = g.guideExtraOffsetX;
+  }
+}
+let settingsSaveTimer = null;
+function scheduleSaveSettings(){
+  clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = setTimeout(saveSettings, 400);
+}
+document.addEventListener('input', (e)=>{
+  if(e.target && e.target.id && SETTINGS_FIELD_IDS.includes(e.target.id)) scheduleSaveSettings();
+});
+document.addEventListener('change', (e)=>{
+  if(e.target && e.target.id && SETTINGS_FIELD_IDS.includes(e.target.id)) scheduleSaveSettings();
+});
+
+// ==================== RASCUNHO AUTOMÁTICO (recupera se a aba fechar/travar) ====================
+const DRAFT_STORAGE_KEY = 'cartazes_draft_v1';
+function loadImageFromDataUrl(src){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=> resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+function serializeStoryDraft(){
+  const name = document.getElementById('storyName').value;
+  const de = document.getElementById('storyDe').value;
+  const por = document.getElementById('storyPor').value;
+  if(!storyImage && !name && !de && !por) return null;
+  return { imgSrc: storyImage ? storyImage.src : null, transform: storyImageTransform, name, de, por };
+}
+function saveDraft(){
+  const draft = {
+    savedAt: Date.now(),
+    flyerProducts: flyerProducts.map(p=> ({ imgSrc: p.img.src, transform: p.transform, name: p.name, de: p.de, por: p.por })),
+    story: serializeStoryDraft(),
+  };
+  try{
+    if(draft.flyerProducts.length || draft.story) localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    else localStorage.removeItem(DRAFT_STORAGE_KEY);
+  }catch(e){
+    console.warn('Não foi possível salvar o rascunho automático (armazenamento local cheio).', e);
+  }
+}
+function clearDraft(){ try{ localStorage.removeItem(DRAFT_STORAGE_KEY); }catch(e){} }
+let draftSaveTimer = null;
+function scheduleDraftSave(){
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(saveDraft, 700);
+}
+async function tryRestoreDraft(){
+  let raw;
+  try{ raw = localStorage.getItem(DRAFT_STORAGE_KEY); }catch(e){ return; }
+  if(!raw) return;
+  let draft;
+  try{ draft = JSON.parse(raw); }catch(e){ clearDraft(); return; }
+  const hasFlyer = draft.flyerProducts && draft.flyerProducts.length > 0;
+  const hasStory = draft.story && (draft.story.imgSrc || draft.story.name);
+  if(!hasFlyer && !hasStory){ clearDraft(); return; }
+  const when = draft.savedAt ? new Date(draft.savedAt).toLocaleString('pt-BR') : '';
+  const parts = [];
+  if(hasFlyer) parts.push(draft.flyerProducts.length + ' produto(s) do panfleto');
+  if(hasStory) parts.push('o story em andamento');
+  const msg = 'Encontramos um rascunho não finalizado com ' + parts.join(' e ') + (when ? ' (salvo em ' + when + ')' : '') + '. Deseja continuar de onde parou?';
+  if(!confirm(msg)){ clearDraft(); return; }
+
+  if(hasFlyer){
+    flyerProducts = [];
+    for(const p of draft.flyerProducts){
+      if(!p.imgSrc) continue;
+      try{
+        const img = await loadImageFromDataUrl(p.imgSrc);
+        flyerProducts.push({ img, name: p.name, de: p.de, por: p.por, transform: p.transform || { scale: 1, panX: 0.5, panY: 0.5 } });
+      }catch(e){ /* pula foto corrompida */ }
+    }
+    renderProductList();
+    drawFlyer();
+  }
+  if(hasStory){
+    if(draft.story.imgSrc){
+      try{ setStoryImage(await loadImageFromDataUrl(draft.story.imgSrc), draft.story.transform); }catch(e){}
+    }
+    document.getElementById('storyName').value = draft.story.name || '';
+    document.getElementById('storyDe').value = draft.story.de || '';
+    document.getElementById('storyPor').value = draft.story.por || '';
+    drawStory();
+  }
+}
+
+// ==================== ÚLTIMOS PRODUTOS USADOS ====================
+// Lista curta (mais recentes primeiro) de produtos já usados, pra reaproveitar
+// foto/nome/preço num clique quando a mesma oferta se repete (comum em
+// promoções semanais) em vez de digitar/tirar foto tudo de novo.
+const RECENT_PRODUCTS_KEY = 'cartazes_recent_products_v1';
+const RECENT_PRODUCTS_MAX = 20;
+function loadRecentProducts(){
+  try{ return JSON.parse(localStorage.getItem(RECENT_PRODUCTS_KEY) || '[]'); }catch(e){ return []; }
+}
+function saveRecentProduct({ img, name, de, por }){
+  if(!img || !name || !name.trim()) return;
+  let list = loadRecentProducts();
+  const key = name.trim().toLowerCase();
+  list = list.filter(p=> (p.name||'').trim().toLowerCase() !== key);
+  list.unshift({ imgSrc: img.src, name, de, por, usedAt: Date.now() });
+  list = list.slice(0, RECENT_PRODUCTS_MAX);
+  try{ localStorage.setItem(RECENT_PRODUCTS_KEY, JSON.stringify(list)); }
+  catch(e){
+    // provavelmente sem espaço — tenta guardar uma lista mais curta antes de desistir
+    try{ localStorage.setItem(RECENT_PRODUCTS_KEY, JSON.stringify(list.slice(0, 8))); }catch(e2){}
+  }
+  renderRecentLists();
+}
+function renderRecentList(containerId, onPick){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  const list = loadRecentProducts();
+  el.innerHTML = '';
+  if(list.length === 0){
+    el.innerHTML = '<div class="recent-empty">Nenhum produto usado ainda — o que você adicionar aqui aparece pra reusar depois.</div>';
+    return;
+  }
+  list.forEach(p=>{
+    const item = document.createElement('div');
+    item.className = 'recent-item';
+    item.title = 'Usar "' + p.name + '" de novo';
+    item.innerHTML = `<img src="${p.imgSrc}"><div class="rname">${p.name}</div><div class="rprice">R$${fmtMoney(p.por)}</div>`;
+    item.addEventListener('click', async ()=>{
+      try{ onPick(await loadImageFromDataUrl(p.imgSrc), p); }
+      catch(e){ showAlert('Não consegui recuperar a foto desse produto.'); }
+    });
+    el.appendChild(item);
+  });
+}
+function renderRecentLists(){
+  renderRecentList('storyRecentList', (img, p)=>{
+    setStoryImage(img);
+    document.getElementById('storyName').value = p.name || '';
+    document.getElementById('storyDe').value = p.de || '';
+    document.getElementById('storyPor').value = p.por || '';
+    drawStory();
+    scheduleDraftSave();
+  });
+  renderRecentList('flyerRecentList', (img, p)=>{
+    setFlyerPendingImage(img);
+    document.getElementById('flyerName').value = p.name || '';
+    document.getElementById('flyerDe').value = p.de || '';
+    document.getElementById('flyerPor').value = p.por || '';
+  });
+}
+
+// ==================== AJUSTAR ENQUADRAMENTO (arrastar/zoom da foto) ====================
+let adjustState = null; // { img, transform, onApply }
+function openAdjustModal(img, transform, onApply){
+  if(!img) return;
+  adjustState = {
+    img,
+    transform: Object.assign({ scale: 1, panX: 0.5, panY: 0.5 }, transform || {}),
+    onApply
+  };
+  document.getElementById('adjustZoom').value = adjustState.transform.scale;
+  document.getElementById('adjustOverlay').style.display = 'flex';
+  drawAdjustPreview();
+}
+function drawAdjustPreview(){
+  if(!adjustState) return;
+  const canvas = document.getElementById('adjustCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawImageCover(ctx, adjustState.img, 0, 0, canvas.width, canvas.height, adjustState.transform);
+}
+document.getElementById('adjustZoom').addEventListener('input', (e)=>{
+  if(!adjustState) return;
+  adjustState.transform.scale = Number(e.target.value);
+  drawAdjustPreview();
+});
+document.getElementById('adjustResetBtn').addEventListener('click', ()=>{
+  if(!adjustState) return;
+  adjustState.transform = { scale: 1, panX: 0.5, panY: 0.5 };
+  document.getElementById('adjustZoom').value = 1;
+  drawAdjustPreview();
+});
+document.getElementById('adjustCancelBtn').addEventListener('click', ()=>{
+  adjustState = null;
+  document.getElementById('adjustOverlay').style.display = 'none';
+});
+document.getElementById('adjustSaveBtn').addEventListener('click', ()=>{
+  if(!adjustState) return;
+  const t = adjustState.transform;
+  const cb = adjustState.onApply;
+  adjustState = null;
+  document.getElementById('adjustOverlay').style.display = 'none';
+  if(cb) cb(t);
+});
+// Arrasta a FOTO dentro do quadro (metáfora tipo Instagram) — por isso o
+// sinal do eixo é invertido: arrastar pra direita move a foto pra direita,
+// o que corresponde a "olhar" mais pra esquerda dela (panX menor).
+{
+  const frame = document.getElementById('adjustFrame');
+  let dragging = false, startX = 0, startY = 0, startPanX = 0.5, startPanY = 0.5;
+  frame.addEventListener('pointerdown', (e)=>{
+    if(!adjustState) return;
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startPanX = adjustState.transform.panX;
+    startPanY = adjustState.transform.panY;
+    frame.setPointerCapture(e.pointerId);
+  });
+  frame.addEventListener('pointermove', (e)=>{
+    if(!dragging || !adjustState) return;
+    const dx = (e.clientX - startX) / frame.clientWidth;
+    const dy = (e.clientY - startY) / frame.clientHeight;
+    adjustState.transform.panX = Math.max(0, Math.min(1, startPanX - dx));
+    adjustState.transform.panY = Math.max(0, Math.min(1, startPanY - dy));
+    drawAdjustPreview();
+  });
+  frame.addEventListener('pointerup', ()=>{ dragging = false; });
+  frame.addEventListener('pointercancel', ()=>{ dragging = false; });
+}
+
 // init
+loadSettings();
 drawStory();
 drawFlyer();
 renderProductList();
+syncGuideVisuals();
+renderRecentLists();
+tryRestoreDraft();
 </script>
 </body>
 </html>
