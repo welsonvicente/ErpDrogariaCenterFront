@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { despesaService } from '../services/despesaService';
 import { FORMA_PAGAMENTO_LABEL, type Categoria, type Despesa, type FormaPagamento } from '../types';
+import { parseValorBr } from '../utils/money';
 
 const FORMAS_PAGAMENTO: FormaPagamento[] = ['DINHEIRO', 'CARTAO_DEBITO', 'CARTAO_CREDITO', 'PIX', 'BOLETO', 'OUTRO'];
 
@@ -26,12 +27,17 @@ export function EditDespesaModal({
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    const valorNumerico = parseValorBr(String(valor));
+    if (!valorNumerico || valorNumerico <= 0) {
+      setError('Digite um valor válido (ex: 9,99 ou 1.234,56).');
+      return;
+    }
     setError('');
     setSaving(true);
     try {
       await despesaService.update(despesa.id, {
         data,
-        valor: Number(String(valor).replace(',', '.')),
+        valor: valorNumerico,
         formaPagamento,
         categoriaId,
         descricao: descricao || undefined,

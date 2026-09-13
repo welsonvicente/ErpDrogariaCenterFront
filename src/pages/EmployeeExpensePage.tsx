@@ -8,6 +8,7 @@ import { despesaService } from '../services/despesaService';
 import { funcionarioService } from '../services/funcionarioService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { FORMA_PAGAMENTO_LABEL, type Categoria, type Colega, type Despesa, type FormaPagamento } from '../types';
+import { parseValorBr } from '../utils/money';
 
 /** Nome exato da categoria que exige escolher quem recebe o valor — precisa bater com o seed (categoriasPadrao.ts). */
 const CATEGORIA_DIARIA_NOME = 'Diária de domingo ou feriado';
@@ -120,12 +121,17 @@ export function EmployeeExpensePage() {
       setError('Selecione o colaborador que vai receber a diária.');
       return;
     }
+    const valorNumerico = parseValorBr(valor);
+    if (!valorNumerico || valorNumerico <= 0) {
+      setError('Digite um valor válido (ex: 9,99 ou 1.234,56).');
+      return;
+    }
     setError('');
     setSaving(true);
     try {
       await despesaService.create({
         data,
-        valor: Number(valor.replace(',', '.')),
+        valor: valorNumerico,
         formaPagamento,
         descricao: descricao || undefined,
         categoriaId: categoriaSelecionada.id,
