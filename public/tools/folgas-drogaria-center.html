@@ -86,6 +86,16 @@
   .btn-ghost{border:1px solid var(--line);background:var(--card);color:var(--green-deep);font-weight:600;font-size:13px;padding:9px 14px;border-radius:10px;cursor:pointer;}
   .btn-ghost:hover{background:var(--mint);}
 
+  /* Período de visualização — em destaque (borda verde) porque afeta todos os painéis de histórico abaixo. */
+  .period-panel{background:var(--card);border:2px solid var(--green);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);margin-bottom:20px;}
+  .period-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .period-tab{flex:1;min-width:160px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-weight:700;font-size:13px;padding:11px;border-radius:10px;cursor:pointer;}
+  .period-tab:hover{border-color:var(--green);}
+  .period-tab.active{background:var(--green-mid);color:#fff;border-color:var(--green-mid);}
+  .period-fields{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .period-fields .field{margin-bottom:0;flex:1;min-width:140px;}
+  .period-summary{font-size:12.5px;color:var(--ink-soft);margin-top:10px;font-weight:600;}
+
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:26px;}
   .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);}
   .stat .num{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:var(--green-deep);}
@@ -227,6 +237,22 @@
   <!-- MANAGER VIEW -->
   <div id="managerView" hidden>
     <div class="role-badge" id="roleBadge"></div>
+
+    <div class="period-panel">
+      <h2 class="section-title" style="margin-bottom:10px;">📅 Período dos dados exibidos</h2>
+      <div class="period-tabs">
+        <button type="button" class="period-tab" id="periodTabMes">Mês atual (até hoje)</button>
+        <button type="button" class="period-tab" id="periodTabEspecifico">Período específico</button>
+      </div>
+      <div class="period-fields" id="periodFieldsEspecifico" style="display:none;">
+        <div class="field"><label>De</label><input type="date" id="periodoInicioInput"></div>
+        <div class="field"><label>Até</label><input type="date" id="periodoFimInput"></div>
+        <button type="button" class="btn-ghost" id="periodoAplicarBtn" style="width:auto;margin:0;">Aplicar</button>
+      </div>
+      <div class="period-summary" id="periodSummary"></div>
+      <div class="footnote" style="margin-top:6px;">Afeta o histórico de créditos, folgas agendadas, trocas por pagamento e atestados abaixo. "Saldo por colaborador" e "Ausências agora" sempre mostram a situação atual, independente do período.</div>
+    </div>
+
     <div class="toolbar">
       <button class="btn-ghost" id="manageEmployeesBtn">👤 Colaboradores</button>
       <button class="btn-ghost" id="manageLeavesBtn">🏖️ Férias / Atestados</button>
@@ -298,7 +324,7 @@
 
     <div class="panel">
       <div class="section-head">
-        <h2 class="section-title">📊 Relatório de dias ausentes por doença / atestado</h2>
+        <h2 class="section-title">📊 Relatório de dias ausentes por doença / atestado (no período)</h2>
         <span class="report-dl">
           <button class="btn-report" data-report="sickSummary" data-fmt="xlsx">⬇️ Excel</button>
           <button class="btn-report" data-report="sickSummary" data-fmt="pdf">⬇️ PDF</button>
@@ -311,7 +337,7 @@
       <div class="footnote">Soma todos os períodos de atestado registrados (pelo colaborador ou pela gerência), do início ao fim de cada um.</div>
 
       <div class="section-head" style="margin-top:22px;">
-        <h2 class="section-title">Detalhamento de cada atestado</h2>
+        <h2 class="section-title">Detalhamento de cada atestado (no período)</h2>
         <span class="report-dl">
           <button class="btn-report" data-report="sickDetail" data-fmt="xlsx">⬇️ Excel</button>
           <button class="btn-report" data-report="sickDetail" data-fmt="pdf">⬇️ PDF</button>
@@ -343,7 +369,7 @@
     <div class="cols">
       <div class="panel">
         <div class="section-head">
-          <h2 class="section-title">Próximas folgas agendadas</h2>
+          <h2 class="section-title">Folgas agendadas (no período)</h2>
           <span class="report-dl">
             <button class="btn-report" data-report="scheduled" data-fmt="xlsx">⬇️ Excel</button>
             <button class="btn-report" data-report="scheduled" data-fmt="pdf">⬇️ PDF</button>
@@ -356,7 +382,7 @@
       </div>
       <div class="panel">
         <div class="section-head">
-          <h2 class="section-title">Histórico de créditos concedidos</h2>
+          <h2 class="section-title">Histórico de créditos concedidos (no período)</h2>
           <span class="report-dl">
             <button class="btn-report" data-report="credits" data-fmt="xlsx">⬇️ Excel</button>
             <button class="btn-report" data-report="credits" data-fmt="pdf">⬇️ PDF</button>
@@ -372,7 +398,7 @@
 
     <div class="panel">
       <div class="section-head">
-        <h2 class="section-title">Folgas trocadas por pagamento</h2>
+        <h2 class="section-title">Folgas trocadas por pagamento (no período)</h2>
         <span class="report-dl">
           <button class="btn-report" data-report="swaps" data-fmt="xlsx">⬇️ Excel</button>
           <button class="btn-report" data-report="swaps" data-fmt="pdf">⬇️ PDF</button>
@@ -1749,7 +1775,63 @@ function renderAuditList(){
 }
 
 // ---------- Manager: dashboard ----------
+// ---------- Período de visualização (filtra os painéis de histórico do dashboard) ----------
+let periodoModo = 'mes'; // 'mes' (até hoje) | 'especifico' (datas escolhidas)
+let periodoInicioManual = null;
+let periodoFimManual = null;
+
+function primeiroDiaDoMes(){
+  const d = new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-01';
+}
+/** Início/fim (strings AAAA-MM-DD) do período atualmente selecionado — "mês atual" sempre vai até hoje, não até o fim do mês. */
+function periodoAtual(){
+  if(periodoModo === 'especifico' && periodoInicioManual && periodoFimManual){
+    return { inicio: periodoInicioManual, fim: periodoFimManual };
+  }
+  return { inicio: primeiroDiaDoMes(), fim: todayStr() };
+}
+/** `dataIso` pode ser "AAAA-MM-DD" ou um timestamp ISO completo — só a parte da data importa aqui. */
+function dentroDoPeriodo(dataIso){
+  if(!dataIso) return false;
+  const { inicio, fim } = periodoAtual();
+  const data = dataIso.slice(0,10);
+  return data >= inicio && data <= fim;
+}
+function atualizarPeriodoUI(){
+  document.getElementById('periodTabMes').classList.toggle('active', periodoModo==='mes');
+  document.getElementById('periodTabEspecifico').classList.toggle('active', periodoModo==='especifico');
+  document.getElementById('periodFieldsEspecifico').style.display = periodoModo==='especifico' ? 'flex' : 'none';
+  const { inicio, fim } = periodoAtual();
+  document.getElementById('periodSummary').textContent = '📊 Mostrando dados de ' + fmtDateBr(inicio) + ' até ' + fmtDateBr(fim) + '.';
+}
+document.getElementById('periodTabMes').addEventListener('click', ()=>{
+  periodoModo = 'mes';
+  atualizarPeriodoUI();
+  renderManagerView();
+});
+document.getElementById('periodTabEspecifico').addEventListener('click', ()=>{
+  periodoModo = 'especifico';
+  if(!periodoInicioManual) periodoInicioManual = primeiroDiaDoMes();
+  if(!periodoFimManual) periodoFimManual = todayStr();
+  document.getElementById('periodoInicioInput').value = periodoInicioManual;
+  document.getElementById('periodoFimInput').value = periodoFimManual;
+  atualizarPeriodoUI();
+  renderManagerView();
+});
+document.getElementById('periodoAplicarBtn').addEventListener('click', ()=>{
+  const inicio = document.getElementById('periodoInicioInput').value;
+  const fim = document.getElementById('periodoFimInput').value;
+  if(!inicio || !fim){ showAlert('Escolha as duas datas do período.'); return; }
+  if(fim < inicio){ showAlert('A data final não pode ser antes da data inicial.'); return; }
+  periodoInicioManual = inicio;
+  periodoFimManual = fim;
+  atualizarPeriodoUI();
+  renderManagerView();
+});
+
 function renderManagerView(){
+  atualizarPeriodoUI();
   renderFolgaHojeAmanha();
   document.getElementById('statEmployees').textContent = state.employees.length;
   document.getElementById('statCredits').textContent = state.credits.length;
@@ -1775,13 +1857,13 @@ function renderManagerView(){
   const sickBody = document.getElementById('sickReportBody');
   sickBody.innerHTML = '';
   const sickStats = state.employees.map(emp=>{
-    const atestados = state.leaves.filter(l=> l.employeeId===emp.id && l.type==='atestado');
+    const atestados = state.leaves.filter(l=> l.employeeId===emp.id && l.type==='atestado' && dentroDoPeriodo(l.startDate));
     const totalDays = atestados.reduce((s,l)=> s + daysBetweenInclusive(l.startDate, l.endDate), 0);
     return { emp, count: atestados.length, totalDays };
   }).filter(s=> s.count > 0).sort((a,b)=> b.totalDays - a.totalDays);
 
   if(sickStats.length === 0){
-    sickBody.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhum atestado registrado ainda.</td></tr>';
+    sickBody.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhum atestado nesse período.</td></tr>';
   } else {
     sickStats.forEach(s=>{
       const tr = document.createElement('tr');
@@ -1792,9 +1874,9 @@ function renderManagerView(){
 
   const sickDetailBody = document.getElementById('sickDetailBody');
   sickDetailBody.innerHTML = '';
-  const allSick = state.leaves.filter(l=> l.type==='atestado').slice().sort((a,b)=> new Date(b.startDate)-new Date(a.startDate));
+  const allSick = state.leaves.filter(l=> l.type==='atestado' && dentroDoPeriodo(l.startDate)).slice().sort((a,b)=> new Date(b.startDate)-new Date(a.startDate));
   if(allSick.length === 0){
-    sickDetailBody.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhum atestado registrado ainda.</td></tr>';
+    sickDetailBody.innerHTML = '<tr><td colspan="6" class="empty-row">Nenhum atestado nesse período.</td></tr>';
   } else {
     allSick.forEach(l=>{
       const emp = state.employees.find(e=>e.id===l.employeeId);
@@ -1829,9 +1911,9 @@ function renderManagerView(){
 
   const schedBody = document.getElementById('scheduledBody');
   schedBody.innerHTML = '';
-  const upcoming = state.daysOff.slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
+  const upcoming = state.daysOff.filter(off=> dentroDoPeriodo(off.date)).sort((a,b)=> new Date(a.date)-new Date(b.date));
   if(upcoming.length === 0){
-    schedBody.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhuma folga agendada.</td></tr>';
+    schedBody.innerHTML = '<tr><td colspan="3" class="empty-row">Nenhuma folga agendada nesse período.</td></tr>';
   } else {
     upcoming.forEach(off=>{
       const emp = state.employees.find(e=>e.id===off.employeeId);
@@ -1844,9 +1926,9 @@ function renderManagerView(){
 
   const credBody = document.getElementById('creditsBody');
   credBody.innerHTML = '';
-  const creditsSorted = state.credits.slice().sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate));
+  const creditsSorted = state.credits.filter(c=> dentroDoPeriodo(c.workedDate)).sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate));
   if(creditsSorted.length === 0){
-    credBody.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhum crédito registrado.</td></tr>';
+    credBody.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhum crédito registrado nesse período.</td></tr>';
   } else {
     const usedDateByCredit = pairCreditsWithDaysOff();
     creditsSorted.forEach(c=>{
@@ -1864,9 +1946,9 @@ function renderManagerView(){
 
   const swapsBody = document.getElementById('swapsBody');
   swapsBody.innerHTML = '';
-  const swapsSorted = state.creditSwaps.slice().sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt));
+  const swapsSorted = state.creditSwaps.filter(s=> dentroDoPeriodo(s.createdAt)).sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt));
   if(swapsSorted.length === 0){
-    swapsBody.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhuma folga trocada por pagamento.</td></tr>';
+    swapsBody.innerHTML = '<tr><td colspan="7" class="empty-row">Nenhuma folga trocada por pagamento nesse período.</td></tr>';
   } else {
     swapsSorted.forEach(s=>{
       const emp = state.employees.find(e=>e.id===s.employeeId);
@@ -1963,7 +2045,7 @@ const REPORTS = {
     title: 'Relatório de dias ausentes por doença-atestado',
     build(){
       const rows = state.employees.map(emp=>{
-        const atestados = state.leaves.filter(l=> l.employeeId===emp.id && l.type==='atestado');
+        const atestados = state.leaves.filter(l=> l.employeeId===emp.id && l.type==='atestado' && dentroDoPeriodo(l.startDate));
         const totalDays = atestados.reduce((s,l)=> s + daysBetweenInclusive(l.startDate, l.endDate), 0);
         return { emp, count: atestados.length, totalDays };
       }).filter(s=> s.count > 0).sort((a,b)=> b.totalDays - a.totalDays)
@@ -1974,7 +2056,7 @@ const REPORTS = {
   sickDetail: {
     title: 'Detalhamento de cada atestado',
     build(){
-      const rows = state.leaves.filter(l=> l.type==='atestado')
+      const rows = state.leaves.filter(l=> l.type==='atestado' && dentroDoPeriodo(l.startDate))
         .slice().sort((a,b)=> new Date(b.startDate)-new Date(a.startDate))
         .map(l=>{
           const emp = state.employees.find(e=>e.id===l.employeeId);
@@ -2002,9 +2084,9 @@ const REPORTS = {
     }
   },
   scheduled: {
-    title: 'Próximas folgas agendadas',
+    title: 'Folgas agendadas',
     build(){
-      const rows = state.daysOff.slice().sort((a,b)=> new Date(a.date)-new Date(b.date))
+      const rows = state.daysOff.filter(off=> dentroDoPeriodo(off.date)).sort((a,b)=> new Date(a.date)-new Date(b.date))
         .map(off=>{
           const emp = state.employees.find(e=>e.id===off.employeeId);
           return [emp?emp.name:'—', fmtDateBr(off.date), weekdayName(off.date)];
@@ -2016,7 +2098,7 @@ const REPORTS = {
     title: 'Histórico de créditos concedidos',
     build(){
       const usedDateByCredit = pairCreditsWithDaysOff();
-      const rows = state.credits.slice().sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate))
+      const rows = state.credits.filter(c=> dentroDoPeriodo(c.workedDate)).sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate))
         .map(c=>{
           const emp = state.employees.find(e=>e.id===c.employeeId);
           const usedDate = usedDateByCredit.get(c.id);
@@ -2028,7 +2110,7 @@ const REPORTS = {
   swaps: {
     title: 'Folgas trocadas por pagamento',
     build(){
-      const rows = state.creditSwaps.slice().sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))
+      const rows = state.creditSwaps.filter(s=> dentroDoPeriodo(s.createdAt)).sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))
         .map(s=>{
           const emp = state.employees.find(e=>e.id===s.employeeId);
           return [emp?emp.name:'—', fmtDateBr(s.workedDate), fmtDateTimeBr(s.createdAt), 'R$ ' + fmtMoney(s.valor), FORMA_PAGAMENTO_FOLGA_LABEL[s.forma]||s.forma, s.nota || '—'];
