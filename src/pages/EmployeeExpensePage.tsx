@@ -7,11 +7,15 @@ import { categoriaService } from '../services/categoriaService';
 import { despesaService } from '../services/despesaService';
 import { funcionarioService } from '../services/funcionarioService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { FORMA_PAGAMENTO_LABEL, type Categoria, type Colega, type Despesa, type FormaPagamento } from '../types';
+import {
+  CATEGORIA_DIARIA_NOME,
+  FORMA_PAGAMENTO_LABEL,
+  type Categoria,
+  type Colega,
+  type Despesa,
+  type FormaPagamento,
+} from '../types';
 import { parseValorBr } from '../utils/money';
-
-/** Nome exato da categoria que exige escolher quem recebe o valor — precisa bater com o seed (categoriasPadrao.ts). */
-const CATEGORIA_DIARIA_NOME = 'Diária de domingo ou feriado';
 
 function todayStr() {
   const d = new Date();

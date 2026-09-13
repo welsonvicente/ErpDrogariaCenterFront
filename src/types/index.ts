@@ -46,6 +46,14 @@ export interface Categoria {
   ativo: boolean;
 }
 
+/**
+ * Nome exato da categoria que exige escolher quem recebe o valor (ver
+ * DespesaService.assertBeneficiario no backend) — precisa bater com o seed
+ * (categoriasPadrao.ts). Compartilhado entre a tela de lançamento e a de
+ * edição pra não haver duas cópias que podem divergir.
+ */
+export const CATEGORIA_DIARIA_NOME = 'Diária de domingo ou feriado';
+
 export type FormaPagamento = 'DINHEIRO' | 'CARTAO_DEBITO' | 'CARTAO_CREDITO' | 'PIX' | 'BOLETO' | 'OUTRO';
 
 export const FORMA_PAGAMENTO_LABEL: Record<FormaPagamento, string> = {
