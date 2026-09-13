@@ -7,14 +7,7 @@ import { categoriaService } from '../services/categoriaService';
 import { despesaService } from '../services/despesaService';
 import { funcionarioService } from '../services/funcionarioService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import {
-  CATEGORIA_DIARIA_NOME,
-  FORMA_PAGAMENTO_LABEL,
-  type Categoria,
-  type Colega,
-  type Despesa,
-  type FormaPagamento,
-} from '../types';
+import { FORMA_PAGAMENTO_LABEL, type Categoria, type Colega, type Despesa, type FormaPagamento } from '../types';
 import { parseValorBr } from '../utils/money';
 
 function todayStr() {
@@ -76,7 +69,7 @@ export function EmployeeExpensePage() {
 
   const [colegas, setColegas] = useState<Colega[]>([]);
   const [beneficiarioId, setBeneficiarioId] = useState('');
-  const precisaBeneficiario = categoriaSelecionada?.nome === CATEGORIA_DIARIA_NOME;
+  const precisaBeneficiario = !!categoriaSelecionada?.exigeBeneficiario;
 
   const [meusLancamentos, setMeusLancamentos] = useState<Despesa[]>([]);
   const [carregandoMeus, setCarregandoMeus] = useState(false);
@@ -122,7 +115,7 @@ export function EmployeeExpensePage() {
     event.preventDefault();
     if (!categoriaSelecionada) return;
     if (precisaBeneficiario && !beneficiarioId) {
-      setError('Selecione o colaborador que vai receber a diária.');
+      setError('Selecione o colaborador que vai receber o valor.');
       return;
     }
     const valorNumerico = parseValorBr(valor);
@@ -245,7 +238,7 @@ export function EmployeeExpensePage() {
               </div>
               {precisaBeneficiario && (
                 <div className="field">
-                  <label htmlFor="beneficiario">Colaborador que vai receber a diária</label>
+                  <label htmlFor="beneficiario">Colaborador que vai receber o valor</label>
                   <select
                     id="beneficiario"
                     value={beneficiarioId}

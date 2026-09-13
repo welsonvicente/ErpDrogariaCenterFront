@@ -73,6 +73,12 @@ export function ManagerCategoriesPage() {
     reload();
   }
 
+  async function handleToggleExigeBeneficiario(categoria: Categoria) {
+    setRowError(null);
+    await categoriaService.update(categoria.id, { exigeBeneficiario: !categoria.exigeBeneficiario });
+    reload();
+  }
+
   return (
     <ManagerLayout>
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20, alignItems: 'start' }}>
@@ -99,6 +105,7 @@ export function ManagerCategoriesPage() {
                 <th>Ícone</th>
                 <th>Categoria</th>
                 <th>Status</th>
+                <th>Exige colaborador?</th>
                 <th></th>
               </tr>
             </thead>
@@ -121,6 +128,16 @@ export function ManagerCategoriesPage() {
                   </td>
                   <td>{cat.nome}</td>
                   <td>{cat.ativo ? 'Ativa' : 'Inativa'}</td>
+                  <td>
+                    <button
+                      className="btn-ghost"
+                      type="button"
+                      title="Exigir escolher quem recebe o valor ao lançar um gasto nessa categoria (ex.: diárias)"
+                      onClick={() => handleToggleExigeBeneficiario(cat)}
+                    >
+                      {cat.exigeBeneficiario ? '✅ Sim' : 'Não'}
+                    </button>
+                  </td>
                   <td>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                       {cat.ativo ? (

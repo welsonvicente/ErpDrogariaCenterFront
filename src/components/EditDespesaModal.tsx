@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { despesaService } from '../services/despesaService';
 import { funcionarioService } from '../services/funcionarioService';
-import { CATEGORIA_DIARIA_NOME, FORMA_PAGAMENTO_LABEL, type Categoria, type Colega, type Despesa, type FormaPagamento } from '../types';
+import { FORMA_PAGAMENTO_LABEL, type Categoria, type Colega, type Despesa, type FormaPagamento } from '../types';
 import { parseValorBr } from '../utils/money';
 
 const FORMAS_PAGAMENTO: FormaPagamento[] = ['DINHEIRO', 'CARTAO_DEBITO', 'CARTAO_CREDITO', 'PIX', 'BOLETO', 'OUTRO'];
@@ -29,7 +29,7 @@ export function EditDespesaModal({
   const [saving, setSaving] = useState(false);
 
   const categoriaSelecionada = categorias.find((c) => c.id === categoriaId);
-  const precisaBeneficiario = categoriaSelecionada?.nome === CATEGORIA_DIARIA_NOME;
+  const precisaBeneficiario = !!categoriaSelecionada?.exigeBeneficiario;
 
   useEffect(() => {
     funcionarioService.listColegas().then(setColegas);
@@ -43,7 +43,7 @@ export function EditDespesaModal({
       return;
     }
     if (precisaBeneficiario && !beneficiarioId) {
-      setError('Selecione o colaborador que vai receber a diária.');
+      setError('Selecione o colaborador que vai receber o valor.');
       return;
     }
     setError('');
@@ -101,7 +101,7 @@ export function EditDespesaModal({
           </div>
           {precisaBeneficiario && (
             <div className="field">
-              <label htmlFor="editBeneficiario">Colaborador que vai receber a diária</label>
+              <label htmlFor="editBeneficiario">Colaborador que vai receber o valor</label>
               <select id="editBeneficiario" value={beneficiarioId} onChange={(e) => setBeneficiarioId(e.target.value)} required>
                 <option value="">Selecione...</option>
                 {colegas.map((c) => (
