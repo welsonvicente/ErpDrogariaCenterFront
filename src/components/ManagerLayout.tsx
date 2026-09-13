@@ -44,6 +44,9 @@ export function ManagerLayout({ children }: { children: ReactNode }) {
         <NavLink to={`/${orgSlug}/gestor/categorias`} className={({ isActive }) => (isActive ? 'active' : '')}>
           Categorias
         </NavLink>
+        <NavLink to={`/${orgSlug}/gestor/auditoria`} className={({ isActive }) => (isActive ? 'active' : '')}>
+          Auditoria
+        </NavLink>
       </div>
 
       {children}

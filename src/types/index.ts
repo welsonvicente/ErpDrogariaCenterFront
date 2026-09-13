@@ -93,3 +93,20 @@ export interface ResumoDespesas {
     total: string;
   }>;
 }
+
+/** Trilha de ações sensíveis consultável pelo gestor (ver GET /auditoria). */
+export interface RegistroAuditoria {
+  id: string;
+  usuarioNome: string;
+  usuarioEmail: string | null;
+  acao: string;
+  detalhes: string | null;
+  criadoEm: string;
+}
+
+export const ACAO_AUDITORIA_LABEL: Record<string, string> = {
+  'despesa.editada': 'Editou um lançamento',
+  'despesa.excluida': 'Excluiu um lançamento',
+  'funcionario.acesso_gestor_concedido': 'Concedeu atalho pro Painel do Gestor',
+  'funcionario.acesso_gestor_revogado': 'Revogou atalho pro Painel do Gestor',
+};

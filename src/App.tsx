@@ -4,6 +4,7 @@ import { OrgLayout } from './components/OrgLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { EmployeeCodePage } from './pages/EmployeeCodePage';
 import { EmployeeExpensePage } from './pages/EmployeeExpensePage';
+import { ManagerAuditoriaPage } from './pages/ManagerAuditoriaPage';
 import { ManagerCategoriesPage } from './pages/ManagerCategoriesPage';
 import { ManagerDashboardPage } from './pages/ManagerDashboardPage';
 import { ManagerFuncionariosPage } from './pages/ManagerFuncionariosPage';
@@ -67,6 +68,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ManagerCategoriesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="gestor/auditoria"
+          element={
+            <ProtectedRoute>
+              <ManagerAuditoriaPage />
             </ProtectedRoute>
           }
         />
