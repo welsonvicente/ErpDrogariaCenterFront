@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
@@ -8,5 +9,10 @@ export default defineConfig({
     // Expõe o dev server na rede local (não só localhost), para acessar de
     // outros dispositivos (celular, tablet no balcão) pelo IP da máquina.
     host: true,
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/tests/setupTests.ts'],
   },
 })
