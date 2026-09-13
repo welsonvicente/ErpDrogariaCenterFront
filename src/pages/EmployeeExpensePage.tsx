@@ -73,6 +73,9 @@ export function EmployeeExpensePage() {
 
   const [meusLancamentos, setMeusLancamentos] = useState<Despesa[]>([]);
   const [carregandoMeus, setCarregandoMeus] = useState(false);
+  const [paginaMeus, setPaginaMeus] = useState(1);
+  const [totalPaginasMeus, setTotalPaginasMeus] = useState(1);
+  const MEUS_LANCAMENTOS_POR_PAGINA = 20;
 
   useEffect(() => {
     if (!usuario) {
@@ -87,10 +90,13 @@ export function EmployeeExpensePage() {
     if (!usuario || aba !== 'meus') return;
     setCarregandoMeus(true);
     despesaService
-      .listMinhas({ pageSize: 100 })
-      .then((res) => setMeusLancamentos(res.items))
+      .listMinhas({ page: paginaMeus, pageSize: MEUS_LANCAMENTOS_POR_PAGINA })
+      .then((res) => {
+        setMeusLancamentos(res.items);
+        setTotalPaginasMeus(res.totalPages || 1);
+      })
       .finally(() => setCarregandoMeus(false));
-  }, [usuario, aba]);
+  }, [usuario, aba, paginaMeus]);
 
   useEffect(() => {
     if (!toast) return;
@@ -192,6 +198,7 @@ export function EmployeeExpensePage() {
           className={aba === 'meus' ? 'active' : ''}
           onClick={(e) => {
             e.preventDefault();
+            setPaginaMeus(1);
             setAba('meus');
           }}
         >
@@ -337,6 +344,31 @@ export function EmployeeExpensePage() {
                 )}
               </tbody>
             </table>
+          )}
+          {!carregandoMeus && totalPaginasMeus > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 14 }}>
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: 'auto' }}
+                disabled={paginaMeus <= 1}
+                onClick={() => setPaginaMeus((p) => p - 1)}
+              >
+                ◀ Anterior
+              </button>
+              <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                Página {paginaMeus} de {totalPaginasMeus}
+              </span>
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: 'auto' }}
+                disabled={paginaMeus >= totalPaginasMeus}
+                onClick={() => setPaginaMeus((p) => p + 1)}
+              >
+                Próxima ▶
+              </button>
+            </div>
           )}
           <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 14, marginBottom: 0 }}>
             Só o gestor pode editar ou excluir um lançamento.
