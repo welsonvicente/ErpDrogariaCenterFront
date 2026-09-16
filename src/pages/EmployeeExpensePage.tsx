@@ -1,8 +1,9 @@
 import { BrandLogo } from '../components/BrandLogo';
+import { DefinirPinGestorModal } from '../components/DefinirPinGestorModal';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
+import { api, espelharSessaoParaGestor, lerSessao, removerSessaoFuncionarioEDerivadas } from '../services/api';
 import { categoriaService } from '../services/categoriaService';
 import { despesaService } from '../services/despesaService';
 import { funcionarioService } from '../services/funcionarioService';
@@ -25,36 +26,36 @@ function fmtHora(iso: string) {
 
 /**
  * A ferramenta de Cartazes é uma página HTML estática (fora do bundle do
- * React — ver public/tools/cartazes.html), não uma rota do app. Ela recebe
- * a URL da API já resolvida via query string, porque um arquivo estático
- * não tem acesso a VITE_API_URL (isso só existe em módulos que passam pelo
- * build do Vite). É ferramenta de funcionário (balcão), por isso mora aqui
- * e não no hub do gestor.
+ * React — ver public/tools/cartazes.html), não uma rota do app. Ela descobre a
+ * URL da API pela sessão salva no localStorage, não por query string: um
+ * arquivo estático não enxerga VITE_API_URL, mas o app grava a URL resolvida
+ * junto da sessão (ver `salvarSessao`). É ferramenta de funcionário (balcão),
+ * por isso mora aqui e não no hub do gerente.
  */
-function urlFerramentaCartazes(): string {
-  return `/tools/cartazes.html?api=${encodeURIComponent(api.defaults.baseURL ?? '')}`;
+function urlFerramentaCartazes(orgSlug: string | undefined): string {
+  return `/${orgSlug}/cartazes`;
 }
 
 /**
  * Ferramenta de Folgas (banco de folgas por domingo/feriado trabalhado,
- * atestados e escala) — mesmo esquema da de Cartazes: página estática fora
- * do bundle, recebe a URL da API por query string. Tem papel de gestor
+ * atestados e escala) — mesmo esquema da de Cartazes. Tem papel de gerente
  * ("Administração", com senha própria) e de funcionário (código de acesso
  * próprio da ferramenta), por isso o link mora aqui e é usável por ambos.
  */
-function urlFerramentaFolgas(): string {
-  return `/tools/folgas-drogaria-center.html?api=${encodeURIComponent(api.defaults.baseURL ?? '')}`;
+function urlFerramentaFolgas(orgSlug: string | undefined): string {
+  return `/${orgSlug}/folgas`;
 }
 
 const FORMAS_PAGAMENTO: FormaPagamento[] = ['DINHEIRO', 'CARTAO_DEBITO', 'CARTAO_CREDITO', 'PIX', 'BOLETO', 'OUTRO'];
 
 /** Fluxo do funcionário (já autenticado por código+PIN): escolher categoria e lançar o valor gasto, ou ver o que já lançou. */
 export function EmployeeExpensePage() {
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, atualizarUsuarioLocal } = useAuth();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();
 
   const [aba, setAba] = useState<'lancar' | 'meus'>('lancar');
+  const [definindoPinGestor, setDefinindoPinGestor] = useState(false);
   useDocumentTitle(aba === 'lancar' ? 'Lançar gasto' : 'Meus lançamentos');
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -107,8 +108,38 @@ export function EmployeeExpensePage() {
   if (!usuario) return null;
 
   function handleTrocarFuncionario() {
+    // Derruba junto um eventual acesso ao painel do gerente aberto por esta
+    // pessoa — o terminal é compartilhado (ver removerSessaoFuncionarioEDerivadas).
+    removerSessaoFuncionarioEDerivadas();
     logout();
     navigate(`/${orgSlug}/funcionario`);
+  }
+
+  /**
+   * Entra direto no painel do gerente, sem pedir login de novo: a permissão é do
+   * usuário (o papel dele), e o token que ele já tem é o mesmo que o
+   * backend vai conferir lá. Só falta espelhar a sessão pra área de gerente,
+   * porque as duas áreas guardam sessões separadas (ver services/api.ts).
+   *
+   * Na primeira vez, antes de entrar, a pessoa define o PIN dela — não existe
+   * PIN padrão pra esse acesso (ver DefinirPinGestorModal).
+   */
+  function entrarNoPainelGestor() {
+    const sessao = lerSessao('funcionario');
+    if (!sessao) {
+      navigate(`/${orgSlug}/gerente/login`);
+      return;
+    }
+    espelharSessaoParaGestor(sessao);
+    navigate(`/${orgSlug}/gerente`);
+  }
+
+  function handleAbrirPainelGestor() {
+    if (usuario?.pinForte) {
+      entrarNoPainelGestor();
+      return;
+    }
+    setDefinindoPinGestor(true);
   }
 
   function handleEscolherCategoria(cat: Categoria) {
@@ -165,16 +196,16 @@ export function EmployeeExpensePage() {
           <p>{aba === 'lancar' ? 'Selecione a categoria do gasto' : 'Gastos que você já lançou'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a className="btn-ghost" href={urlFerramentaCartazes()} target="_blank" rel="noopener noreferrer">
+          <a className="btn-ghost" href={urlFerramentaCartazes(orgSlug)} target="_blank" rel="noopener noreferrer">
             🖼️ Cartazes e panfletos
           </a>
-          <a className="btn-ghost" href={urlFerramentaFolgas()} target="_blank" rel="noopener noreferrer">
+          <a className="btn-ghost" href={urlFerramentaFolgas(orgSlug)} target="_blank" rel="noopener noreferrer">
             📅 Folgas
           </a>
-          {usuario.podeAcessarGestor && (
-            <Link className="btn-ghost" to={`/${orgSlug}/gestor/login`}>
-              🔐 Painel do Gestor — Gastos
-            </Link>
+          {usuario.perfil !== 'FUNCIONARIO' && (
+            <button className="btn-ghost" onClick={handleAbrirPainelGestor}>
+              🔐 Painel do Gerente — Gastos
+            </button>
           )}
           <button className="btn-ghost" onClick={handleTrocarFuncionario}>
             Trocar funcionário
@@ -371,9 +402,22 @@ export function EmployeeExpensePage() {
             </div>
           )}
           <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 14, marginBottom: 0 }}>
-            Só o gestor pode editar ou excluir um lançamento.
+            Só o gerente pode editar ou excluir um lançamento.
           </p>
         </div>
+      )}
+
+      {definindoPinGestor && (
+        <DefinirPinGestorModal
+          onClose={() => setDefinindoPinGestor(false)}
+          onDefinido={() => {
+            setDefinindoPinGestor(false);
+            // O PIN mudou, mas o token continua valendo — só o estado local
+            // precisa saber que o acesso ao painel está liberado agora.
+            atualizarUsuarioLocal({ pinForte: true });
+            entrarNoPainelGestor();
+          }}
+        />
       )}
 
       {toast && <div className="toast">{toast}</div>}

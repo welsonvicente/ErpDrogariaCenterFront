@@ -8,7 +8,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Login inicial do sistema (rota "/"), fora do contexto de qualquer
- * organização — é aqui que o gestor "descobre" a empresa dele: a API
+ * organização — é aqui que o gerente "descobre" a empresa dele: a API
  * procura o e-mail em todas as organizações. Ao logar, a sessão é salva
  * diretamente (mesmo formato que AuthContext usa) e o usuário é levado
  * para "/:orgSlug/ferramentas".
@@ -28,7 +28,7 @@ export function OrganizationLoginPage() {
     setLoading(true);
     try {
       const { token, usuario, organizacaoSlug } = await authService.loginOrganizacao(email, senha);
-      salvarSessao('gestor', { orgSlug: organizacaoSlug, token, usuario });
+      salvarSessao('gerente', { orgSlug: organizacaoSlug, token, usuario });
       navigate(`/${organizacaoSlug}/ferramentas`);
     } catch {
       setError('E-mail ou senha inválidos.');

@@ -4,7 +4,9 @@ import { ManagerLayout } from '../components/ManagerLayout';
 import { ResetPinModal } from '../components/ResetPinModal';
 import { funcionarioService } from '../services/funcionarioService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import type { Funcionario } from '../types';
+import type { Funcionario, PerfilUsuario } from '../types';
+import { PERFIL_LABEL } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 /** CRUD de funcionários: nome, código de acesso e PIN (login rápido no balcão). */
 export function ManagerFuncionariosPage() {
@@ -17,6 +19,8 @@ export function ManagerFuncionariosPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [funcionarioParaRedefinirPin, setFuncionarioParaRedefinirPin] = useState<Funcionario | null>(null);
+  const { usuario } = useAuth();
+  const souAdmin = usuario?.perfil === 'ADMIN';
   const [toast, setToast] = useState('');
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const [editingIconId, setEditingIconId] = useState<string | null>(null);
@@ -88,10 +92,27 @@ export function ManagerFuncionariosPage() {
     reload();
   }
 
-  async function handleToggleAcessoGestor(funcionario: Funcionario) {
+  /**
+   * Promover/rebaixar. Só o ADMIN vê este controle, e o backend reconfere —
+   * é ele quem decide quem enxerga o financeiro.
+   *
+   * Não se define PIN aqui: quem é promovido escolhe o próprio PIN no primeiro
+   * acesso ao painel (ver DefinirPinGestorModal). Um PIN escolhido por outra
+   * pessoa já nasceria sendo um segredo compartilhado.
+   */
+  async function handleMudarPapel(funcionario: Funcionario, novoPerfil: PerfilUsuario) {
     setRowError(null);
-    await funcionarioService.update(funcionario.id, { podeAcessarGestor: !funcionario.podeAcessarGestor });
-    reload();
+    try {
+      await funcionarioService.update(funcionario.id, { perfil: novoPerfil });
+      setToast(
+        novoPerfil === 'FUNCIONARIO'
+          ? `${funcionario.nome} não acessa mais o Painel do Gerente.`
+          : `${funcionario.nome} agora é ${PERFIL_LABEL[novoPerfil]}. Ele define o próprio PIN no primeiro acesso.`,
+      );
+      reload();
+    } catch (err: any) {
+      setRowError({ id: funcionario.id, message: err?.response?.data?.message ?? 'Não foi possível alterar o papel.' });
+    }
   }
 
   function startEditNome(funcionario: Funcionario) {
@@ -159,7 +180,7 @@ export function ManagerFuncionariosPage() {
                 <th>Funcionário</th>
                 <th>Código</th>
                 <th>Status</th>
-                <th>Painel do gestor</th>
+                <th>Papel</th>
                 <th></th>
               </tr>
             </thead>
@@ -209,14 +230,22 @@ export function ManagerFuncionariosPage() {
                   <td>{f.codigo}</td>
                   <td>{f.ativo ? 'Ativo' : 'Inativo'}</td>
                   <td>
-                    <button
-                      className="btn-ghost"
-                      type="button"
-                      title="Mostra/esconde, no painel desse funcionário, um atalho pra tela de login do gestor"
-                      onClick={() => handleToggleAcessoGestor(f)}
-                    >
-                      {f.podeAcessarGestor ? '🔐 Concedido' : 'Conceder acesso'}
-                    </button>
+                    {souAdmin ? (
+                      <select
+                        value={f.perfil}
+                        title="Define o que essa pessoa pode fazer. Gerente e Administrador enxergam o financeiro inteiro."
+                        onChange={(e) => handleMudarPapel(f, e.target.value as PerfilUsuario)}
+                      >
+                        {(['FUNCIONARIO', 'GERENTE', 'ADMIN'] as PerfilUsuario[]).map((p) => (
+                          <option key={p} value={p}>
+                            {PERFIL_LABEL[p]}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      // Só o ADMIN muda papéis — pra um GERENTE isto é só informação.
+                      <span>{PERFIL_LABEL[f.perfil]}</span>
+                    )}
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -259,6 +288,7 @@ export function ManagerFuncionariosPage() {
           }}
         />
       )}
+
 
       {toast && <div className="toast">{toast}</div>}
     </ManagerLayout>

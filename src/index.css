@@ -110,3 +110,24 @@ a {
   font-weight: 600;
   min-height: 18px;
 }
+
+.update-banner {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--ink);
+  color: #fff;
+  padding: 10px 12px 10px 18px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  font-size: 14px;
+}
+.update-banner .btn-primary {
+  padding: 8px 16px;
+  font-size: 13px;
+}

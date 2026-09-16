@@ -8,7 +8,7 @@ function fmtDataHora(iso: string) {
   return new Date(iso).toLocaleString('pt-BR');
 }
 
-/** Trilha de ações sensíveis (editar/excluir lançamento, conceder/revogar atalho pro painel do gestor). */
+/** Trilha de ações sensíveis (editar/excluir lançamento, conceder/revogar atalho pro painel do gerente). */
 export function ManagerAuditoriaPage() {
   useDocumentTitle('Auditoria');
   const [registros, setRegistros] = useState<RegistroAuditoria[]>([]);
@@ -56,7 +56,7 @@ export function ManagerAuditoriaPage() {
           </table>
         )}
         <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 14, marginBottom: 0 }}>
-          Mostra as últimas 200 ações sensíveis (editar/excluir lançamento, conceder/revogar o atalho pro painel do gestor).
+          Mostra as últimas 200 ações sensíveis (editar/excluir lançamento, conceder/revogar o atalho pro painel do gerente).
         </p>
       </div>
     </ManagerLayout>

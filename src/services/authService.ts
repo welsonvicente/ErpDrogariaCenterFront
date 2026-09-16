@@ -9,8 +9,8 @@ interface LoginGestorResponse {
 
 export const authService = {
   /**
-   * Login de ADMIN/GESTOR já dentro do contexto de uma organização
-   * (rota "/:orgSlug/gestor/login"): busca o e-mail só naquela organização.
+   * Login de ADMIN/GERENTE já dentro do contexto de uma organização
+   * (rota "/:orgSlug/gerente/login"): busca o e-mail só naquela organização.
    */
   async login(organizacaoSlug: string, email: string, senha: string) {
     const { data } = await api.post<LoginGestorResponse>('/auth/login', { organizacaoSlug, email, senha });

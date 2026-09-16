@@ -3,8 +3,8 @@ import { funcionarioService } from '../services/funcionarioService';
 import type { Funcionario } from '../types';
 
 /**
- * Redefinição de PIN pelo gestor — diferente da troca de senha em
- * "Configurações" (que exige a senha atual), aqui o gestor define um PIN
+ * Redefinição de PIN pelo gerente — diferente da troca de senha em
+ * "Configurações" (que exige a senha atual), aqui o gerente define um PIN
  * novo direto, sem precisar saber o antigo. Cobre o caso de funcionário que
  * esqueceu o PIN.
  */

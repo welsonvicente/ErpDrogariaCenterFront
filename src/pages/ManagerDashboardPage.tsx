@@ -25,7 +25,7 @@ function fmtHora(iso: string) {
 
 /** Dashboard principal: filtros de período/funcionário/categoria + estatísticas + tabela de lançamentos. */
 export function ManagerDashboardPage() {
-  useDocumentTitle('Painel do Gestor');
+  useDocumentTitle('Painel do Gerente');
   const defaultRange = useMemo(currentMonthRange, []);
 
   const [dataInicio, setDataInicio] = useState(defaultRange.dataInicio);

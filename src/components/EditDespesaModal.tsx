@@ -6,7 +6,7 @@ import { parseValorBr } from '../utils/money';
 
 const FORMAS_PAGAMENTO: FormaPagamento[] = ['DINHEIRO', 'CARTAO_DEBITO', 'CARTAO_CREDITO', 'PIX', 'BOLETO', 'OUTRO'];
 
-/** Edição de uma despesa pelo gestor/admin — única tela do sistema que pode alterar um lançamento já feito. */
+/** Edição de uma despesa pelo gerente/admin — única tela do sistema que pode alterar um lançamento já feito. */
 export function EditDespesaModal({
   despesa,
   categorias,

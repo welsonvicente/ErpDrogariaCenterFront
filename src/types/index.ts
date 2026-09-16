@@ -1,4 +1,4 @@
-export type PerfilUsuario = 'ADMIN' | 'GESTOR' | 'FUNCIONARIO';
+export type PerfilUsuario = 'ADMIN' | 'GERENTE' | 'FUNCIONARIO';
 
 /** Sessão do usuário autenticado (o que a API devolve no login), independente do perfil. */
 export interface UsuarioSessao {
@@ -7,8 +7,8 @@ export interface UsuarioSessao {
   email: string | null;
   perfil: PerfilUsuario;
   icone?: string;
-  /** Só relevante para FUNCIONARIO — mostra o atalho pro login do gestor no painel dele. */
-  podeAcessarGestor?: boolean;
+  /** Já definiu o PIN próprio que libera o painel (ver backend Usuario.pinForte). */
+  pinForte?: boolean;
 }
 
 export interface Organizacao {
@@ -18,7 +18,7 @@ export interface Organizacao {
   ativo: boolean;
 }
 
-/** Funcionário gerenciado pelo gestor (Usuario com perfil FUNCIONARIO). */
+/** Funcionário gerenciado pelo gerente (Usuario com perfil FUNCIONARIO). */
 export interface Funcionario {
   id: string;
   nome: string;
@@ -26,7 +26,7 @@ export interface Funcionario {
   icone: string;
   perfil: PerfilUsuario;
   ativo: boolean;
-  podeAcessarGestor: boolean;
+
   criadoEm: string;
   atualizadoEm: string;
 }
@@ -94,7 +94,7 @@ export interface ResumoDespesas {
   }>;
 }
 
-/** Trilha de ações sensíveis consultável pelo gestor (ver GET /auditoria). */
+/** Trilha de ações sensíveis consultável pelo gerente (ver GET /auditoria). */
 export interface RegistroAuditoria {
   id: string;
   usuarioNome: string;
@@ -107,6 +107,17 @@ export interface RegistroAuditoria {
 export const ACAO_AUDITORIA_LABEL: Record<string, string> = {
   'despesa.editada': 'Editou um lançamento',
   'despesa.excluida': 'Excluiu um lançamento',
-  'funcionario.acesso_gestor_concedido': 'Concedeu atalho pro Painel do Gestor',
-  'funcionario.acesso_gestor_revogado': 'Revogou atalho pro Painel do Gestor',
+  'usuario.papel_promovido': 'Promoveu a um papel de gestão',
+  'usuario.papel_rebaixado': 'Rebaixou para funcionário',
+  // Ações antigas, de antes dos papéis substituírem a flag de acesso — mantidas
+  // para que registros já gravados continuem legíveis na tela de auditoria.
+  'funcionario.acesso_gestor_concedido': 'Concedeu acesso ao Painel do Gerente',
+  'funcionario.acesso_gestor_revogado': 'Revogou acesso ao Painel do Gerente',
+};
+
+/** Nome de cada papel na interface — ver backend PerfilUsuario. */
+export const PERFIL_LABEL: Record<PerfilUsuario, string> = {
+  ADMIN: 'Administrador',
+  GERENTE: 'Gerente',
+  FUNCIONARIO: 'Funcionário',
 };

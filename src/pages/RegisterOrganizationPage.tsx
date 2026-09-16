@@ -86,7 +86,7 @@ export function RegisterOrganizationPage() {
         email,
         senha,
       });
-      salvarSessao('gestor', { orgSlug: organizacaoSlug, token, usuario });
+      salvarSessao('gerente', { orgSlug: organizacaoSlug, token, usuario });
       navigate(`/${organizacaoSlug}/ferramentas`);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Não foi possível criar a conta. Tente novamente.');
@@ -101,7 +101,7 @@ export function RegisterOrganizationPage() {
         <BrandLogo large />
         <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>Criar conta</h2>
         <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>
-          Cadastre sua empresa e o primeiro acesso de gestor.
+          Cadastre sua empresa e o primeiro acesso de gerente.
         </p>
 
         <form onSubmit={handleSubmit}>

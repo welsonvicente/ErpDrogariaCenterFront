@@ -42,6 +42,7 @@ function enterManagerView(role, employee){
 // ---------- Employee view ----------
 async function renderEmployeeLoginState(){
   currentEmployee = null;
+  currentEmployeeCode = null; // terminal compartilhado: não deixa o código de quem saiu na memória da página
   document.getElementById('employeeCodeInput').value = '';
   document.getElementById('codeErr').textContent = '';
   document.getElementById('codeGate').hidden = false;
@@ -75,13 +76,17 @@ async function tryLogin(){
       return;
     }
 
-    // 2) código de colaborador — sempre entra no painel normal dele.
-    const emp = state.employees.find(e=>e.code===val);
+    // 2) código de colaborador — sempre entra no painel normal dele. Quem
+    // confere o código é o servidor: a lista carregada aqui não traz mais o
+    // código de ninguém (ver identificarPorCodigo / backend/FolgasSigiloService).
+    const identificado = await identificarPorCodigo(val);
+    const emp = identificado && state.employees.find(e=> e.id===identificado.id);
     if(!emp){
       document.getElementById('codeErr').textContent = 'Código ou senha incorretos. Confira com o gerente.';
       return;
     }
     currentEmployee = emp;
+    currentEmployeeCode = val;
     document.getElementById('codeGate').hidden = true;
     document.getElementById('employeeLoggedArea').hidden = false;
     document.getElementById('greetingText').textContent = 'Olá, ' + emp.name + '!';
@@ -99,7 +104,7 @@ document.getElementById('employeeCodeInput').addEventListener('keydown', (e)=>{ 
 document.getElementById('switchEmployeeBtn').addEventListener('click', renderEmployeeLoginState);
 document.getElementById('goSupervisionBtn').addEventListener('click', async ()=>{
   if(!currentEmployee || !currentEmployee.role) return;
-  const papel = await elevarAcesso({ tipo: 'funcionario', funcionarioId: currentEmployee.id, codigo: currentEmployee.code });
+  const papel = await elevarAcesso({ tipo: 'funcionario', funcionarioId: currentEmployee.id, codigo: currentEmployeeCode });
   if(papel) enterManagerView(papel, currentEmployee);
   else await showAlert('Não foi possível confirmar seu acesso de supervisão. Tente entrar de novo com seu código.');
 });

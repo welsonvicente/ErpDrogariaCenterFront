@@ -500,15 +500,26 @@ document.getElementById('passwordsBtn').addEventListener('click', openPasswordsM
 document.getElementById('closePasswordsModalBtn').addEventListener('click', ()=> passwordsModal.classList.remove('open'));
 passwordsModal.addEventListener('click', (e)=>{ if(e.target===passwordsModal) passwordsModal.classList.remove('open'); });
 
+// As senhas de papel são write-only pela API: o servidor guarda hash e nunca
+// devolve o valor (ver backend/FolgasSigiloService). A tela mostra, então, só
+// quais cargos já têm senha definida — e serve pra trocar, não pra consultar.
+// Campo em branco = "não mexer nessa senha".
 function renderRolePasswordsList(){
   const el = document.getElementById('rolePasswordsList');
   el.innerHTML = '';
-  Object.keys(state.rolePasswords).forEach(role=>{
+  const definidas = state.rolePasswords || {};
+  // Lista sempre todos os cargos, inclusive os que ainda não têm senha — antes
+  // essas senhas vinham com um valor padrão de fábrica no próprio JS público,
+  // então "sem senha" nunca acontecia; agora acontece e precisa ser visível.
+  const papeis = Array.from(new Set([...CARGOS, ...Object.keys(definidas)]));
+  papeis.forEach(role=>{
+    const temSenha = Object.prototype.hasOwnProperty.call(definidas, role);
     const row = document.createElement('div');
     row.className = 'password-row';
     row.innerHTML = `
       <span class="prole">${role}</span>
-      <input type="text" inputmode="numeric" maxlength="10" value="${state.rolePasswords[role]}" data-roleinput="${role}">
+      <input type="password" inputmode="numeric" maxlength="10" value="" autocomplete="new-password"
+        placeholder="${temSenha ? 'Digite para trocar' : 'Sem senha — defina uma'}" data-roleinput="${role}">
       <button type="button" data-rolesave="${role}">Salvar</button>
     `;
     el.appendChild(row);
@@ -521,13 +532,17 @@ function renderRolePasswordsList(){
 async function saveRolePassword(role){
   const input = document.querySelector('[data-roleinput="'+role+'"]');
   const newPass = input.value.trim();
-  if(!newPass){ await showAlert('A senha não pode ficar vazia.'); return; }
-  const conflictRole = Object.keys(state.rolePasswords).find(r => r!==role && state.rolePasswords[r]===newPass);
-  if(conflictRole){ await showAlert('Essa senha já está em uso pelo cargo ' + conflictRole + '. Escolha outra.'); return; }
+  if(!newPass){ await showAlert('Digite a nova senha para trocar.'); return; }
 
-  state.rolePasswords[role] = newPass;
+  // A checagem de senha repetida entre cargos saiu: o cliente não conhece mais
+  // as outras senhas pra comparar. O impacto é só cosmético — se duas baterem,
+  // o servidor concede o primeiro cargo que casar.
+  state.rolePasswords[role] = newPass; // vira hash no servidor, nunca é gravada assim
   await saveState();
+  input.value = '';
   await logAction('Trocou senha do cargo', role);
+  await loadState();          // recarrega já com a senha mascarada de volta
+  renderRolePasswordsList();
   showToast('Senha do cargo ' + role + ' atualizada!');
 }
 

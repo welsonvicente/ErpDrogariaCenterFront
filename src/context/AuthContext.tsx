@@ -23,11 +23,11 @@ function usuarioDaSessaoSalva(orgSlug: string, area: AreaSessao): UsuarioSessao 
 
 /**
  * Provedor de sessão escopado a uma organização (o slug vem da URL, ver
- * OrgLayout.tsx) e à área atual — gestor ou funcionário, derivada do
- * caminho (ver `areaDaRota` em services/api.ts). Gestor e funcionário usam
+ * OrgLayout.tsx) e à área atual — gerente ou funcionário, derivada do
+ * caminho (ver `areaDaRota` em services/api.ts). Gerente e funcionário usam
  * chaves de sessão separadas: assim, entrar como funcionário numa aba (ou
  * navegar pra tela de funcionário) nunca reaproveita nem sobrescreve a
- * sessão de quem está logado como gestor, e vice-versa.
+ * sessão de quem está logado como gerente, e vice-versa.
  */
 export function AuthProvider({ orgSlug, children }: { orgSlug: string; children: ReactNode }) {
   const location = useLocation();
@@ -37,15 +37,33 @@ export function AuthProvider({ orgSlug, children }: { orgSlug: string; children:
   // Se isso ficasse só no useEffect (que roda depois do primeiro render), o
   // ProtectedRoute veria `usuario === null` por um instante e redirecionaria
   // para o login mesmo com uma sessão válida salva (bug de "flash" de logout).
-  const [usuario, setUsuario] = useState<UsuarioSessao | null>(() => usuarioDaSessaoSalva(orgSlug, area));
+  //
+  // A área atual entra no estado pelo mesmo motivo: quando a navegação troca de
+  // área (gerente → funcionário, ex.: ao fechar o Painel do Gerente), recalcular
+  // só no useEffect deixaria um render intermediário com o usuário da área
+  // ANTERIOR — e quem lê isso redireciona antes da correção chegar. Recalcular
+  // durante o render é o padrão do React pra estado derivado: ele descarta o
+  // render em andamento e refaz com o valor certo, sem nunca exibir o errado.
+  const [estado, setEstado] = useState<{ area: AreaSessao; usuario: UsuarioSessao | null }>(() => ({
+    area,
+    usuario: usuarioDaSessaoSalva(orgSlug, area),
+  }));
+
+  if (estado.area !== area) {
+    setEstado({ area, usuario: usuarioDaSessaoSalva(orgSlug, area) });
+  }
+
+  const usuario = estado.usuario;
+  const setUsuario = (novo: UsuarioSessao | null) => setEstado({ area, usuario: novo });
 
   useEffect(() => {
-    setUsuario(usuarioDaSessaoSalva(orgSlug, area));
-  }, [orgSlug, area]);
+    setEstado({ area, usuario: usuarioDaSessaoSalva(orgSlug, area) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug]);
 
   async function login(email: string, senha: string) {
     const { token, usuario: usuarioLogado } = await authService.login(orgSlug, email, senha);
-    salvarSessao('gestor', { orgSlug, token, usuario: usuarioLogado });
+    salvarSessao('gerente', { orgSlug, token, usuario: usuarioLogado });
     setUsuario(usuarioLogado);
   }
 

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
- * Hub de ferramentas do gestor — tela que abre depois do login geral.
+ * Hub de ferramentas do gerente — tela que abre depois do login geral.
  * Cada card é um módulo do ERP; hoje só existe "Gastos", mas essa tela é o
  * lugar natural para os próximos módulos aparecerem.
  *
@@ -41,7 +41,7 @@ export function ToolsHubPage() {
       </div>
 
       <div className="role-cards">
-        <button type="button" className="card role-card" onClick={() => navigate(`/${orgSlug}/gestor`)}>
+        <button type="button" className="card role-card" onClick={() => navigate(`/${orgSlug}/gerente`)}>
           <div className="icon-badge">🧾</div>
           <div className="title">Gastos</div>
           <div className="sub">Dashboard e lançamentos de despesas</div>

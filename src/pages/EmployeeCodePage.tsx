@@ -9,7 +9,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
  * Login rápido do funcionário: código + PIN (pensado para terminal
  * compartilhado no balcão). É a própria tela pública da organização
  * ("/:orgSlug") — sem tela intermediária de escolha de papel, já que o
- * gestor entra pela raiz do sistema ("/").
+ * gerente entra pela raiz do sistema ("/").
  */
 export function EmployeeCodePage() {
   useDocumentTitle('Identifique-se');

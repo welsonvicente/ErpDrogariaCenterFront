@@ -5,9 +5,9 @@ import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-/** Login do gestor (e-mail + senha) — protege o dashboard administrativo. */
+/** Login do gerente (e-mail + senha) — protege o dashboard administrativo. */
 export function ManagerLoginPage() {
-  useDocumentTitle('Acesso do Gestor');
+  useDocumentTitle('Acesso do Gerente');
   const { login } = useAuth();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();
@@ -23,7 +23,7 @@ export function ManagerLoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate(`/${orgSlug}/gestor`);
+      navigate(`/${orgSlug}/gerente`);
     } catch {
       setError('E-mail ou senha inválidos.');
     } finally {
@@ -35,7 +35,7 @@ export function ManagerLoginPage() {
     <div className="page">
       <div className="card gate-box" style={{ padding: 32 }}>
         <BrandLogo large />
-        <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>Acesso do Gestor</h2>
+        <h2 style={{ color: 'var(--teal-deep)', fontSize: 18, marginBottom: 6 }}>Acesso do Gerente</h2>
         <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 20 }}>Entre com seu e-mail e senha.</p>
 
         <form onSubmit={handleSubmit}>
