@@ -1,9 +1,9 @@
 import { BrandLogo } from '../components/BrandLogo';
 import { DefinirPinGestorModal } from '../components/DefinirPinGestorModal';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { api, espelharSessaoParaGestor, lerSessao, removerSessaoFuncionarioEDerivadas } from '../services/api';
+import { espelharSessaoParaGestor, lerSessao, removerSessaoFuncionarioEDerivadas } from '../services/api';
 import { categoriaService } from '../services/categoriaService';
 import { despesaService } from '../services/despesaService';
 import { funcionarioService } from '../services/funcionarioService';
