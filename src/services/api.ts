@@ -125,6 +125,28 @@ function resolverBaseUrl(): string {
 }
 
 /**
+ * Preenche `apiBaseUrl` em sessões salvas antes desse campo existir.
+ *
+ * As ferramentas estáticas descobrem a URL da API por ele (ver `salvarSessao`).
+ * Quem já estava logado no deploy que introduziu o campo tinha uma sessão sem
+ * ele — e o fallback das ferramentas só acerta em desenvolvimento, então em
+ * produção elas falhavam com erro de conexão até a pessoa deslogar e logar de
+ * novo. Isto conserta na primeira vez que o app carrega, sem ninguém perceber.
+ */
+function preencherApiBaseUrlEmSessoesAntigas() {
+  for (const area of ['gerente', 'funcionario'] as AreaSessao[]) {
+    try {
+      const sessao = lerSessao(area);
+      if (sessao && !sessao.apiBaseUrl) salvarSessao(area, sessao);
+    } catch {
+      /* localStorage indisponível — nada a migrar */
+    }
+  }
+}
+
+preencherApiBaseUrlEmSessoesAntigas();
+
+/**
  * Instância única do axios usada por todos os services.
  * - o token da sessão da área atual (gerente ou funcionário, pela URL) é anexado automaticamente em toda requisição.
  * - respostas 401 limpam a sessão local da área atual (o AuthProvider detecta isso e desloga).

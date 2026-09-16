@@ -1789,7 +1789,13 @@ function getApiBaseUrl(){
       if(raw){ const base = (JSON.parse(raw)||{}).apiBaseUrl; if(base) return base; }
     }
   }catch(e){ /* sem sessão salva — cai no padrão abaixo */ }
-  return location.protocol + '//' + location.hostname + ':3333/api';
+  // A porta 3333 é o backend local de quem desenvolve; em produção esse chute
+  // vira um "sem conexão" que não explica nada. Fora de host local, o palpite
+  // razoável é a mesma origem — e relogar resolve, porque o login grava a certa.
+  const local = /^(localhost|127\.0\.0\.1|\[::1\]|.*\.local)$/i.test(location.hostname)
+    || /^(10|127|192\.168)\./.test(location.hostname)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(location.hostname);
+  return local ? location.protocol + '//' + location.hostname + ':3333/api' : location.origin + '/api';
 }
 function getAuthToken(){
   // Ferramenta de Cartazes é de uso do funcionário — usa a sessão de funcionário

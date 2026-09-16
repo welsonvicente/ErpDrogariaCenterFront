@@ -103,7 +103,23 @@ function getApiBaseUrl(){
       if(raw){ const base = (JSON.parse(raw)||{}).apiBaseUrl; if(base) return base; }
     }
   }catch(e){ /* sem sessão salva — cai no padrão abaixo */ }
-  return location.protocol + '//' + location.hostname + ':3333/api';
+  return apiBaseUrlPadrao();
+}
+
+/**
+ * Último recurso, quando a sessão salva não traz a URL da API.
+ *
+ * A porta 3333 é o backend rodando na máquina de quem desenvolve — em produção
+ * esse chute vira um erro de "sem conexão" que não diz nada sobre a causa real.
+ * Fora de um host local, o palpite razoável é a mesma origem; se também estiver
+ * errado, ao menos a pessoa relogando resolve, porque o login grava a URL certa.
+ */
+function apiBaseUrlPadrao(){
+  const local = /^(localhost|127\.0\.0\.1|\[::1\]|.*\.local)$/i.test(location.hostname)
+    || /^(10|127|192\.168)\./.test(location.hostname)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(location.hostname);
+  if(local) return location.protocol + '//' + location.hostname + ':3333/api';
+  return location.origin + '/api';
 }
 function getAuthToken(){
   try{
