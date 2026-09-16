@@ -87,7 +87,7 @@ export function RegisterOrganizationPage() {
         senha,
       });
       salvarSessao('gerente', { orgSlug: organizacaoSlug, token, usuario });
-      navigate(`/${organizacaoSlug}/ferramentas`);
+      navigate(`/${organizacaoSlug}/gerente`);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Não foi possível criar a conta. Tente novamente.');
     } finally {

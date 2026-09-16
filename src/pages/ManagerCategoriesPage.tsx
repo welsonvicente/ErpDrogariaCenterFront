@@ -81,7 +81,7 @@ export function ManagerCategoriesPage() {
 
   return (
     <ManagerLayout>
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="grid-form-lista">
         <form className="card" style={{ padding: 20 }} onSubmit={handleSubmit}>
           <h3 style={{ marginTop: 0 }}>Nova categoria</h3>
           <div className="field">

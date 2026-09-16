@@ -14,7 +14,6 @@ import { ManagerLoginPage } from './pages/ManagerLoginPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { RegisterOrganizationPage } from './pages/RegisterOrganizationPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { ToolsHubPage } from './pages/ToolsHubPage';
 
 /**
  * Manda "/:orgSlug/gestor/<resto>" para "/:orgSlug/gerente/<resto>", preservando
@@ -74,14 +73,10 @@ function App() {
 
           {/* Login direto de gerente já sabendo o slug (atalho opcional) e o hub pós-login. */}
           <Route path="gerente/login" element={<ManagerLoginPage />} />
-          <Route
-            path="ferramentas"
-            element={
-              <ProtectedRoute>
-                <ToolsHubPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* O hub de módulos sumiu: com o menu lateral, uma tela só pra listar
+              "Gastos" era um clique a mais em toda entrada. Links antigos e o
+              atalho "← Ferramentas" caem no painel. */}
+          <Route path="ferramentas" element={<Navigate to="../gerente" replace />} />
           <Route
             path="configuracoes"
             element={

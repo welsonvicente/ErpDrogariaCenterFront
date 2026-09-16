@@ -1,6 +1,6 @@
-import { BrandLogo } from '../components/BrandLogo';
+import { ManagerLayout } from '../components/ManagerLayout';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { organizacaoService } from '../services/organizacaoService';
 import { perfilService } from '../services/perfilService';
@@ -11,7 +11,6 @@ export function SettingsPage() {
   useDocumentTitle('Configurações');
   const { usuario, atualizarUsuarioLocal } = useAuth();
   const { orgSlug } = useParams<{ orgSlug: string }>();
-  const navigate = useNavigate();
 
   // --- Meus dados ---
   const [nome, setNome] = useState(usuario?.nome ?? '');
@@ -94,21 +93,8 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="page">
-      <div className="brand-header"><BrandLogo /></div>
-      <div className="page-header">
-        <div>
-          <button
-            style={{ border: 'none', background: 'none', color: 'var(--ink-soft)', fontSize: 12.5, fontWeight: 600, padding: 0, marginBottom: 4, cursor: 'pointer' }}
-            onClick={() => navigate(`/${orgSlug}/ferramentas`)}
-          >
-            ← Ferramentas
-          </button>
-          <h1>Configurações</h1>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+    <ManagerLayout>
+      <div className="grid-cartoes">
         <form className="card" style={{ padding: 20 }} onSubmit={handleSalvarPerfil}>
           <h3 style={{ marginTop: 0 }}>Meus dados</h3>
           <div className="field">
@@ -183,6 +169,6 @@ export function SettingsPage() {
           </button>
         </form>
       </div>
-    </div>
+    </ManagerLayout>
   );
 }

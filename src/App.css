@@ -314,3 +314,321 @@ table.data-table th {
   border-color: var(--teal);
   background: var(--mint);
 }
+
+/* ===========================================================================
+   Painel de ADMIN/GERENTE — menu lateral + conteúdo
+   Ver components/ManagerLayout.tsx. Substituiu a fileira de abas (.nav-tabs),
+   que só cabia enquanto o painel tinha quatro telas.
+   =========================================================================== */
+
+.painel {
+  --menu-largura: 248px;
+  --menu-largura-recolhido: 64px;
+  display: flex;
+  min-height: 100vh;
+}
+
+.menu-lateral {
+  width: var(--menu-largura);
+  flex: 0 0 var(--menu-largura);
+  background: var(--card);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  transition: width 0.18s ease, flex-basis 0.18s ease;
+}
+
+.painel--recolhido .menu-lateral {
+  width: var(--menu-largura-recolhido);
+  flex-basis: var(--menu-largura-recolhido);
+}
+
+/* Recolhido, só o ícone fica — o rótulo some sem reflow porque a largura
+   inteira do menu encolhe junto. */
+.painel--recolhido .menu-rotulo,
+.painel--recolhido .menu-seta,
+.painel--recolhido .menu-externo,
+.painel--recolhido .menu-marca {
+  display: none;
+}
+
+.menu-topo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--line);
+  min-height: 64px;
+}
+
+.menu-marca { flex: 1; min-width: 0; }
+.menu-marca .brand-logo { width: 140px; height: auto; }
+
+.menu-recolher {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink-soft);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+.menu-recolher:hover { background: var(--mint); color: var(--teal-deep); border-color: var(--teal); }
+.painel--recolhido .menu-topo { justify-content: center; padding: 16px 0; }
+
+.menu-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 8px;
+}
+
+.menu-grupo + .menu-grupo { margin-top: 2px; }
+
+.menu-grupo-titulo,
+.menu-item,
+.menu-sair {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.menu-grupo-titulo:hover,
+.menu-item:hover,
+.menu-sair:hover { background: var(--bg); }
+
+.menu-grupo-titulo.tem-ativo { color: var(--teal-deep); }
+
+.menu-icone {
+  flex: 0 0 20px;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+}
+
+.menu-rotulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-seta {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.menu-seta.aberta { transform: rotate(90deg); }
+
+.menu-externo { flex: 0 0 auto; color: var(--ink-soft); font-size: 11px; }
+
+/* Abre/fecha sem animação de altura, de propósito. A transição por
+   `grid-template-rows: 0fr → 1fr` parecia elegante, mas o `1fr` resolve pra 0
+   quando a transição PARTE de 0fr num container de altura automática: os grupos
+   que montavam já abertos funcionavam e os abertos por clique ficavam com 0px.
+   Um submenu que não abre é pior que um que abre sem deslizar. */
+.menu-itens { display: none; }
+.menu-itens.aberta { display: block; }
+.menu-itens-interno { display: flex; flex-direction: column; }
+
+.menu-itens .menu-item {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding-left: 18px;
+}
+
+
+.menu-item.ativo {
+  background: var(--mint);
+  color: var(--teal-deep);
+  font-weight: 600;
+}
+
+/* Recolhido os submenus ficam sempre visíveis como faixa de ícones: sem
+   rótulo, esconder os itens deixaria o menu sem navegação nenhuma. */
+.painel--recolhido .menu-itens {
+  display: block;
+}
+.painel--recolhido .menu-item,
+.painel--recolhido .menu-grupo-titulo,
+.painel--recolhido .menu-sair,
+.painel--recolhido .menu-usuario {
+  justify-content: center;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.painel--recolhido .menu-grupo + .menu-grupo { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+
+.menu-rodape {
+  border-top: 1px solid var(--line);
+  padding: 10px 8px;
+}
+
+.menu-usuario {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+.menu-avatar { flex: 0 0 20px; font-size: 17px; text-align: center; }
+.menu-usuario .menu-rotulo { display: flex; flex-direction: column; line-height: 1.3; }
+.menu-usuario strong { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.menu-usuario small { font-size: 11.5px; color: var(--ink-soft); }
+
+.menu-sair { color: var(--ink-soft); }
+.menu-sair:hover { color: var(--late); background: var(--late-bg); }
+
+.painel-conteudo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Barra superior só existe pra abrigar o botão da gaveta no celular. */
+.painel-barra { display: none; }
+
+.painel-main {
+  flex: 1;
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+}
+
+/* O véu cobre o conteúdo enquanto a gaveta está aberta no celular. */
+.painel-veu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  border: none;
+  background: rgba(23, 60, 58, 0.35);
+  z-index: 40;
+  cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  .menu-lateral {
+    position: fixed;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: var(--shadow);
+  }
+  /* Recolher não faz sentido em gaveta: ela já é oculta por padrão. */
+  .painel--recolhido .menu-lateral {
+    width: var(--menu-largura);
+    flex-basis: var(--menu-largura);
+  }
+  .painel--recolhido .menu-rotulo,
+  .painel--recolhido .menu-seta,
+  .painel--recolhido .menu-externo,
+  .painel--recolhido .menu-marca { display: revert; }
+  .menu-recolher { display: none; }
+
+  .painel--gaveta .menu-lateral { transform: translateX(0); }
+  .painel--gaveta .painel-veu { display: block; }
+
+  .painel-barra {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+  .menu-abrir {
+    border: 1px solid var(--line);
+    background: var(--bg);
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .painel-marca-mobile .brand-logo { width: 130px; height: auto; }
+
+  .painel-main { padding: 20px 16px 48px; }
+}
+
+.painel-titulo {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 22px;
+}
+.painel-trilha {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.painel-titulo h1 {
+  font-size: 20px;
+  margin: 0;
+  color: var(--teal-deep);
+}
+
+/* `.menu-usuario .menu-rotulo` define display:flex e tem a mesma especificidade
+   da regra que esconde os rótulos no menu recolhido — como vem depois, vencia.
+   Aqui a intenção fica explícita em vez de depender da ordem do arquivo. */
+.painel--recolhido .menu-usuario .menu-rotulo { display: none; }
+.painel--recolhido .menu-usuario { justify-content: center; }
+
+/* Tabelas largas (Funcionários, Auditoria) rolam dentro do próprio cartão em vez
+   de empurrar a página inteira — com o menu ocupando a esquerda sobra menos
+   largura, e a última coluna ficava cortada sem jeito de alcançá-la. */
+.painel-main .data-table { min-width: 100%; }
+.painel-main .card:has(> .data-table) { overflow-x: auto; }
+
+/* Formulário à esquerda + lista à direita (Funcionários, Categorias). A coluna
+   fixa de 320px não cabe num celular: somada ao gap e ao padding, passava da
+   largura da tela e fazia a página inteira rolar na horizontal — com o menu
+   lateral virando gaveta, isso ficou evidente. Abaixo do ponto de quebra as duas
+   viram uma coluna só. */
+.grid-form-lista {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.grid-cartoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 860px) {
+  .grid-form-lista { grid-template-columns: 1fr; }
+}
