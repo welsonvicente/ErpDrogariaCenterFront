@@ -46,6 +46,8 @@ export interface Categoria {
   ativo: boolean;
   /** Quando true, lançar um gasto nessa categoria exige escolher quem recebeu o valor (ver DespesaService.assertBeneficiario). */
   exigeBeneficiario: boolean;
+  /** Lançar nessa categoria exige informar quantas unidades saíram. */
+  exigeQuantidade: boolean;
 }
 
 export type FormaPagamento = 'DINHEIRO' | 'CARTAO_DEBITO' | 'CARTAO_CREDITO' | 'PIX' | 'BOLETO' | 'OUTRO';
@@ -70,6 +72,8 @@ export interface Despesa {
   usuario: Funcionario;
   categoria: Categoria;
   beneficiarioId: string | null;
+  /** Unidades retiradas — só nas categorias com `exigeQuantidade`. */
+  quantidade: number | null;
   beneficiario: Funcionario | null;
   criadoEm: string;
   atualizadoEm: string;

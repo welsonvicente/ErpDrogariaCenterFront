@@ -12,7 +12,7 @@ export const categoriaService = {
     return data;
   },
 
-  async update(id: string, payload: Partial<{ nome: string; icone: string; ordem: number; ativo: boolean; exigeBeneficiario: boolean }>) {
+  async update(id: string, payload: Partial<{ nome: string; icone: string; ordem: number; ativo: boolean; exigeBeneficiario: boolean; exigeQuantidade: boolean }>) {
     const { data } = await api.put<Categoria>(`/categorias/${id}`, payload);
     return data;
   },

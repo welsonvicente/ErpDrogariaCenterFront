@@ -79,6 +79,12 @@ export function ManagerCategoriesPage() {
     reload();
   }
 
+  async function handleToggleExigeQuantidade(categoria: Categoria) {
+    setRowError(null);
+    await categoriaService.update(categoria.id, { exigeQuantidade: !categoria.exigeQuantidade });
+    reload();
+  }
+
   return (
     <ManagerLayout>
       <div className="grid-form-lista">
@@ -106,6 +112,7 @@ export function ManagerCategoriesPage() {
                 <th>Categoria</th>
                 <th>Status</th>
                 <th>Exige colaborador?</th>
+                <th>Exige unidades?</th>
                 <th></th>
               </tr>
             </thead>
@@ -136,6 +143,16 @@ export function ManagerCategoriesPage() {
                       onClick={() => handleToggleExigeBeneficiario(cat)}
                     >
                       {cat.exigeBeneficiario ? '✅ Sim' : 'Não'}
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      className="btn-ghost"
+                      type="button"
+                      title="Exigir informar quantas unidades saíram ao lançar um gasto nessa categoria (ex.: retirada de vitaminas)"
+                      onClick={() => handleToggleExigeQuantidade(cat)}
+                    >
+                      {cat.exigeQuantidade ? '✅ Sim' : 'Não'}
                     </button>
                   </td>
                   <td>

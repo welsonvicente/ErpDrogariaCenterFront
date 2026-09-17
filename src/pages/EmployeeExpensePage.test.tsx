@@ -26,6 +26,7 @@ const CATEGORIA_NORMAL: Categoria = {
   ordem: 0,
   ativo: true,
   exigeBeneficiario: false,
+  exigeQuantidade: false,
 };
 
 const CATEGORIA_DIARIA: Categoria = {
@@ -35,6 +36,7 @@ const CATEGORIA_DIARIA: Categoria = {
   ordem: 1,
   ativo: true,
   exigeBeneficiario: true,
+  exigeQuantidade: false,
 };
 
 const COLEGAS: Colega[] = [{ id: 'colega-1', nome: 'Kátia', icone: '💊' }];

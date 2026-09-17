@@ -71,6 +71,8 @@ export function EmployeeExpensePage() {
   const [colegas, setColegas] = useState<Colega[]>([]);
   const [beneficiarioId, setBeneficiarioId] = useState('');
   const precisaBeneficiario = !!categoriaSelecionada?.exigeBeneficiario;
+  const [quantidade, setQuantidade] = useState('');
+  const precisaQuantidade = !!categoriaSelecionada?.exigeQuantidade;
 
   const [meusLancamentos, setMeusLancamentos] = useState<Despesa[]>([]);
   const [carregandoMeus, setCarregandoMeus] = useState(false);
@@ -145,6 +147,7 @@ export function EmployeeExpensePage() {
   function handleEscolherCategoria(cat: Categoria) {
     setError('');
     setBeneficiarioId('');
+    setQuantidade('');
     setCategoriaSelecionada(cat);
   }
 
@@ -152,7 +155,16 @@ export function EmployeeExpensePage() {
     event.preventDefault();
     if (!categoriaSelecionada) return;
     if (precisaBeneficiario && !beneficiarioId) {
-      setError('Selecione o colaborador que vai receber o valor.');
+      setError(
+        precisaQuantidade
+          ? 'Selecione o colaborador que irá receber essas vitaminas.'
+          : 'Selecione o colaborador que vai receber o valor.',
+      );
+      return;
+    }
+    const quantidadeNumerica = Number(quantidade);
+    if (precisaQuantidade && (!quantidadeNumerica || quantidadeNumerica <= 0)) {
+      setError('Informe quantas unidades vai sacar.');
       return;
     }
     const valorNumerico = parseValorBr(valor);
@@ -170,6 +182,7 @@ export function EmployeeExpensePage() {
         descricao: descricao || undefined,
         categoriaId: categoriaSelecionada.id,
         beneficiarioId: precisaBeneficiario ? beneficiarioId : undefined,
+        quantidade: precisaQuantidade ? quantidadeNumerica : undefined,
       });
       setToast('Gasto lançado com sucesso!');
       setCategoriaSelecionada(null);
@@ -177,6 +190,7 @@ export function EmployeeExpensePage() {
       setFormaPagamento('DINHEIRO');
       setDescricao('');
       setBeneficiarioId('');
+      setQuantidade('');
       setData(todayStr());
     } catch {
       setError('Não foi possível lançar o gasto. Tente novamente.');
@@ -262,8 +276,26 @@ export function EmployeeExpensePage() {
                 <label htmlFor="data">Data</label>
                 <input id="data" type="date" value={data} onChange={(e) => setData(e.target.value)} required />
               </div>
+              {/* Unidades antes do valor: na retirada de vitaminas a pessoa conta
+                  o que tirou da prateleira e só depois soma o total. */}
+              {precisaQuantidade && (
+                <div className="field">
+                  <label htmlFor="quantidade">Quantas vai sacar (unidades)?</label>
+                  <input
+                    id="quantidade"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    step={1}
+                    placeholder="0"
+                    value={quantidade}
+                    onChange={(e) => setQuantidade(e.target.value.replace(/\D/g, ''))}
+                    required
+                  />
+                </div>
+              )}
               <div className="field">
-                <label htmlFor="valor">Valor (R$)</label>
+                <label htmlFor="valor">{precisaQuantidade ? 'Valor total (R$)' : 'Valor (R$)'}</label>
                 <input
                   id="valor"
                   type="text"
@@ -276,7 +308,11 @@ export function EmployeeExpensePage() {
               </div>
               {precisaBeneficiario && (
                 <div className="field">
-                  <label htmlFor="beneficiario">Colaborador que vai receber o valor</label>
+                  <label htmlFor="beneficiario">
+                    {precisaQuantidade
+                      ? 'Colaborador que irá receber essas vitaminas'
+                      : 'Colaborador que vai receber o valor'}
+                  </label>
                   <select
                     id="beneficiario"
                     value={beneficiarioId}
@@ -347,6 +383,7 @@ export function EmployeeExpensePage() {
                   <th>Horário</th>
                   <th>Categoria</th>
                   <th>Recebeu</th>
+                  <th>Unid.</th>
                   <th>Forma de pagamento</th>
                   <th>Descrição</th>
                   <th>Valor</th>
@@ -361,6 +398,7 @@ export function EmployeeExpensePage() {
                       {despesa.categoria.icone} {despesa.categoria.nome}
                     </td>
                     <td>{despesa.beneficiario ? `${despesa.beneficiario.icone} ${despesa.beneficiario.nome}` : '—'}</td>
+                    <td>{despesa.quantidade ?? '—'}</td>
                     <td>{FORMA_PAGAMENTO_LABEL[despesa.formaPagamento]}</td>
                     <td>{despesa.descricao ?? '—'}</td>
                     <td>{fmtMoney(Number(despesa.valor))}</td>

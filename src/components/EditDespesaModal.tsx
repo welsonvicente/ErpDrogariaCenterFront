@@ -24,12 +24,14 @@ export function EditDespesaModal({
   const [categoriaId, setCategoriaId] = useState(despesa.categoriaId);
   const [descricao, setDescricao] = useState(despesa.descricao ?? '');
   const [beneficiarioId, setBeneficiarioId] = useState(despesa.beneficiarioId ?? '');
+  const [quantidade, setQuantidade] = useState(despesa.quantidade ? String(despesa.quantidade) : '');
   const [colegas, setColegas] = useState<Colega[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const categoriaSelecionada = categorias.find((c) => c.id === categoriaId);
   const precisaBeneficiario = !!categoriaSelecionada?.exigeBeneficiario;
+  const precisaQuantidade = !!categoriaSelecionada?.exigeQuantidade;
 
   useEffect(() => {
     funcionarioService.listColegas().then(setColegas);
@@ -46,6 +48,10 @@ export function EditDespesaModal({
       setError('Selecione o colaborador que vai receber o valor.');
       return;
     }
+    if (precisaQuantidade && (!Number(quantidade) || Number(quantidade) <= 0)) {
+      setError('Informe quantas unidades foram retiradas.');
+      return;
+    }
     setError('');
     setSaving(true);
     try {
@@ -56,6 +62,7 @@ export function EditDespesaModal({
         categoriaId,
         descricao: descricao || undefined,
         beneficiarioId: precisaBeneficiario ? beneficiarioId : undefined,
+        quantidade: precisaQuantidade ? Number(quantidade) : undefined,
       });
       onSaved();
     } catch (err: any) {
@@ -85,8 +92,23 @@ export function EditDespesaModal({
             <label htmlFor="editData">Data</label>
             <input id="editData" type="date" value={data} onChange={(e) => setData(e.target.value)} required />
           </div>
+          {precisaQuantidade && (
+            <div className="field">
+              <label htmlFor="editQuantidade">Unidades retiradas</label>
+              <input
+                id="editQuantidade"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={quantidade}
+                onChange={(e) => setQuantidade(e.target.value.replace(/\D/g, ''))}
+                required
+              />
+            </div>
+          )}
           <div className="field">
-            <label htmlFor="editValor">Valor (R$)</label>
+            <label htmlFor="editValor">{precisaQuantidade ? 'Valor total (R$)' : 'Valor (R$)'}</label>
             <input id="editValor" value={valor} onChange={(e) => setValor(e.target.value)} required />
           </div>
           <div className="field">

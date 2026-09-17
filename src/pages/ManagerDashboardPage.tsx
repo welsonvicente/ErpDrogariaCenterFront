@@ -151,6 +151,7 @@ export function ManagerDashboardPage() {
                 <th>Funcionário</th>
                 <th>Categoria</th>
                 <th>Recebeu</th>
+                <th>Unid.</th>
                 <th>Forma de pagamento</th>
                 <th>Descrição</th>
                 <th>Valor</th>
@@ -169,6 +170,8 @@ export function ManagerDashboardPage() {
                     {despesa.categoria.icone} {despesa.categoria.nome}
                   </td>
                   <td>{despesa.beneficiario ? `${despesa.beneficiario.icone} ${despesa.beneficiario.nome}` : '—'}</td>
+                  {/* Só as categorias que pedem unidades preenchem isso (ver Categoria.exigeQuantidade). */}
+                  <td>{despesa.quantidade ?? '—'}</td>
                   <td>{FORMA_PAGAMENTO_LABEL[despesa.formaPagamento]}</td>
                   <td>{despesa.descricao ?? '—'}</td>
                   <td>{fmtMoney(Number(despesa.valor))}</td>
