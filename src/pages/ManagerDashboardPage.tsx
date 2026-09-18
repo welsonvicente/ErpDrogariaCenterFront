@@ -31,6 +31,7 @@ export function ManagerDashboardPage() {
   const [dataInicio, setDataInicio] = useState(defaultRange.dataInicio);
   const [dataFim, setDataFim] = useState(defaultRange.dataFim);
   const [usuarioId, setUsuarioId] = useState('');
+  const [beneficiarioId, setBeneficiarioId] = useState('');
   const [categoriaId, setCategoriaId] = useState('');
 
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
@@ -47,8 +48,9 @@ export function ManagerDashboardPage() {
       dataFim: dataFim || undefined,
       usuarioId: usuarioId || undefined,
       categoriaId: categoriaId || undefined,
+      beneficiarioId: beneficiarioId || undefined,
     }),
-    [dataInicio, dataFim, usuarioId, categoriaId],
+    [dataInicio, dataFim, usuarioId, categoriaId, beneficiarioId],
   );
 
   useEffect(() => {
@@ -97,8 +99,29 @@ export function ManagerDashboardPage() {
         <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
         <span>até</span>
         <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
-        <select value={usuarioId} onChange={(e) => setUsuarioId(e.target.value)}>
-          <option value="">Todos os funcionários</option>
+        {/*
+          Dois seletores de pessoa lado a lado: um é quem LANÇOU o gasto, o outro
+          é quem RECEBEU (a coluna "Recebeu"). Sem dizer isso no texto, ficariam
+          duas listas de nomes idênticas e não haveria como saber qual é qual.
+        */}
+        <select
+          value={usuarioId}
+          onChange={(e) => setUsuarioId(e.target.value)}
+          title="Filtra por quem lançou o gasto"
+        >
+          <option value="">Lançado por: todos</option>
+          {funcionarios.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.icone} {f.nome}
+            </option>
+          ))}
+        </select>
+        <select
+          value={beneficiarioId}
+          onChange={(e) => setBeneficiarioId(e.target.value)}
+          title="Filtra pela coluna Recebeu — quem recebeu o valor ou as unidades (ex.: quem levou as vitaminas)"
+        >
+          <option value="">Recebeu: todos</option>
           {funcionarios.map((f) => (
             <option key={f.id} value={f.id}>
               {f.icone} {f.nome}

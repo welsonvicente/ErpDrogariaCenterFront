@@ -6,6 +6,8 @@ export interface FiltrosDespesa {
   dataFim?: string;
   usuarioId?: string;
   categoriaId?: string;
+  /** Filtra pela coluna "Recebeu" — quem recebeu o valor, não quem lançou. */
+  beneficiarioId?: string;
   page?: number;
   pageSize?: number;
 }
