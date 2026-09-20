@@ -227,6 +227,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
         nome: p.descricao,
         de: p.normal !== null ? String(p.normal) : '',
         por: p.promo !== null ? String(p.promo) : '',
+        transform: p.transform,
       })),
     );
     setToast(`${comImagem.length} produto(s) enviados pro panfleto!`);

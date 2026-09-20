@@ -194,6 +194,7 @@ export interface ProdutoPanfletoRascunho {
   nome: string;
   de: string;
   por: string;
+  transform: TransformImagem;
 }
 
 export interface RascunhoPanfleto {

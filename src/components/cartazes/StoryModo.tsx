@@ -351,6 +351,7 @@ export function StoryModo() {
                   >
                     <img src={p.imgSrc} alt="" />
                     <span className="cartaz-recente-nome">{p.name}</span>
+                    <span className="cartaz-recente-preco">R${fmtMoney(p.por)}</span>
                   </button>
                 ))}
               </div>

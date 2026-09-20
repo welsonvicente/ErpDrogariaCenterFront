@@ -6,15 +6,24 @@
  * parâmetros, sem tocar no DOM da aplicação.
  */
 
-import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, type FonteImagem } from './cartazEngine';
+import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, type FonteImagem, type TransformImagem } from './cartazEngine';
 
 export type AlinhamentoTexto = 'left' | 'center' | 'right';
+
+export const TRANSFORM_PADRAO_PANFLETO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
 
 export interface ProdutoPanfleto {
   imagem: HTMLImageElement;
   nome: string;
   de: string;
   por: string;
+  /**
+   * Enquadramento (zoom/pan) só usado ao gerar um story individual deste
+   * produto (ver "📱 Story individual" na lista) — o card do panfleto em si
+   * pinta a foto inteira ("contain"), sem cortar, então o transform não afeta
+   * o grid, só a versão 1080×1920 gerada à parte.
+   */
+  transform: TransformImagem;
 }
 
 export interface DimensaoCardPanfleto {

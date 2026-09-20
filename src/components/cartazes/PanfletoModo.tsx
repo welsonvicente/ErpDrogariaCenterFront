@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import JSZip from 'jszip';
+import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal } from '../CameraModal';
+import { StoryPreviewModal } from '../StoryPreviewModal';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
-import { montarTextoPromocional } from '../../utils/cartazEngine';
 import {
+  ALTURA_STORY,
+  fmtMoney,
+  LARGURA_STORY,
+  montarTextoPromocional,
+  montarTituloCompartilhamento,
+  pintarStory,
+  type TransformImagem,
+} from '../../utils/cartazEngine';
+import {
+  carregarConfiguracoes,
   carregarConfiguracoesPanfleto,
   carregarImagemDeDataUrl,
   carregarProdutosRecentes,
@@ -21,6 +32,7 @@ import {
   ITENS_POR_PAGINA_OPCOES,
   PRESETS_TAMANHO_PANFLETO,
   renderizarPaginaPanfleto,
+  TRANSFORM_PADRAO_PANFLETO,
   type AlinhamentoTexto,
   type ParametrosPaginaPanfleto,
   type ProdutoPanfleto,
@@ -30,6 +42,7 @@ import { gerarImagemQr } from '../../utils/qrCode';
 type DestinoCamera = 'pendente' | number | null;
 
 const TAMANHO_QR_LOGICO = 130;
+const EMOJI_PADRAO_STORY_INDIVIDUAL = '🤩😱';
 
 /**
  * Gerador de Panfleto (vários produtos por página) — Fase 2 da reescrita de
@@ -40,12 +53,15 @@ const TAMANHO_QR_LOGICO = 130;
  * atual é copiada pro canvas visível — assim dá pra exportar todas as páginas
  * de uma vez (.zip) sem precisar navegar por elas.
  *
- * Diferente da versão HTML original, não tem os botões "🔄 trocar foto por
- * enquadramento ajustado" nem "📱 gerar story individual" por produto: no
- * layout em grade os cards usam "contain" (a foto inteira, sem cortar), então
- * o ajuste de enquadramento (pan/zoom, que só faz sentido pra recorte) nunca
- * tinha efeito visual ali — só valia pra gerar um story individual daquele
- * produto, recurso que fica pra uma fase futura se for pedido.
+ * Cada produto também pode virar um story individual (1080×1920, formato
+ * WhatsApp/Instagram Status) através do botão "📱" — usa o MESMO motor do
+ * modo Story (`pintarStory`) com as cores/tamanhos/posições de faixa que a
+ * pessoa configurou por último no Story (lidas do que já está persistido em
+ * `cartazes_story_settings_v1`, não do estado ao vivo da outra aba — os dois
+ * modos são componentes React independentes). O botão "🖼️ Ajustar" existe só
+ * por causa disso: o card do panfleto em si pinta a foto inteira ("contain",
+ * sem cortar), então o enquadramento (pan/zoom) não muda nada ali — só afeta
+ * a versão em story, que usa recorte "cover".
  */
 interface PanfletoModoProps {
   /** Produtos enviados pelo modo Importar planilha ("Usar no panfleto") — null quando não há nada pendente. */
@@ -105,6 +121,11 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
 
   const [salvando, setSalvando] = useState(false);
   const [toast, setToast] = useState('');
+
+  const [ajusteIdx, setAjusteIdx] = useState<number | null>(null);
+  const [storyIndividualUrl, setStoryIndividualUrl] = useState<string | null>(null);
+  const [storyIndividualBaixando, setStoryIndividualBaixando] = useState(false);
+  const storyIndividualProduto = useRef<ProdutoPanfleto | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -187,7 +208,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
       for (const p of rascunho.produtos) {
         try {
           const imagem = await carregarImagemDeDataUrl(p.imgSrc);
-          restaurados.push({ imagem, nome: p.nome, de: p.de, por: p.por });
+          restaurados.push({ imagem, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO });
         } catch {
           /* foto do rascunho corrompida — pula esse produto */
         }
@@ -263,7 +284,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
   useEffect(() => {
     if (!prontoParaPersistir) return;
     const timer = setTimeout(() => {
-      salvarRascunhoPanfleto(produtos.map((p) => ({ imgSrc: p.imagem.src, nome: p.nome, de: p.de, por: p.por })));
+      salvarRascunhoPanfleto(produtos.map((p) => ({ imgSrc: p.imagem.src, nome: p.nome, de: p.de, por: p.por, transform: p.transform })));
     }, 700);
     return () => clearTimeout(timer);
   }, [prontoParaPersistir, produtos]);
@@ -378,7 +399,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
     trocaAlvoIdx.current = null;
     if (!arquivo || idx === null) return;
     const imagem = await carregarImagemDeArquivo(arquivo);
-    setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem } : p)));
+    setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem, transform: TRANSFORM_PADRAO_PANFLETO } : p)));
   }
 
   async function handleEscolherImagemFundo(event: ChangeEvent<HTMLInputElement>) {
@@ -414,7 +435,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
       return;
     }
 
-    setProdutos((atual) => [...atual, { imagem: imagemPendente, nome: nomeTrim, de: deProduto, por: porProduto }]);
+    setProdutos((atual) => [...atual, { imagem: imagemPendente, nome: nomeTrim, de: deProduto, por: porProduto, transform: TRANSFORM_PADRAO_PANFLETO }]);
     salvarProdutoRecente({ imgSrc: imagemPendente.src, name: nomeTrim, de: deProduto, por: porProduto });
     setProdutosRecentes(carregarProdutosRecentes());
 
@@ -481,6 +502,80 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
     }
   }
 
+  function handleSalvarAjuste(transform: TransformImagem) {
+    if (ajusteIdx !== null) {
+      setProdutos((atual) => atual.map((p, i) => (i === ajusteIdx ? { ...p, transform } : p)));
+    }
+    setAjusteIdx(null);
+  }
+
+  /**
+   * Gera um story individual (1080×1920) a partir de um produto já
+   * cadastrado no panfleto e mostra um preview em tela cheia — mais
+   * confiável que baixar "escondido" em celulares. Usa o estilo (cores,
+   * tamanhos, margens, posição das faixas, frases extras) que a pessoa
+   * configurou por último no modo Story — persistido em
+   * `cartazes_story_settings_v1` — já que os dois modos não compartilham
+   * estado ao vivo.
+   */
+  function handleGerarStoryIndividual(idx: number) {
+    const produto = produtos[idx];
+    if (!produto) return;
+    storyIndividualProduto.current = produto;
+
+    const config = carregarConfiguracoes() || {};
+    const canvas = document.createElement('canvas');
+    canvas.width = LARGURA_STORY;
+    canvas.height = ALTURA_STORY;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, {
+      imagem: produto.imagem,
+      transformImagem: produto.transform,
+      nome: produto.nome,
+      de: produto.de,
+      por: produto.por,
+      emoji: EMOJI_PADRAO_STORY_INDIVIDUAL,
+      corLogo: config.corLogo || '#436000',
+      corTextoNome: config.corTextoNome || '#FFFFFF',
+      corPreco: config.corPreco || '#E30613',
+      nomeY: config.guiaNome?.y ?? 130,
+      precoY: config.guiaPreco?.y ?? 320,
+      nomeOffsetX: config.guiaNome?.offsetX ?? 0,
+      precoOffsetX: config.guiaPreco?.offsetX ?? 0,
+      tamanhoNome: config.tamanhoNome ?? 40,
+      tamanhoPreco: config.tamanhoPreco ?? 62,
+      frases: config.frasesAtivo ? config.frases || '' : '',
+      frasesY: config.guiaFrases?.y ?? 560,
+      frasesOffsetX: config.guiaFrases?.offsetX ?? 0,
+      corFundoFrases: config.corFundoFrases || '#173C3A',
+      corTextoFrases: config.corTextoFrases || '#FFFFFF',
+      tamanhoFrases: config.tamanhoFrases ?? 32,
+      margemNome: config.margemNome ?? 60,
+      margemPreco: config.margemPreco ?? 60,
+      margemFrases: config.margemFrases ?? 60,
+    });
+
+    setStoryIndividualUrl(canvas.toDataURL('image/png'));
+  }
+
+  async function handleBaixarStoryIndividual() {
+    const produto = storyIndividualProduto.current;
+    if (!storyIndividualUrl || !produto) return;
+    setStoryIndividualBaixando(true);
+    try {
+      const tituloCompartilhamento = montarTituloCompartilhamento(produto.nome, produto.de, produto.por);
+      const nomeSeguro = produto.nome
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .slice(0, 40);
+      await salvarOuCompartilharArquivo(storyIndividualUrl, `story-${nomeSeguro}-${Date.now()}.png`, 'image/png', tituloCompartilhamento);
+    } finally {
+      setStoryIndividualBaixando(false);
+    }
+  }
+
   function OpcoesAlinhamento({ value, onChange }: { value: AlinhamentoTexto; onChange: (v: AlinhamentoTexto) => void }) {
     return (
       <select value={value} onChange={(e) => onChange(e.target.value as AlinhamentoTexto)}>
@@ -511,6 +606,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
                   >
                     <img src={p.imgSrc} alt="" />
                     <span className="cartaz-recente-nome">{p.name}</span>
+                    <span className="cartaz-recente-preco">R${fmtMoney(p.por)}</span>
                   </button>
                 ))}
               </div>
@@ -590,6 +686,12 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
                 </button>
                 <button type="button" className="product-row-acao" title="Trocar foto (câmera)" onClick={() => setCameraDestino(idx)}>
                   📸
+                </button>
+                <button type="button" className="product-row-acao" title="Ajustar enquadramento da foto (usado ao gerar story individual)" onClick={() => setAjusteIdx(idx)}>
+                  🖼️
+                </button>
+                <button type="button" className="product-row-acao" title="Gerar story individual deste produto" onClick={() => handleGerarStoryIndividual(idx)}>
+                  📱
                 </button>
                 <button type="button" title="Remover" onClick={() => handleRemoverProduto(idx)}>
                   Remover
@@ -791,11 +893,29 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
             setImagemPendente(img);
           } else if (typeof cameraDestino === 'number') {
             const idx = cameraDestino;
-            setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem: img } : p)));
+            setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem: img, transform: TRANSFORM_PADRAO_PANFLETO } : p)));
           }
           setCameraDestino(null);
         }}
       />
+
+      {ajusteIdx !== null && produtos[ajusteIdx] && (
+        <AjustarEnquadramentoModal
+          imagem={produtos[ajusteIdx].imagem}
+          transformInicial={produtos[ajusteIdx].transform}
+          onFechar={() => setAjusteIdx(null)}
+          onSalvar={handleSalvarAjuste}
+        />
+      )}
+
+      {storyIndividualUrl && (
+        <StoryPreviewModal
+          dataUrl={storyIndividualUrl}
+          baixando={storyIndividualBaixando}
+          onBaixar={handleBaixarStoryIndividual}
+          onFechar={() => setStoryIndividualUrl(null)}
+        />
+      )}
     </>
   );
 }

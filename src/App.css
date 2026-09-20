@@ -836,6 +836,12 @@ table.data-table th {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.cartaz-recente-preco {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--teal-deep);
+}
 
 /* ===========================================================================
    Panfleto (vários produtos por página) — ver components/cartazes/PanfletoModo.tsx.
@@ -869,7 +875,16 @@ table.data-table th {
 .mode-tab.active { background: var(--teal); color: #fff; }
 
 .cartaz-canvas-frame--panfleto {
-  max-width: 560px;
+  /* Sem max-width (diferente do frame do Story, travado em 380px de
+     propósito pro formato vertical 9:16) — o panfleto é desenhado em alta
+     resolução (ver ESCALA_EXPORTACAO_PANFLETO) só pra sair nítido no
+     download; se o preview fica pequeno demais na tela, esse ganho de
+     resolução é jogado fora no down-scale via CSS e o texto pequeno dos
+     cards (nome/preço) sai com serrilhado visível. Deixar crescer até a
+     largura disponível da coluna (como a versão HTML original fazia) reduz
+     bem esse efeito. */
+  width: 100%;
+  max-width: none;
   background: #fff;
 }
 .cartaz-canvas--panfleto { background: #fff; }
