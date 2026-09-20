@@ -1,112 +1,105 @@
 // ---------- Manager: employees CRUD ----------
+// Colaborador aqui é só um vínculo com um usuário real do PharmaMind
+// (`usuarioId`) — não existe mais cadastro próprio (nome/código digitados) nem
+// cargo atribuído por dentro da ferramenta. Quem deve ter acesso de gestão se
+// resolve promovendo a pessoa a GERENTE na tela de Funcionários do PharmaMind;
+// aqui só se escolhe QUEM entra na escala de folgas.
 const employeesModal = document.getElementById('employeesModal');
-function openEmployeesModal(){
-  editingEmployeeId = null;
-  document.getElementById('newEmpName').value = '';
-  document.getElementById('newEmpCode').value = '';
-  document.getElementById('saveEmployeeBtn').textContent = 'Adicionar';
+let usuariosDaOrganizacao = null; // cache simples — recarregado a cada abertura do modal
+
+async function buscarUsuariosDaOrganizacao(){
+  const token = getAuthToken();
+  if(!token) return [];
+  try{
+    const res = await fetch(getApiBaseUrl() + '/usuarios', { headers: { 'Authorization': 'Bearer ' + token } });
+    if(!res.ok) return [];
+    return await res.json();
+  }catch(e){
+    console.error('Erro ao buscar usuários', e);
+    return [];
+  }
+}
+
+async function openEmployeesModal(){
+  document.getElementById('newEmpUsuarioSelect').innerHTML = '<option value="">Carregando...</option>';
+  document.getElementById('saveEmployeeBtn').disabled = true;
   renderEmployeesList();
   employeesModal.classList.add('open');
+
+  usuariosDaOrganizacao = await buscarUsuariosDaOrganizacao();
+  renderNovoColaboradorSelect();
 }
 document.getElementById('manageEmployeesBtn').addEventListener('click', openEmployeesModal);
 document.getElementById('closeEmployeesModalBtn').addEventListener('click', ()=> employeesModal.classList.remove('open'));
 employeesModal.addEventListener('click', (e)=>{ if(e.target===employeesModal) employeesModal.classList.remove('open'); });
 
+/** Só oferece pra vincular quem ainda não está na escala — cada usuário entra uma vez só. */
+function renderNovoColaboradorSelect(){
+  const sel = document.getElementById('newEmpUsuarioSelect');
+  const jaVinculados = new Set(state.employees.map(e=> e.usuarioId).filter(Boolean));
+  const disponiveis = (usuariosDaOrganizacao || []).filter(u=> u.ativo && !jaVinculados.has(u.id));
+
+  if(disponiveis.length === 0){
+    sel.innerHTML = '<option value="">Nenhum usuário disponível pra vincular</option>';
+    document.getElementById('saveEmployeeBtn').disabled = true;
+    return;
+  }
+  sel.innerHTML = disponiveis.map(u=> `<option value="${u.id}">${u.nome}${u.perfil!=='FUNCIONARIO' ? ' ('+u.perfil+')' : ''}</option>`).join('');
+  document.getElementById('saveEmployeeBtn').disabled = false;
+}
+
 function renderEmployeesList(){
   const el = document.getElementById('employeesList');
   el.innerHTML = '';
   if(state.employees.length === 0){
-    el.innerHTML = '<div class="empty-row" style="padding:10px 0;">Nenhum colaborador cadastrado ainda.</div>';
+    el.innerHTML = '<div class="empty-row" style="padding:10px 0;">Nenhum colaborador na escala ainda.</div>';
     return;
   }
   state.employees.forEach(emp=>{
     const row = document.createElement('div');
     row.className = 'emp-manage-row';
     const label = document.createElement('span');
-    label.textContent = emp.name + ' ';
-    const codeSpan = document.createElement('span');
-    codeSpan.className = 'ecode';
-    codeSpan.textContent = emp.code;
-    label.appendChild(codeSpan);
-
-    // Cargo: só o CEO pode escolher/trocar. Supervisor e Gerência só veem, se houver.
-    let cargoEl;
-    if(currentRole === 'CEO'){
-      cargoEl = document.createElement('select');
-      cargoEl.style.cssText = 'font-size:12px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--card);color:var(--ink);';
-      cargoEl.innerHTML = '<option value="">Sem acesso à supervisão</option>' +
-        CARGOS.map(c=> `<option value="${c}"${emp.role===c?' selected':''}>${c}</option>`).join('');
-      cargoEl.addEventListener('change', ()=> setEmployeeRole(emp.id, cargoEl.value || null));
-    } else if(emp.role){
-      cargoEl = document.createElement('span');
-      cargoEl.className = 'ecode';
-      cargoEl.textContent = '🔐 ' + emp.role;
-    } else {
-      cargoEl = document.createElement('span');
+    label.textContent = emp.name;
+    if(!emp.usuarioId){
+      const semVinculo = document.createElement('span');
+      semVinculo.className = 'ecode';
+      semVinculo.style.color = 'var(--red)';
+      semVinculo.textContent = ' sem vínculo — recadastre';
+      label.appendChild(semVinculo);
     }
 
     const actions = document.createElement('span');
     actions.className = 'eactions';
-    const editBtn = document.createElement('button');
-    editBtn.type='button'; editBtn.textContent='Editar';
-    editBtn.addEventListener('click', ()=> startEditEmployee(emp.id));
     const delBtn = document.createElement('button');
     delBtn.type='button'; delBtn.className='del'; delBtn.textContent='Remover';
     delBtn.addEventListener('click', ()=> deleteEmployee(emp.id));
-    actions.appendChild(editBtn); actions.appendChild(delBtn);
+    actions.appendChild(delBtn);
 
-    row.appendChild(label); row.appendChild(cargoEl); row.appendChild(actions);
+    row.appendChild(label); row.appendChild(actions);
     el.appendChild(row);
   });
 }
-/** Só chamado quando currentRole === 'CEO' (o <select> de cargo só existe na tela pra ele). */
-async function setEmployeeRole(id, role){
-  const emp = state.employees.find(e=>e.id===id);
-  if(!emp) return;
-  emp.role = role;
-  await saveState();
-  await logAction('Alterou cargo do colaborador', emp.name + ' → ' + (role || 'sem acesso à supervisão'));
-  renderEmployeesList();
-}
-function startEditEmployee(id){
-  const emp = state.employees.find(e=>e.id===id);
-  if(!emp) return;
-  editingEmployeeId = id;
-  document.getElementById('newEmpName').value = emp.name;
-  document.getElementById('newEmpCode').value = emp.code;
-  document.getElementById('saveEmployeeBtn').textContent = 'Salvar alterações';
-}
 async function deleteEmployee(id){
-  if(!(await showConfirm('Remover este colaborador? O histórico de créditos e folgas dele é mantido.'))) return;
+  if(!(await showConfirm('Remover este colaborador da escala? O histórico de créditos e folgas dele é mantido.'))) return;
   const emp = state.employees.find(e=>e.id===id);
   state.employees = state.employees.filter(e=>e.id!==id);
   await saveState();
-  await logAction('Removeu colaborador', emp ? emp.name : id);
+  await logAction('Removeu colaborador da escala', emp ? emp.name : id);
   renderEmployeesList();
+  renderNovoColaboradorSelect();
   renderManagerView();
 }
 document.getElementById('saveEmployeeBtn').addEventListener('click', async ()=>{
-  const name = document.getElementById('newEmpName').value.trim();
-  const code = document.getElementById('newEmpCode').value.trim();
-  if(!name){ await showAlert('Digite o nome do colaborador.'); return; }
-  if(!code){ await showAlert('Digite um código de acesso.'); return; }
-  const conflict = state.employees.find(e=> e.code===code && e.id!==editingEmployeeId);
-  if(conflict){ await showAlert('Esse código já está em uso por ' + conflict.name + '. Escolha outro.'); return; }
+  const usuarioId = document.getElementById('newEmpUsuarioSelect').value;
+  if(!usuarioId){ await showAlert('Escolha um usuário pra adicionar à escala.'); return; }
+  const usuario = (usuariosDaOrganizacao || []).find(u=> u.id === usuarioId);
+  if(!usuario) return;
 
-  const wasEditing = !!editingEmployeeId;
-  if(editingEmployeeId){
-    const emp = state.employees.find(e=>e.id===editingEmployeeId);
-    Object.assign(emp, { name, code });
-  } else {
-    state.employees.push({ id: uid('emp'), name, code });
-  }
+  state.employees.push({ id: uid('emp'), usuarioId, name: usuario.nome });
   await saveState();
-  await logAction(wasEditing ? 'Editou colaborador' : 'Cadastrou colaborador', name);
-  editingEmployeeId = null;
-  document.getElementById('newEmpName').value = '';
-  document.getElementById('newEmpCode').value = '';
-  document.getElementById('saveEmployeeBtn').textContent = 'Adicionar';
+  await logAction('Adicionou colaborador à escala', usuario.nome);
   renderEmployeesList();
+  renderNovoColaboradorSelect();
   renderManagerView();
 });
 
@@ -487,125 +480,27 @@ document.getElementById('saveLeaveBtn').addEventListener('click', async ()=>{
   showToast((type==='ferias'?'Férias':'Atestado') + ' registrado(a)!');
 });
 
-// ---------- CEO: gerenciar senhas (cargos + colaboradores) ----------
-const passwordsModal = document.getElementById('passwordsModal');
-
-function openPasswordsModal(){
-  if(currentRole !== 'CEO') return;
-  renderRolePasswordsList();
-  renderEmployeeCodesList();
-  passwordsModal.classList.add('open');
-}
-document.getElementById('passwordsBtn').addEventListener('click', openPasswordsModal);
-document.getElementById('closePasswordsModalBtn').addEventListener('click', ()=> passwordsModal.classList.remove('open'));
-passwordsModal.addEventListener('click', (e)=>{ if(e.target===passwordsModal) passwordsModal.classList.remove('open'); });
-
-// As senhas de papel são write-only pela API: o servidor guarda hash e nunca
-// devolve o valor (ver backend/FolgasSigiloService). A tela mostra, então, só
-// quais cargos já têm senha definida — e serve pra trocar, não pra consultar.
-// Campo em branco = "não mexer nessa senha".
-function renderRolePasswordsList(){
-  const el = document.getElementById('rolePasswordsList');
-  el.innerHTML = '';
-  const definidas = state.rolePasswords || {};
-  // Lista sempre todos os cargos, inclusive os que ainda não têm senha — antes
-  // essas senhas vinham com um valor padrão de fábrica no próprio JS público,
-  // então "sem senha" nunca acontecia; agora acontece e precisa ser visível.
-  const papeis = Array.from(new Set([...CARGOS, ...Object.keys(definidas)]));
-  papeis.forEach(role=>{
-    const temSenha = Object.prototype.hasOwnProperty.call(definidas, role);
-    const row = document.createElement('div');
-    row.className = 'password-row';
-    row.innerHTML = `
-      <span class="prole">${role}</span>
-      <input type="password" inputmode="numeric" maxlength="10" value="" autocomplete="new-password"
-        placeholder="${temSenha ? 'Digite para trocar' : 'Sem senha — defina uma'}" data-roleinput="${role}">
-      <button type="button" data-rolesave="${role}">Salvar</button>
-    `;
-    el.appendChild(row);
-  });
-  el.querySelectorAll('[data-rolesave]').forEach(btn=>{
-    btn.addEventListener('click', ()=> saveRolePassword(btn.dataset.rolesave));
-  });
-}
-
-async function saveRolePassword(role){
-  const input = document.querySelector('[data-roleinput="'+role+'"]');
-  const newPass = input.value.trim();
-  if(!newPass){ await showAlert('Digite a nova senha para trocar.'); return; }
-
-  // A checagem de senha repetida entre cargos saiu: o cliente não conhece mais
-  // as outras senhas pra comparar. O impacto é só cosmético — se duas baterem,
-  // o servidor concede o primeiro cargo que casar.
-  state.rolePasswords[role] = newPass; // vira hash no servidor, nunca é gravada assim
-  await saveState();
-  input.value = '';
-  await logAction('Trocou senha do cargo', role);
-  await loadState();          // recarrega já com a senha mascarada de volta
-  renderRolePasswordsList();
-  showToast('Senha do cargo ' + role + ' atualizada!');
-}
-
-function renderEmployeeCodesList(){
-  const el = document.getElementById('employeeCodesList');
-  el.innerHTML = '';
-  if(state.employees.length === 0){
-    el.innerHTML = '<div class="empty-row" style="padding:10px 0;">Nenhum colaborador cadastrado.</div>';
-    return;
-  }
-  state.employees.forEach(emp=>{
-    const row = document.createElement('div');
-    row.className = 'password-row';
-    row.innerHTML = `
-      <span class="pname">${emp.name}</span>
-      <input type="text" inputmode="numeric" maxlength="8" value="${emp.code}" data-empinput="${emp.id}">
-      <button type="button" data-empsave="${emp.id}">Salvar</button>
-    `;
-    el.appendChild(row);
-  });
-  el.querySelectorAll('[data-empsave]').forEach(btn=>{
-    btn.addEventListener('click', ()=> saveEmployeeCode(btn.dataset.empsave));
-  });
-}
-
-async function saveEmployeeCode(employeeId){
-  const input = document.querySelector('[data-empinput="'+employeeId+'"]');
-  const newCode = input.value.trim();
-  const emp = state.employees.find(e=>e.id===employeeId);
-  if(!emp) return;
-  if(!newCode){ await showAlert('O código não pode ficar vazio.'); return; }
-  const conflict = state.employees.find(e=> e.code===newCode && e.id!==employeeId);
-  if(conflict){ await showAlert('Esse código já está em uso por ' + conflict.name + '. Escolha outro.'); return; }
-
-  emp.code = newCode;
-  await saveState();
-  await logAction('Trocou código de acesso do colaborador', emp.name);
-  showToast('Código de ' + emp.name + ' atualizado!');
-}
-
-// ---------- CEO: relatório de auditoria ----------
+// ---------- Relatório de auditoria ----------
+// Antes era exclusivo do cargo "CEO" (o mais alto dos 3 papéis próprios da
+// ferramenta). Não existe mais essa distinção — qualquer ADMIN/GERENTE do
+// PharmaMind vê a auditoria, igual já é o padrão no resto do sistema.
 const auditModal = document.getElementById('auditModal');
 function fmtDateTimeBr(iso){
   const d = new Date(iso);
   return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+' às '+pad(d.getHours())+':'+pad(d.getMinutes());
 }
 function openAuditModal(){
-  if(currentRole !== 'CEO') return;
-  document.getElementById('auditRoleFilter').value = '';
   renderAuditList();
   auditModal.classList.add('open');
 }
 document.getElementById('auditBtn').addEventListener('click', openAuditModal);
 document.getElementById('closeAuditModalBtn').addEventListener('click', ()=> auditModal.classList.remove('open'));
 auditModal.addEventListener('click', (e)=>{ if(e.target===auditModal) auditModal.classList.remove('open'); });
-document.getElementById('auditRoleFilter').addEventListener('change', renderAuditList);
 
 function renderAuditList(){
   const el = document.getElementById('auditList');
   el.innerHTML = '';
-  const filterRole = document.getElementById('auditRoleFilter').value;
-  let entries = state.auditLog.slice().sort((a,b)=> new Date(b.timestamp)-new Date(a.timestamp));
-  if(filterRole) entries = entries.filter(e=> e.role === filterRole);
+  const entries = state.auditLog.slice().sort((a,b)=> new Date(b.timestamp)-new Date(a.timestamp));
 
   if(entries.length === 0){
     el.innerHTML = '<div class="empty-row">Nenhuma ação registrada ainda.</div>';

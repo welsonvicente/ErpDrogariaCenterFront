@@ -183,23 +183,17 @@
   <div id="employeeView" hidden>
     <div class="gate-box" id="codeGate">
       <div class="gate-icon">🪪</div>
-      <h2>Identifique-se</h2>
-      <p>Digite seu código de colaborador — ou, se você for Supervisor, Gerência ou CEO, a senha da sua área.</p>
-      <input type="password" id="employeeCodeInput" maxlength="10" inputmode="numeric" placeholder="••••">
+      <h2>Identificando você...</h2>
+      <p>Esta ferramenta reconhece automaticamente quem está logado no PharmaMind — não precisa digitar código nem senha aqui.</p>
       <div class="err" id="codeErr"></div>
-      <button id="codeLoginBtn">Entrar</button>
-      <div class="gate-hint">
-        <div>🧑‍💼 <strong>Colaborador</strong> — digite seu código pra ver e agendar suas folgas</div>
-        <div>🔐 <strong>Supervisor, Gerência ou CEO</strong> — digite a senha da sua área pra gerenciar a equipe</div>
-      </div>
+      <button id="recarregarIdentificacaoBtn">🔄 Recarregar</button>
     </div>
 
     <div id="employeeLoggedArea" hidden>
       <div class="greeting-bar">
         <span class="hi" id="greetingText">Olá!</span>
         <span>
-          <button id="goSupervisionBtn" hidden>🔐 Área de supervisão</button>
-          <button id="switchEmployeeBtn">Trocar colaborador</button>
+          <button id="switchEmployeeBtn">Sair</button>
         </span>
       </div>
 
@@ -260,8 +254,7 @@
       <button class="btn-ghost" id="addCreditBtn">+ Registrar crédito (domingo/feriado)</button>
       <button class="btn-ghost" id="downloadAllXlsxBtn">📊 Baixar tudo (Excel)</button>
       <button class="btn-ghost" id="downloadAllPdfBtn">📄 Baixar tudo (PDF)</button>
-      <button class="btn-ghost" id="auditBtn" hidden>📋 Auditoria (CEO)</button>
-      <button class="btn-ghost" id="passwordsBtn" hidden>🔑 Senhas (CEO)</button>
+      <button class="btn-ghost" id="auditBtn">📋 Auditoria</button>
     </div>
 
     <div class="stats">
@@ -486,11 +479,14 @@
 <!-- MODAL: gerenciar colaboradores -->
 <div class="modal-overlay" id="employeesModal">
   <div class="modal">
-    <h3>Colaboradores cadastrados</h3>
+    <h3>Colaboradores na escala</h3>
     <div id="employeesList" style="margin-bottom:14px;"></div>
     <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
-    <div class="field"><label>Nome do colaborador</label><input id="newEmpName" placeholder="Ex: João Silva"></div>
-    <div class="field"><label>Código de acesso</label><input id="newEmpCode" maxlength="8" inputmode="numeric" placeholder="Ex: 1234"></div>
+    <div class="field">
+      <label>Adicionar à escala</label>
+      <select id="newEmpUsuarioSelect"></select>
+    </div>
+    <div class="footnote" style="text-align:left;margin:-6px 0 12px;">Lista os usuários do PharmaMind que ainda não estão na escala. Pra cadastrar alguém novo, primeiro crie o usuário na tela de Funcionários.</div>
     <div class="modal-actions">
       <button class="btn-cancel" id="closeEmployeesModalBtn">Fechar</button>
       <button class="btn-primary" id="saveEmployeeBtn">Adicionar</button>
@@ -557,37 +553,10 @@
   </div>
 </div>
 
-<!-- MODAL: gerenciar senhas (só CEO) -->
-<div class="modal-overlay" id="passwordsModal">
-  <div class="modal" style="max-width:480px;">
-    <h3>🔑 Gerenciar senhas</h3>
-
-    <div class="field"><label>Senhas dos cargos</label></div>
-    <div id="rolePasswordsList" style="margin-bottom:16px;"></div>
-
-    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
-
-    <div class="field"><label>Códigos de acesso dos colaboradores</label></div>
-    <div id="employeeCodesList"></div>
-
-    <div class="modal-actions">
-      <button class="btn-cancel" id="closePasswordsModalBtn">Fechar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: auditoria (só CEO) -->
+<!-- MODAL: auditoria -->
 <div class="modal-overlay" id="auditModal">
   <div class="modal" style="max-width:560px;">
     <h3>📋 Relatório de auditoria</h3>
-    <div class="field"><label>Filtrar por cargo</label>
-      <select id="auditRoleFilter">
-        <option value="">Todos os cargos</option>
-        <option value="Supervisor">Supervisor</option>
-        <option value="Gerência">Gerência</option>
-        <option value="CEO">CEO</option>
-      </select>
-    </div>
     <div id="auditList" style="max-height:420px;overflow-y:auto;"></div>
     <div class="modal-actions">
       <button class="btn-cancel" id="closeAuditModalBtn">Fechar</button>

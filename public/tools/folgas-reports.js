@@ -239,5 +239,5 @@ const TELAS_ERRO_CARREGAMENTO = {
   }
 
   showOnly(employeeView);
-  renderEmployeeLoginState();
+  identificarSessaoAtual();
 })();

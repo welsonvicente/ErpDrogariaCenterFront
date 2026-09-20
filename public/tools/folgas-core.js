@@ -26,30 +26,32 @@ document.getElementById('alertDialogOk').addEventListener('click', ()=>{
 
 const STORAGE_KEY = 'drogaria-center-folgas';
 
-// Não existe mais senha de papel padrão aqui. Antes este arquivo trazia
-// Supervisor/Gerência/CEO com senhas fixas — e ele é servido em /tools/ sem
-// autenticação nenhuma, então qualquer pessoa lia as senhas no código-fonte e
-// entrava na área de supervisão de qualquer organização que não as tivesse
-// trocado. Agora as senhas só existem no servidor, como hash (ver
-// backend/FolgasSigiloService), e são definidas na própria tela de gestão.
-let state = { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {} };
+// Estado da ferramenta — "gestor" aqui é só "ADMIN/GERENTE no PharmaMind" (ver
+// sessaoAtual()); não existe mais um sistema de papéis próprio da ferramenta
+// (Supervisor/Gerência/CEO por senha compartilhada) nem cadastro de código de
+// acesso por colaborador — cada colaborador referencia um `usuário` real do
+// PharmaMind (`usuarioId`). Ver PLANO-PAPEIS-E-ACESSO.md, Etapa 3.
+let state = { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [] };
 let loaded = false;
 let versaoAtual = 0; // controle de concorrência otimista — ver loadState()/saveState()
-let editingEmployeeId = null;
 let currentEmployee = null;
-// Código que a pessoa digitou pra entrar, guardado só em memória e só nesta
-// sessão de tela. O servidor não devolve mais `employees[].code` (ver
-// backend/FolgasSigiloService), então este é o único lugar onde o código do
-// colaborador logado existe no cliente — usado pra provar o acesso de
-// supervisão de quem tem cargo (ver "goSupervisionBtn").
-let currentEmployeeCode = null;
-let currentRole = null; // 'Supervisor' | 'Gerência' | 'CEO'
-let currentManagerEmployee = null; // colaborador dono do cargo, quando o acesso veio do código dele (não da senha genérica)
-const CARGOS = ['Supervisor', 'Gerência', 'CEO'];
+let currentRole = null; // null | 'gerente' — ver identificarSessaoAtual() em folgas-employee.js
 
-/** Identifica quem está logado na área de supervisão agora, pra registrar em bloqueios/auditoria. */
+/** Lê a sessão do PharmaMind já carregada (gestor ou funcionário) — a mesma usada pra autenticar as chamadas. */
+function sessaoAtual(){
+  try{
+    for(const key of ['drogaria:session:gestor', 'drogaria:session:funcionario']){
+      const raw = localStorage.getItem(key);
+      if(raw){ const sessao = JSON.parse(raw); if(sessao && sessao.usuario) return sessao; }
+    }
+  }catch(e){ /* sem sessão salva */ }
+  return null;
+}
+
+/** Identifica quem está logado na área de gestão agora, pra registrar em bloqueios/auditoria. */
 function currentActorLabel(){
-  return currentManagerEmployee ? (currentRole + ' — ' + currentManagerEmployee.name) : (currentRole || '—');
+  const sessao = sessaoAtual();
+  return (sessao && sessao.usuario && sessao.usuario.nome) || currentRole || '—';
 }
 async function logAction(action, details){
   state.auditLog.push({
@@ -147,73 +149,15 @@ function urlLoginPharmaMind(comoGestor){
   return location.origin + '/' + slug + (comoGestor ? '/gestor/login' : '/funcionario');
 }
 
-// ---------- Elevação de acesso (senhas de papel / atestados ficam ocultos até provar acesso de gestor) ----------
-// O servidor esconde dado sensível (senhas de papel, motivo de atestado) de
-// quem não provou ter acesso de gestor — ver backend/FolgasSigiloService.
-// "Elevar" aqui é chamar /elevar com uma credencial (senha de papel, ou o
-// próprio código de um colaborador promovido) e guardar o token de curta
-// duração que isso devolve, usado nas próximas chamadas de carregar/salvar.
-const ELEVACAO_STORAGE_KEY = 'drogaria:folgas:elevacao';
-let acessoRestrito = false; // true quando o último carregamento veio com dado sensível oculto
-function getElevacaoToken(){
-  try{ return sessionStorage.getItem(ELEVACAO_STORAGE_KEY); }catch(e){ return null; }
-}
-function setElevacaoToken(token){
-  try{ sessionStorage.setItem(ELEVACAO_STORAGE_KEY, token); }catch(e){ /* sem storage disponível — segue sem persistir */ }
-}
-function limparElevacaoToken(){
-  try{ sessionStorage.removeItem(ELEVACAO_STORAGE_KEY); }catch(e){ /* nada a limpar */ }
-}
-/** Tenta provar uma credencial de gestor no servidor. Devolve o papel concedido (string) ou null se inválida/erro. */
-async function elevarAcesso(credencial){
-  const token = getAuthToken();
-  if(!token) return null;
-  try{
-    const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY + '/elevar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify(credencial)
-    });
-    if(!res.ok) return null;
-    const data = await res.json();
-    setElevacaoToken(data.token);
-    await loadState(); // recarrega já sem a ocultação, agora que provamos acesso
-    return data.papel;
-  }catch(e){
-    console.error('Erro ao elevar acesso', e);
-    return null;
-  }
-}
-
-/**
- * Confere no servidor o código digitado na entrada e devolve o colaborador
- * correspondente ({id, name, role}) ou null.
- *
- * Antes isso era um `state.employees.find(e=>e.code===val)` aqui mesmo — só
- * funcionava porque a resposta de GET vinha com o código de TODO mundo dentro,
- * que é exatamente o que um funcionário qualquer usava pra se elevar sem saber
- * senha nenhuma (bastava repetir id + code de um colega promovido). Agora o
- * servidor esconde os códigos e é ele quem confere.
- */
-async function identificarPorCodigo(codigo){
-  const token = getAuthToken();
-  if(!token) return null;
-  try{
-    const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY + '/identificar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ codigo })
-    });
-    if(!res.ok) return null;
-    return await res.json();
-  }catch(e){
-    console.error('Erro ao identificar código', e);
-    return null;
-  }
-}
+// ---------- Sigilo do motivo de atestado ----------
+// O servidor esconde o motivo do atestado (ver backend/FolgasSigiloService)
+// de quem não é ADMIN/GERENTE de verdade no PharmaMind — a checagem é dele,
+// baseada no token da sessão já carregada; não existe mais elevação por
+// senha/código dentro da própria ferramenta.
+let acessoRestrito = false; // true quando o último carregamento veio com o motivo do atestado oculto
 
 function estadoPadrao(){
-  return { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [], rolePasswords: {} };
+  return { employees: [], credits: [], daysOff: [], leaves: [], creditSwaps: [], blockedDates: [], blockedWeekdays: [], auditLog: [] };
 }
 
 // Guarda por que loadState falhou (token ausente/expirado, erro de rede...) —
@@ -230,8 +174,6 @@ async function loadState(){
     const token = getAuthToken();
     if(!token){ state = estadoPadrao(); loadErro = 'sem-sessao'; loaded = true; return; }
     const headers = { 'Authorization': 'Bearer ' + token };
-    const elevacao = getElevacaoToken();
-    if(elevacao) headers['X-Elevacao-Token'] = elevacao;
     const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, { headers });
     if(res.status === 401){ state = estadoPadrao(); loadErro = 'sessao-expirada'; loaded = true; return; }
     if(!res.ok) throw new Error('Falha ao carregar (' + res.status + ')');
@@ -246,12 +188,10 @@ async function loadState(){
     // item registra também quem bloqueou — dado antigo vira "quem bloqueou: —".
     state.blockedWeekdays = state.blockedWeekdays.map(b=> typeof b === 'number' ? { weekday: b, by: null, at: null } : b);
     if(!state.auditLog) state.auditLog = [];
-    // `_acessoRestrito` (ver backend/FolgasSigiloService) avisa que rolePasswords,
-    // os códigos dos colaboradores e as notas de atestado vieram ocultos de
-    // propósito — e não "ainda não configurados".
+    // `_acessoRestrito` (ver backend/FolgasSigiloService) avisa que a nota dos
+    // atestados veio oculta de propósito — e não "ainda não preenchida".
     acessoRestrito = !!state._acessoRestrito;
     delete state._acessoRestrito;
-    if(!state.rolePasswords) state.rolePasswords = {};
   }catch(e){
     console.error('Erro ao carregar', e);
     state = estadoPadrao();
@@ -267,8 +207,6 @@ async function saveState(){
   }
   try{
     const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
-    const elevacao = getElevacaoToken();
-    if(elevacao) headers['X-Elevacao-Token'] = elevacao;
     const res = await fetch(getApiBaseUrl() + '/armazenamento/' + STORAGE_KEY, {
       method: 'PUT',
       headers,

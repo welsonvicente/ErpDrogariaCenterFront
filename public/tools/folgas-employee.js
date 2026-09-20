@@ -1,8 +1,9 @@
-// ---------- Login único ----------
-// Não existe mais tela de escolha de papel: um só campo de código/senha.
-// Colaborador (com ou sem cargo) sempre cai no próprio painel; as 3 senhas
-// genéricas de cargo (Supervisor/Gerência/CEO) vão direto pra supervisão,
-// já que não representam um colaborador específico.
+// ---------- Identificação ----------
+// Não existe mais tela de código/senha própria da ferramenta: quem está
+// logado no PharmaMind (gestor ou funcionário, terminal já autenticado) é
+// automaticamente reconhecido aqui — ADMIN/GERENTE cai direto na gestão,
+// FUNCIONARIO cai no próprio painel (achado pelo vínculo `usuarioId` no
+// cadastro de colaboradores). Ver PLANO-PAPEIS-E-ACESSO.md, Etapa 3.
 const employeeView = document.getElementById('employeeView');
 const managerView = document.getElementById('managerView');
 const backBtn = document.getElementById('backBtn');
@@ -13,100 +14,73 @@ function showOnly(el){
 }
 
 backBtn.addEventListener('click', ()=>{
-  headerSub.textContent = 'Banco de folgas';
-  currentRole = null;
-  currentManagerEmployee = null;
-  showOnly(employeeView);
-  renderEmployeeLoginState();
+  // "Voltar" só faz sentido pra sair da área de gestão quando a sessão é de
+  // gestor — não há mais "trocar de colaborador" (a identidade vem da sessão
+  // do PharmaMind, não de um código digitado aqui).
+  location.reload();
 });
 
-/**
- * Entra na área de supervisão com um cargo — seja pela senha genérica do
- * cargo, pelo código de um colaborador promovido digitado direto no login
- * único, ou pelo botão "Área de supervisão" dentro do painel dele.
- * `employee`, quando presente, é só pra exibir/atribuir quem fez cada ação.
- */
-function enterManagerView(role, employee){
-  currentRole = role;
-  currentManagerEmployee = employee || null;
-  const quemLabel = employee ? (role + ' — ' + employee.name) : role;
-  headerSub.textContent = 'Gestão de folgas — ' + quemLabel;
-  document.getElementById('roleBadge').textContent = '🔐 ' + quemLabel;
-  document.getElementById('auditBtn').hidden = (role !== 'CEO');
-  document.getElementById('passwordsBtn').hidden = (role !== 'CEO');
+/** Entra na área de gestão — qualquer ADMIN/GERENTE do PharmaMind. */
+function enterManagerView(){
+  currentRole = 'gerente';
+  const sessao = sessaoAtual();
+  const nome = (sessao && sessao.usuario && sessao.usuario.nome) || 'Gestor';
+  headerSub.textContent = 'Gestão de folgas — ' + nome;
+  document.getElementById('roleBadge').textContent = '🔐 ' + nome;
   backBtn.hidden = false;
   showOnly(managerView);
   renderManagerView();
 }
 
 // ---------- Employee view ----------
-async function renderEmployeeLoginState(){
+/**
+ * Roda uma vez ao carregar a página (depois de `loadState()`, ver
+ * folgas-reports.js/init) — decide a tela a partir da sessão do PharmaMind já
+ * logada, sem recarregar o estado de novo.
+ */
+function identificarSessaoAtual(){
   currentEmployee = null;
-  currentEmployeeCode = null; // terminal compartilhado: não deixa o código de quem saiu na memória da página
-  document.getElementById('employeeCodeInput').value = '';
-  document.getElementById('codeErr').textContent = '';
-  document.getElementById('codeGate').hidden = false;
+  document.getElementById('codeGate').hidden = true;
   document.getElementById('employeeLoggedArea').hidden = true;
   backBtn.hidden = true;
-  setTimeout(()=> document.getElementById('employeeCodeInput').focus(), 50);
 
-  // Terminal costuma ser compartilhado (balcão) — ao voltar pra essa tela,
-  // esquece a elevação de acesso e descarta da memória o que tinha sido
-  // carregado sem ocultação, pra quem usar o aparelho em seguida não herdar
-  // dado sensível de quem usou antes.
-  if(acessoRestrito === false && loaded){
-    limparElevacaoToken();
-    await loadState();
+  const sessao = sessaoAtual();
+  if(!sessao || !sessao.usuario){
+    document.getElementById('codeGate').hidden = false;
+    document.getElementById('codeErr').textContent = 'Sessão do PharmaMind não encontrada. Faça login no PharmaMind (nesta mesma aba) e recarregue esta página.';
+    return;
   }
-}
-async function tryLogin(){
-  const val = document.getElementById('employeeCodeInput').value.trim();
-  if(!val) return;
 
-  // 1) senha genérica de cargo (Supervisor/Gerência/CEO) — verificada no
-  // servidor, já que o cliente não enxerga mais as senhas reais (ver
-  // elevarAcesso). Só quem sabe uma senha válida ganha o token de acesso.
-  const btn = document.getElementById('codeLoginBtn');
-  btn.disabled = true;
+  if(sessao.usuario.perfil === 'ADMIN' || sessao.usuario.perfil === 'GERENTE'){
+    enterManagerView();
+    return;
+  }
+
+  const emp = state.employees.find(e=> e.usuarioId === sessao.usuario.id);
+  if(!emp){
+    document.getElementById('codeGate').hidden = false;
+    document.getElementById('codeErr').textContent = 'Seu cadastro ainda não foi vinculado nesta ferramenta. Peça pro seu gerente adicionar "' + sessao.usuario.nome + '" em Colaboradores.';
+    return;
+  }
+
+  currentEmployee = emp;
+  document.getElementById('employeeLoggedArea').hidden = false;
+  document.getElementById('greetingText').textContent = 'Olá, ' + emp.name + '!';
+  renderEmployeeDashboard();
+}
+
+document.getElementById('recarregarIdentificacaoBtn').addEventListener('click', ()=> location.reload());
+
+// Terminal costuma ser compartilhado (balcão) — "Sair" encerra a sessão do
+// PharmaMind de verdade (é ela que diz quem você é aqui dentro agora, não um
+// código digitado só nesta ferramenta), pra quem usar o aparelho em seguida
+// não herdar o painel de quem usou antes.
+document.getElementById('switchEmployeeBtn').addEventListener('click', ()=>{
   try{
-    const papel = await elevarAcesso({ tipo: 'papel', senha: val });
-    if(papel){
-      document.getElementById('employeeCodeInput').value = '';
-      enterManagerView(papel);
-      return;
-    }
-
-    // 2) código de colaborador — sempre entra no painel normal dele. Quem
-    // confere o código é o servidor: a lista carregada aqui não traz mais o
-    // código de ninguém (ver identificarPorCodigo / backend/FolgasSigiloService).
-    const identificado = await identificarPorCodigo(val);
-    const emp = identificado && state.employees.find(e=> e.id===identificado.id);
-    if(!emp){
-      document.getElementById('codeErr').textContent = 'Código ou senha incorretos. Confira com o gerente.';
-      return;
-    }
-    currentEmployee = emp;
-    currentEmployeeCode = val;
-    document.getElementById('codeGate').hidden = true;
-    document.getElementById('employeeLoggedArea').hidden = false;
-    document.getElementById('greetingText').textContent = 'Olá, ' + emp.name + '!';
-    // Ter um cargo não tira o acesso normal de funcionário — só soma um botão
-    // extra pra entrar na área de supervisão quando quiser (ver "goSupervisionBtn").
-    document.getElementById('goSupervisionBtn').hidden = !emp.role;
-    backBtn.hidden = false;
-    renderEmployeeDashboard();
-  } finally {
-    btn.disabled = false;
-  }
-}
-document.getElementById('codeLoginBtn').addEventListener('click', tryLogin);
-document.getElementById('employeeCodeInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryLogin(); });
-document.getElementById('switchEmployeeBtn').addEventListener('click', renderEmployeeLoginState);
-document.getElementById('goSupervisionBtn').addEventListener('click', async ()=>{
-  if(!currentEmployee || !currentEmployee.role) return;
-  const papel = await elevarAcesso({ tipo: 'funcionario', funcionarioId: currentEmployee.id, codigo: currentEmployeeCode });
-  if(papel) enterManagerView(papel, currentEmployee);
-  else await showAlert('Não foi possível confirmar seu acesso de supervisão. Tente entrar de novo com seu código.');
+    localStorage.removeItem('drogaria:session:gestor');
+    localStorage.removeItem('drogaria:session:funcionario');
+  }catch(e){ /* sem storage disponível */ }
+  location.href = urlLoginPharmaMind(false);
 });
 
 function renderEmployeeDashboard(){
