@@ -78,14 +78,24 @@ export function montarTextoPromocional(descricao: string, de: string, por: strin
   return linha;
 }
 
-function tamanhoOrigem(img: HTMLImageElement) {
+/**
+ * Fonte de pixels aceita pra desenhar no canvas — imagem estática (o caso
+ * normal) ou vídeo (só usado no instante da captura pela câmera, pra tirar uma
+ * foto do frame atual sem esperar convertê-lo pra Image antes).
+ */
+export type FonteImagem = HTMLImageElement | HTMLVideoElement;
+
+function tamanhoOrigem(img: FonteImagem) {
+  if (img instanceof HTMLVideoElement) {
+    return { w: img.videoWidth, h: img.videoHeight };
+  }
   return { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
 }
 
 /** transform (opcional) = {scale, panX, panY} — permite reenquadrar/dar zoom na foto sem reenviar/recortar. */
 export function desenharImagemCover(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: FonteImagem,
   x: number,
   y: number,
   w: number,
