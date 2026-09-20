@@ -918,6 +918,7 @@ table.data-table th {
 }
 .product-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   background: var(--bg);
@@ -932,14 +933,34 @@ table.data-table th {
   border-radius: 6px;
   flex-shrink: 0;
 }
-.product-row .pinfo { flex: 1; min-width: 0; }
+/* flex-basis com um mínimo (não só flex:1) — sem isso, junto com os 5 botões
+   de ação, esse bloco espremia tanto que "De: R$X · Por: R$Y" quebrava em
+   duas linhas e os ícones acabavam centralizados NA ALTURA entre elas
+   (visualmente "em cima" do Por). Com um mínimo de 140px, quando não cabe
+   mais tudo numa linha só é o grupo de ações inteiro que pula pra linha de
+   baixo (ver .product-row-acoes), não o texto do preço que quebra ao meio. */
+.product-row .pinfo { flex: 1 1 140px; min-width: 0; }
 .product-row .pname {
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.product-row .pprice { color: var(--ink-soft); }
+.product-row .pprice {
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.product-row-acoes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 100%;
+}
+@media (min-width: 480px) {
+  .product-row-acoes { flex: 0 0 auto; margin-left: auto; }
+}
 .product-row button {
   border: none;
   background: none;

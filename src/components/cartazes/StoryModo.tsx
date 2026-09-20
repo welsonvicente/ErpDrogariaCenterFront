@@ -22,7 +22,7 @@ import {
   salvarRascunho,
   type ProdutoRecente,
 } from '../../utils/cartazPersistencia';
-import { salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
+import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 
 const EMOJIS_DESTAQUE = ['🤩😱', '🔥🔥', '😍', '🎉', '💚', '⚡'];
 const TRANSFORM_PADRAO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
@@ -80,6 +80,7 @@ export function StoryModo() {
   const [produtosRecentes, setProdutosRecentes] = useState<ProdutoRecente[]>([]);
 
   const [salvando, setSalvando] = useState(false);
+  const [salvandoDireto, setSalvandoDireto] = useState(false);
   const [toast, setToast] = useState('');
 
   // Fontes do motor de canvas (Fredoka/Space Grotesk) carregam assíncrono —
@@ -298,6 +299,14 @@ export function StoryModo() {
       .catch(() => setToast('Não consegui recuperar a foto desse produto.'));
   }
 
+  function registrarProdutoRecenteAposBaixar() {
+    if (imagem && nome.trim()) {
+      salvarProdutoRecente({ imgSrc: imagem.src, name: nome.trim(), de, por });
+      setProdutosRecentes(carregarProdutosRecentes());
+    }
+  }
+
+  /** Baixa ou compartilha (Web Share, quando o navegador suportar) — no celular, dá pra mandar direto pro WhatsApp. */
   async function handleBaixar() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -305,12 +314,22 @@ export function StoryModo() {
     try {
       const tituloCompartilhamento = montarTituloCompartilhamento(nome, de, por);
       await salvarOuCompartilharArquivo(canvas.toDataURL('image/png'), `story-${Date.now()}.png`, 'image/png', tituloCompartilhamento);
-      if (imagem && nome.trim()) {
-        salvarProdutoRecente({ imgSrc: imagem.src, name: nome.trim(), de, por });
-        setProdutosRecentes(carregarProdutosRecentes());
-      }
+      registrarProdutoRecenteAposBaixar();
     } finally {
       setSalvando(false);
+    }
+  }
+
+  /** Salva direto na pasta de Downloads do computador, sem passar pela folha de compartilhar. */
+  async function handleBaixarDireto() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    setSalvandoDireto(true);
+    try {
+      await baixarArquivoDireto(canvas.toDataURL('image/png'), `story-${Date.now()}.png`, 'image/png');
+      registrarProdutoRecenteAposBaixar();
+    } finally {
+      setSalvandoDireto(false);
     }
   }
 
@@ -504,7 +523,10 @@ export function StoryModo() {
           </div>
 
           <button className="btn-primary" onClick={handleBaixar} disabled={salvando} style={{ width: '100%' }}>
-            {salvando ? 'Preparando...' : '⬇️ Baixar imagem do story'}
+            {salvando ? 'Preparando...' : '⬇️ Baixar ou compartilhar (WhatsApp etc.)'}
+          </button>
+          <button className="btn-ghost" onClick={handleBaixarDireto} disabled={salvandoDireto} style={{ width: '100%', marginTop: 8 }}>
+            {salvandoDireto ? 'Preparando...' : '💾 Salvar direto no computador'}
           </button>
           <button className="btn-ghost" onClick={handleCopiarTexto} style={{ width: '100%', marginTop: 8 }}>
             📋 Copiar texto pronto (WhatsApp/Instagram)

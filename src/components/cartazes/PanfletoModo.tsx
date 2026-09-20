@@ -696,29 +696,31 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
                     {p.de ? `De R$${p.de} · ` : ''}Por R${p.por}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="product-row-acao"
-                  title="Trocar foto (galeria)"
-                  onClick={() => {
-                    trocaAlvoIdx.current = idx;
-                    inputTrocaRef.current?.click();
-                  }}
-                >
-                  🔄
-                </button>
-                <button type="button" className="product-row-acao" title="Trocar foto (câmera)" onClick={() => setCameraDestino(idx)}>
-                  📸
-                </button>
-                <button type="button" className="product-row-acao" title="Ajustar enquadramento da foto (usado ao gerar story individual)" onClick={() => setAjusteIdx(idx)}>
-                  🖼️
-                </button>
-                <button type="button" className="product-row-acao" title="Gerar story individual deste produto" onClick={() => handleGerarStoryIndividual(idx)}>
-                  📱
-                </button>
-                <button type="button" title="Remover" onClick={() => handleRemoverProduto(idx)}>
-                  Remover
-                </button>
+                <div className="product-row-acoes">
+                  <button
+                    type="button"
+                    className="product-row-acao"
+                    title="Trocar foto (galeria)"
+                    onClick={() => {
+                      trocaAlvoIdx.current = idx;
+                      inputTrocaRef.current?.click();
+                    }}
+                  >
+                    🔄
+                  </button>
+                  <button type="button" className="product-row-acao" title="Trocar foto (câmera)" onClick={() => setCameraDestino(idx)}>
+                    📸
+                  </button>
+                  <button type="button" className="product-row-acao" title="Ajustar enquadramento da foto (usado ao gerar story individual)" onClick={() => setAjusteIdx(idx)}>
+                    🖼️
+                  </button>
+                  <button type="button" className="product-row-acao" title="Gerar story individual deste produto" onClick={() => handleGerarStoryIndividual(idx)}>
+                    📱
+                  </button>
+                  <button type="button" title="Remover" onClick={() => handleRemoverProduto(idx)}>
+                    Remover
+                  </button>
+                </div>
               </div>
             ))}
           </div>
