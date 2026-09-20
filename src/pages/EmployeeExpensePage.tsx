@@ -1,7 +1,7 @@
 import { BrandLogo } from '../components/BrandLogo';
 import { DefinirPinGestorModal } from '../components/DefinirPinGestorModal';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { espelharSessaoParaGestor, lerSessao, removerSessaoFuncionarioEDerivadas } from '../services/api';
 import { categoriaService } from '../services/categoriaService';
@@ -210,12 +210,12 @@ export function EmployeeExpensePage() {
           <p>{aba === 'lancar' ? 'Selecione a categoria do gasto' : 'Gastos que você já lançou'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a className="btn-ghost" href={urlFerramentaCartazes(orgSlug)} target="_blank" rel="noopener noreferrer">
+          <Link className="btn-ghost" to={urlFerramentaCartazes(orgSlug)}>
             🖼️ Cartazes e panfletos
-          </a>
-          <a className="btn-ghost" href={urlFerramentaFolgas(orgSlug)} target="_blank" rel="noopener noreferrer">
+          </Link>
+          <Link className="btn-ghost" to={urlFerramentaFolgas(orgSlug)}>
             📅 Folgas
-          </a>
+          </Link>
           {usuario.perfil !== 'FUNCIONARIO' && (
             <button className="btn-ghost" onClick={handleAbrirPainelGestor}>
               🔐 Painel do Gerente — Gastos

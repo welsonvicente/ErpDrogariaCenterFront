@@ -1,8 +1,8 @@
 import { BrandLogo } from '../components/BrandLogo';
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
-import { salvarSessao } from '../services/api';
+import { lerSessao, salvarSessao, tokenExpirado } from '../services/api';
 import { authService } from '../services/authService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
@@ -16,6 +16,21 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 export function OrganizationLoginPage() {
   useDocumentTitle('Entrar');
   const navigate = useNavigate();
+
+  // Se já existe uma sessão de GERENTE salva neste navegador, com token ainda
+  // não vencido, pula a tela de login: abrir a raiz do sistema sempre pedia
+  // login de novo, mesmo já logado. Calculado uma vez, de forma preguiçosa —
+  // não é um efeito porque não depende de nada assíncrono, só do localStorage.
+  //
+  // Sessão de FUNCIONARIO fica de fora de propósito: esse login é rápido, feito
+  // num terminal compartilhado de balcão, e deve continuar pedindo código+PIN
+  // toda vez que alguém abrir a tela dele (ver EmployeeCodePage) — a raiz nunca
+  // foi a porta de entrada do funcionário, então não é ela quem decide isso.
+  const [destinoJaLogado] = useState(() => {
+    const sessao = lerSessao('gerente');
+    if (!sessao?.token || tokenExpirado(sessao.token)) return null;
+    return `/${sessao.orgSlug}/gerente`;
+  });
 
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -35,6 +50,10 @@ export function OrganizationLoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (destinoJaLogado) {
+    return <Navigate to={destinoJaLogado} replace />;
   }
 
   return (

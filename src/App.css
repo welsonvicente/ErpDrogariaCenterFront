@@ -632,3 +632,165 @@ table.data-table th {
 @media (max-width: 860px) {
   .grid-form-lista { grid-template-columns: 1fr; }
 }
+
+/* ===========================================================================
+   Ferramentas estáticas embutidas (Cartazes, Folgas) — ver App.tsx/FerramentaEstatica
+   Antes essas ferramentas abriam em nova aba, cobrindo a tela inteira sem
+   nenhuma moldura do app — por isso pareciam "outro site". Agora vivem dentro
+   do mesmo cartão que qualquer outro conteúdo do sistema, só com altura
+   suficiente pra caber o formulário/tabela da ferramenta sem duas barras de
+   rolagem brigando (a da página e a do iframe).
+   =========================================================================== */
+.ferramenta-embutida {
+  padding: 0;
+  overflow: hidden;
+}
+.ferramenta-embutida iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+/* Dentro do painel de gerente (menu lateral + título da página). */
+.ferramenta-embutida--painel {
+  height: calc(100vh - 240px);
+  min-height: 420px;
+}
+/* Cabeçalho simples do funcionário — mais baixo que o do gerente. */
+.ferramenta-embutida--funcionario {
+  height: calc(100vh - 200px);
+  min-height: 420px;
+}
+
+@media (max-width: 860px) {
+  .ferramenta-embutida--painel { height: calc(100vh - 200px); }
+  .ferramenta-embutida--funcionario { height: calc(100vh - 170px); }
+}
+
+/* ===========================================================================
+   Cartazes (gerador de story) — ver pages/CartazesPage.tsx.
+   Layout de duas colunas (formulário + preview em tempo real), preview num
+   "quadro" escuro que emula a moldura de um celular, faixas arrastáveis por
+   cima do canvas. Mede o pixel real do canvas (1080×1920) e converte pra
+   porcentagem do quadro visível, que pode estar em qualquer tamanho na tela.
+   =========================================================================== */
+
+.cartaz-cols {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .cartaz-cols { grid-template-columns: 1fr; }
+}
+
+.cartaz-painel {
+  padding: 20px;
+}
+
+.cartaz-titulo-secao {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--teal-deep);
+  margin: 0 0 14px;
+}
+
+.cartaz-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.cartaz-checkbox input { width: auto; }
+
+.field-row {
+  display: flex;
+  gap: 10px;
+}
+.field-row .field { flex: 1; }
+.field input[type='color'] { padding: 3px; height: 38px; cursor: pointer; }
+
+.upload-box {
+  border: 2px dashed var(--line);
+  border-radius: 14px;
+  padding: 22px 14px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--bg);
+}
+.upload-box:hover { border-color: var(--teal); background: var(--mint); color: var(--teal-deep); }
+
+.cartaz-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  position: sticky;
+  top: 20px;
+}
+.cartaz-canvas-frame {
+  position: relative;
+  background: #0a2422;
+  border-radius: 20px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 380px;
+}
+.cartaz-canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  display: block;
+}
+
+.faixa-arrasto {
+  position: absolute;
+  height: 9%;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: #fff;
+  cursor: grab;
+  user-select: none;
+  border: 2px dashed rgba(255, 255, 255, 0.85);
+  touch-action: none;
+}
+.faixa-arrasto:active { cursor: grabbing; }
+.faixa-arrasto--nome { background: rgba(67, 96, 0, 0.55); }
+.faixa-arrasto--preco { background: rgba(227, 6, 19, 0.45); }
+.faixa-arrasto--frases { background: rgba(23, 60, 58, 0.5); }
+.faixa-arrasto-dica {
+  font-size: 9.5px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.cartaz-emoji-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cartaz-emoji-row .emoji-btn {
+  min-width: 44px;
+  height: 38px;
+  padding: 0 8px;
+  white-space: nowrap;
+}

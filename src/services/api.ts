@@ -18,6 +18,13 @@ const SESSION_KEY_FUNCIONARIO = 'drogaria:session:funcionario';
 const PREFIXOS_GERENTE = ['/gerente', '/ferramentas', '/configuracoes'];
 
 /**
+ * Cartazes e Folgas são usadas pelo MESMO link tanto por quem entrou pela área
+ * do gerente quanto pela do funcionário — path sozinho não diz qual sessão usar
+ * aqui, diferente do resto do sistema.
+ */
+const PREFIXOS_COMPARTILHADOS = ['/cartazes', '/folgas'];
+
+/**
  * Deriva se a rota atual é do gerente ou do funcionário a partir do pathname
  * (ex.: "/drogariacenter/gerente/categorias" -> "gerente",
  * "/drogariacenter/funcionario/lancar" -> "funcionario"). Usado tanto pelo
@@ -26,8 +33,24 @@ const PREFIXOS_GERENTE = ['/gerente', '/ferramentas', '/configuracoes'];
  */
 export function areaDaRota(pathname: string): AreaSessao {
   const semOrgSlug = pathname.replace(/^\/[^/]+/, '') || '/';
+
   const ehGerente = PREFIXOS_GERENTE.some((prefixo) => semOrgSlug === prefixo || semOrgSlug.startsWith(`${prefixo}/`));
-  return ehGerente ? 'gerente' : 'funcionario';
+  if (ehGerente) return 'gerente';
+
+  // Numa rota compartilhada, se existir sessão de gerente salva é dela que
+  // veio o clique — funcionário não tem outra área de onde chegar aqui. Sem
+  // isso, um gerente abrindo Cartazes/Folgas caía sempre na área errada
+  // (tentando ler a sessão de funcionário, que ele pode nem ter).
+  const ehCompartilhada = PREFIXOS_COMPARTILHADOS.some((prefixo) => semOrgSlug === prefixo || semOrgSlug.startsWith(`${prefixo}/`));
+  if (ehCompartilhada) {
+    try {
+      if (localStorage.getItem(SESSION_KEY_GERENTE)) return 'gerente';
+    } catch {
+      /* sem storage — cai no padrão abaixo */
+    }
+  }
+
+  return 'funcionario';
 }
 
 function chaveSessao(area: AreaSessao) {
@@ -93,6 +116,21 @@ export function lerSessao(area: AreaSessao): SessaoArmazenada | null {
     return JSON.parse(raw) as SessaoArmazenada;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Decodifica só o `exp` do payload de um JWT, sem checar assinatura — é uso
+ * puramente de UI (decidir se vale a pena redirecionar direto com esse token
+ * ou mostrar a tela de login), nunca uma validação de segurança: quem garante
+ * que o token é válido de verdade é sempre o backend, a cada requisição.
+ */
+export function tokenExpirado(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
   }
 }
 

@@ -1,9 +1,11 @@
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import './App.css';
+import { FerramentaShell } from './components/FerramentaShell';
 import { OrgLayout } from './components/OrgLayout';
 import { useDocumentTitle } from './hooks/useDocumentTitle';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { UpdateBanner } from './components/UpdateBanner';
+import { CartazesPage } from './pages/CartazesPage';
 import { EmployeeCodePage } from './pages/EmployeeCodePage';
 import { EmployeeExpensePage } from './pages/EmployeeExpensePage';
 import { ManagerAuditoriaPage } from './pages/ManagerAuditoriaPage';
@@ -28,24 +30,29 @@ function RedirecionaGestorParaGerente() {
 }
 
 /**
- * Ferramentas que são páginas estáticas (public/tools/*), fora do bundle do
- * React — ver EmployeeExpensePage.
+ * Ferramentas que ainda são páginas estáticas (public/tools/*), fora do bundle
+ * do React — ver PLANO-REESCRITA-FERRAMENTAS.md pra saber o que já foi
+ * reescrito como tela nativa (Cartazes/Story, em CartazesPage) e o que segue
+ * aqui (Folgas; e o restante de Cartazes — Panfleto e Importar planilha,
+ * acessível por "/cartazes/completo").
  *
- * Ficam sob a rota da organização como todo o resto ("/:orgSlug/cartazes"), e
+ * Ficam sob a rota da organização como todo o resto ("/:orgSlug/folgas"), e
  * não soltas em "/tools/arquivo.html": o slug na URL é o que identifica o
  * inquilino em todo o sistema, e uma ferramenta que guarda dado por organização
  * não podia ser a exceção. Como um arquivo estático não vira rota do React, a
  * página é embutida aqui — mesma origem, então ela continua lendo a sessão do
- * localStorage exatamente como antes.
+ * localStorage exatamente como antes. A moldura (FerramentaShell) é a mesma
+ * usada pela versão já reescrita, então a transição entre as duas não muda a
+ * casca ao redor.
  */
 function FerramentaEstatica({ arquivo, titulo }: { arquivo: string; titulo: string }) {
   useDocumentTitle(titulo);
   return (
-    <iframe
-      src={`/tools/${arquivo}`}
-      title={titulo}
-      style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none' }}
-    />
+    <FerramentaShell titulo={titulo}>
+      <div className="card ferramenta-embutida ferramenta-embutida--painel">
+        <iframe src={`/tools/${arquivo}`} title={titulo} />
+      </div>
+    </FerramentaShell>
   );
 }
 
@@ -65,7 +72,11 @@ function App() {
           <Route path="funcionario/lancar" element={<EmployeeExpensePage />} />
 
           {/* Ferramentas do balcão — usáveis por funcionário e por gerente. */}
-          <Route path="cartazes" element={<FerramentaEstatica arquivo="cartazes.html" titulo="Cartazes e panfletos" />} />
+          <Route path="cartazes" element={<CartazesPage />} />
+          <Route
+            path="cartazes/completo"
+            element={<FerramentaEstatica arquivo="cartazes.html" titulo="Cartazes e panfletos (completo)" />}
+          />
           <Route
             path="folgas"
             element={<FerramentaEstatica arquivo="folgas-drogaria-center.html" titulo="Folgas" />}

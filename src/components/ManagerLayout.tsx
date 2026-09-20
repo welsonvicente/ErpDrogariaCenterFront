@@ -49,9 +49,14 @@ function montarMenu(orgSlug: string | undefined): GrupoMenu[] {
     {
       rotulo: 'Ferramentas',
       icone: '🧰',
+      // Antes abriam em nova aba (por isso eram marcadas `externo`) porque a
+      // ferramenta era um iframe em tela cheia, sem menu — abrir por cima da
+      // aba atual teria feito a pessoa "perder" o painel. Agora que a rota tem
+      // a mesma moldura do resto do sistema (ver App.tsx/FerramentaEstatica),
+      // navegam normal, na mesma aba, como qualquer outro item do menu.
       itens: [
-        { rotulo: 'Cartazes e panfletos', icone: '🖼️', para: `${org}/cartazes`, externo: true },
-        { rotulo: 'Folgas', icone: '📅', para: `${org}/folgas`, externo: true },
+        { rotulo: 'Cartazes e panfletos', icone: '🖼️', para: `${org}/cartazes` },
+        { rotulo: 'Folgas', icone: '📅', para: `${org}/folgas` },
       ],
     },
     {
