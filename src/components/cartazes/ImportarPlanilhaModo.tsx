@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import JSZip from 'jszip';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
-import { CameraModal } from '../CameraModal';
+import { CameraModal, type GuiaCamera } from '../CameraModal';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
 import {
   ALTURA_STORY,
@@ -19,7 +19,7 @@ import {
   TRANSFORM_PADRAO,
   type ProdutoImportado,
 } from '../../utils/batchEngine';
-import { carregarConfiguracoesLote, salvarConfiguracoesLote } from '../../utils/cartazPersistencia';
+import { carregarConfiguracoesLote, montarGuiasCameraDoStory, salvarConfiguracoesLote } from '../../utils/cartazPersistencia';
 import { salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import { cartazService } from '../../services/cartazService';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
@@ -446,6 +446,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
           }
           setCameraDestino(null);
         }}
+        guias={montarGuiasCameraDoStory() as GuiaCamera[]}
       />
 
       {produtoAjuste?.imagem && (

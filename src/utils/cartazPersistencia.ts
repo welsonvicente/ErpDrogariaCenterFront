@@ -88,6 +88,43 @@ export function carregarConfiguracoes(): Partial<ConfiguracoesStory> | null {
   }
 }
 
+/**
+ * Monta as faixas-guia (nome/preço/frases) pra sobrepor no vídeo da câmera,
+ * usadas fora do modo Story (Panfleto, Importar planilha) — que não têm o
+ * estado ao vivo das faixas, só o que já foi persistido da última vez que a
+ * pessoa mexeu no Story. `nome`/`preço` não têm uma flag "ativo" persistida
+ * (só `frasesAtivo` é salvo) — ficam sempre visíveis, no padrão do Story.
+ */
+export function montarGuiasCameraDoStory() {
+  const config = carregarConfiguracoes() || {};
+  return [
+    {
+      y: config.guiaNome?.y ?? 130,
+      offsetX: config.guiaNome?.offsetX ?? 0,
+      margem: config.margemNome ?? 60,
+      visivel: true,
+      corClasse: 'faixa-arrasto--nome',
+      rotulo: 'NOME DO PRODUTO',
+    },
+    {
+      y: config.guiaPreco?.y ?? 320,
+      offsetX: config.guiaPreco?.offsetX ?? 0,
+      margem: config.margemPreco ?? 60,
+      visivel: true,
+      corClasse: 'faixa-arrasto--preco',
+      rotulo: 'R$ PREÇO',
+    },
+    {
+      y: config.guiaFrases?.y ?? 560,
+      offsetX: config.guiaFrases?.offsetX ?? 0,
+      margem: config.margemFrases ?? 60,
+      visivel: Boolean(config.frasesAtivo),
+      corClasse: 'faixa-arrasto--frases',
+      rotulo: 'FRASES',
+    },
+  ];
+}
+
 export function salvarConfiguracoes(config: ConfiguracoesStory) {
   try {
     localStorage.setItem(CHAVE_CONFIGURACOES, JSON.stringify(config));

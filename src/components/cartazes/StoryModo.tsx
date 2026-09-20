@@ -558,6 +558,11 @@ export function StoryModo() {
           definirImagem(img);
           setCameraAberta(false);
         }}
+        guias={[
+          { y: guiaNome.y, offsetX: guiaNome.offsetX, margem: margemNome, visivel: nomeAtivo, corClasse: 'faixa-arrasto--nome', rotulo: 'NOME DO PRODUTO' },
+          { y: guiaPreco.y, offsetX: guiaPreco.offsetX, margem: margemPreco, visivel: precoAtivo, corClasse: 'faixa-arrasto--preco', rotulo: 'R$ PREÇO' },
+          { y: guiaFrases.y, offsetX: guiaFrases.offsetX, margem: margemFrases, visivel: frasesAtivo, corClasse: 'faixa-arrasto--frases', rotulo: 'FRASES' },
+        ]}
       />
 
       {ajusteAberto && (

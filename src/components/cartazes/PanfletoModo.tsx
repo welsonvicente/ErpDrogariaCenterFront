@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import JSZip from 'jszip';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
-import { CameraModal } from '../CameraModal';
+import { CameraModal, type GuiaCamera } from '../CameraModal';
 import { StoryPreviewModal } from '../StoryPreviewModal';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
 import {
@@ -20,12 +20,13 @@ import {
   carregarProdutosRecentes,
   carregarRascunhoPanfleto,
   limparRascunhoPanfleto,
+  montarGuiasCameraDoStory,
   salvarConfiguracoesPanfleto,
   salvarProdutoRecente,
   salvarRascunhoPanfleto,
   type ProdutoRecente,
 } from '../../utils/cartazPersistencia';
-import { salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
+import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import {
   construirPaginasPanfleto,
   ESCALA_EXPORTACAO_PANFLETO,
@@ -120,6 +121,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
   const [totalPaginas, setTotalPaginas] = useState(1);
 
   const [salvando, setSalvando] = useState(false);
+  const [salvandoDireto, setSalvandoDireto] = useState(false);
   const [toast, setToast] = useState('');
 
   const [ajusteIdx, setAjusteIdx] = useState<number | null>(null);
@@ -455,31 +457,52 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
     setProdutos([]);
   }
 
-  async function handleBaixarPanfleto() {
-    const tituloCompartilhamento = titulo.trim() || nomeLoja.trim() || 'Panfleto de ofertas';
+  /** Gera o conteúdo pra baixar — uma página vira PNG direto, mais de uma vira um .zip com todas. */
+  async function gerarConteudoPanfleto(): Promise<{ conteudo: string | Blob; nomeArquivo: string; mime: string } | null> {
     const paginas = paginasCanvasRef.current;
     if (paginas.length <= 1) {
       const canvas = canvasRef.current;
-      if (!canvas) return;
-      await salvarOuCompartilharArquivo(canvas.toDataURL('image/png'), `panfleto-${Date.now()}.png`, 'image/png', tituloCompartilhamento);
-      return;
+      if (!canvas) return null;
+      return { conteudo: canvas.toDataURL('image/png'), nomeArquivo: `panfleto-${Date.now()}.png`, mime: 'image/png' };
     }
 
+    const zip = new JSZip();
+    for (let i = 0; i < paginas.length; i++) {
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        paginas[i].toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob falhou'))), 'image/png');
+      });
+      zip.file(`panfleto-parte-${i + 1}.png`, blob);
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    return { conteudo: zipBlob, nomeArquivo: `panfletos-${Date.now()}.zip`, mime: 'application/zip' };
+  }
+
+  /** Baixa ou compartilha (Web Share, quando o navegador suportar) — no celular, dá pra mandar direto pro WhatsApp. */
+  async function handleBaixarPanfleto() {
     setSalvando(true);
     try {
-      const zip = new JSZip();
-      for (let i = 0; i < paginas.length; i++) {
-        const blob = await new Promise<Blob>((resolve, reject) => {
-          paginas[i].toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob falhou'))), 'image/png');
-        });
-        zip.file(`panfleto-parte-${i + 1}.png`, blob);
-      }
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      await salvarOuCompartilharArquivo(zipBlob, `panfletos-${Date.now()}.zip`, 'application/zip', tituloCompartilhamento);
+      const resultado = await gerarConteudoPanfleto();
+      if (!resultado) return;
+      const tituloCompartilhamento = titulo.trim() || nomeLoja.trim() || 'Panfleto de ofertas';
+      await salvarOuCompartilharArquivo(resultado.conteudo, resultado.nomeArquivo, resultado.mime, tituloCompartilhamento);
     } catch {
       setToast('Não foi possível gerar os panfletos. Tente novamente.');
     } finally {
       setSalvando(false);
+    }
+  }
+
+  /** Salva direto na pasta de Downloads do computador, sem passar pela folha de compartilhar. */
+  async function handleBaixarPanfletoDireto() {
+    setSalvandoDireto(true);
+    try {
+      const resultado = await gerarConteudoPanfleto();
+      if (!resultado) return;
+      await baixarArquivoDireto(resultado.conteudo, resultado.nomeArquivo, resultado.mime);
+    } catch {
+      setToast('Não foi possível gerar os panfletos. Tente novamente.');
+    } finally {
+      setSalvandoDireto(false);
     }
   }
 
@@ -849,8 +872,15 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
           </div>
 
           <button type="button" className="btn-ghost" style={{ width: '100%' }} onClick={handleBaixarPanfleto} disabled={salvando}>
-            {salvando ? 'Gerando…' : '⬇️ Baixar panfleto'}
+            {salvando ? 'Gerando…' : '⬇️ Baixar ou compartilhar (WhatsApp etc.)'}
           </button>
+          <button type="button" className="btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={handleBaixarPanfletoDireto} disabled={salvandoDireto}>
+            {salvandoDireto ? 'Gerando…' : '💾 Salvar direto no computador'}
+          </button>
+          <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
+            "Salvar direto no computador" vai sem passar pela folha de compartilhar — cai certinho na pasta de
+            Downloads.
+          </p>
           <button type="button" className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={handleCopiarTexto}>
             📋 Copiar texto pronto (WhatsApp/Instagram)
           </button>
@@ -897,6 +927,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
           }
           setCameraDestino(null);
         }}
+        guias={montarGuiasCameraDoStory() as GuiaCamera[]}
       />
 
       {ajusteIdx !== null && produtos[ajusteIdx] && (

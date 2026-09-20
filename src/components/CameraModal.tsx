@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { ALTURA_STORY, LARGURA_STORY, desenharImagemCover } from '../utils/cartazEngine';
+import { ALTURA_STORY, LARGURA_STORY, desenharImagemCover, posicaoXFaixa } from '../utils/cartazEngine';
+
+/** Uma faixa-guia (nome/preço/frases) a mostrar sobreposta ao vídeo, só pra ajudar a enquadrar a foto. */
+export interface GuiaCamera {
+  y: number;
+  offsetX: number;
+  margem: number;
+  visivel: boolean;
+  corClasse: string;
+  rotulo: string;
+}
 
 /**
  * Captura de foto pela câmera do dispositivo — portado de
@@ -8,15 +18,22 @@ import { ALTURA_STORY, LARGURA_STORY, desenharImagemCover } from '../utils/carta
  * por causa disso) e espera o primeiro frame de verdade antes de liberar o
  * botão de captura: no iPhone, capturar antes disso é o que fazia a foto sair
  * toda preta (o autoplay às vezes não "pega" sozinho).
+ *
+ * `guias` (opcional) sobrepõe faixas não-interativas mostrando onde nome/preço/
+ * frases vão ficar quando a foto virar um story — mesma posição configurada no
+ * modo Story (ver `syncGuideVisuals` na versão HTML original), só que aqui não
+ * dá pra arrastar (arrastar é coisa do preview, não da câmera).
  */
 export function CameraModal({
   aberto,
   onFechar,
   onCapturar,
+  guias,
 }: {
   aberto: boolean;
   onFechar: () => void;
   onCapturar: (img: HTMLImageElement) => void;
+  guias?: GuiaCamera[];
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -115,6 +132,25 @@ export function CameraModal({
               muted
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
+            {guias
+              ?.filter((g) => g.visivel)
+              .map((g) => {
+                const x = posicaoXFaixa(g.margem, g.offsetX);
+                const largura = LARGURA_STORY - g.margem * 2;
+                return (
+                  <div
+                    key={g.corClasse}
+                    className={`faixa-arrasto faixa-arrasto--camera ${g.corClasse}`}
+                    style={{
+                      top: `${(g.y / ALTURA_STORY) * 100}%`,
+                      left: `${(x / LARGURA_STORY) * 100}%`,
+                      width: `${(largura / LARGURA_STORY) * 100}%`,
+                    }}
+                  >
+                    {g.rotulo}
+                  </div>
+                );
+              })}
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
             <button className="btn-ghost" onClick={onFechar}>

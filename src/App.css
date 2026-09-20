@@ -789,6 +789,16 @@ table.data-table th {
   border-radius: 6px;
 }
 
+/* Versão só-visual da faixa, mostrada sobre o vídeo da câmera — mesma posição
+   configurada no Story, mas sem poder arrastar (arrastar é coisa do preview). */
+.faixa-arrasto--camera {
+  cursor: default;
+  pointer-events: none;
+  font-size: 10.5px;
+  padding: 0 6px;
+  text-align: center;
+}
+
 .cartaz-emoji-row {
   display: flex;
   flex-wrap: wrap;

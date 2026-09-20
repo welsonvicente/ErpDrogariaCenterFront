@@ -7,6 +7,28 @@ async function paraArquivo(conteudo: string | Blob, nomeArquivo: string, mime?: 
   return new File([conteudo], nomeArquivo, { type: mime || conteudo.type });
 }
 
+function baixarPorLink(arquivo: File) {
+  const url = URL.createObjectURL(arquivo);
+  const link = document.createElement('a');
+  link.download = arquivo.name;
+  link.href = url;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/**
+ * Baixa o arquivo direto pra pasta de Downloads do computador — sem passar
+ * pela folha de compartilhar (Web Share API), mesmo quando o navegador
+ * suportaria compartilhar. Existe porque `salvarOuCompartilharArquivo` prefere
+ * compartilhar quando disponível (útil pra mandar direto pro WhatsApp em
+ * celular), mas às vezes a pessoa só quer o arquivo salvo ali no PC mesmo,
+ * sem abrir a folha de compartilhar do Windows/Mac no meio do caminho.
+ */
+export async function baixarArquivoDireto(conteudo: string | Blob, nomeArquivo: string, mime: string) {
+  const arquivo = await paraArquivo(conteudo, nomeArquivo, mime);
+  baixarPorLink(arquivo);
+}
+
 /**
  * "Baixa" ou compartilha um arquivo — no iPhone (Safari/Chrome-iOS), o
  * atributo `download` do `<a>` é ignorado, então clicar no link simplesmente
@@ -44,10 +66,5 @@ export async function salvarOuCompartilharArquivo(
   // Fallback: download por link — funciona em desktop e Android. No
   // iPhone/iPad sem suporte a compartilhar arquivo, a saída é tocar e segurar
   // a imagem que já fica visível na tela pra salvar.
-  const url = URL.createObjectURL(arquivo);
-  const link = document.createElement('a');
-  link.download = nomeArquivo;
-  link.href = url;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  baixarPorLink(arquivo);
 }
