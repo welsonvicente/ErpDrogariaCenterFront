@@ -1,27 +1,31 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { ImportarPlanilhaModo } from '../components/cartazes/ImportarPlanilhaModo';
 import { PanfletoModo } from '../components/cartazes/PanfletoModo';
 import { StoryModo } from '../components/cartazes/StoryModo';
 import { FerramentaShell } from '../components/FerramentaShell';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import type { ProdutoPanfleto } from '../utils/panfletoEngine';
 
-type Modo = 'story' | 'panfleto';
+type Modo = 'story' | 'panfleto' | 'planilha';
 
 /**
- * Casca da tela de Cartazes — alterna entre os modos já reescritos como React
- * nativo (ver PLANO-REESCRITA-FERRAMENTAS.md). O modo "Importar planilha"
- * ainda não foi portado; o link no rodapé leva pra versão completa (a
- * ferramenta HTML original, embutida na mesma moldura).
+ * Casca da tela de Cartazes — alterna entre os três modos, todos já
+ * reescritos como React nativo (ver PLANO-REESCRITA-FERRAMENTAS.md).
  *
- * Os dois modos ficam sempre montados (só a visibilidade alterna) — trocar de
- * aba não pode perder produtos/texto já preenchidos do outro modo, mesmo
- * modo que a ferramenta original usava (`display: none` em vez de
- * desmontar).
+ * Os três modos ficam sempre montados (só a visibilidade alterna) — trocar de
+ * aba não pode perder produtos/texto já preenchidos num modo enquanto se
+ * olha outro, mesmo padrão que a ferramenta original usava (`display: none`
+ * em vez de desmontar).
+ *
+ * O modo Importar planilha se comunica com o Panfleto pelo botão "Usar no
+ * panfleto": os produtos com foto viram `produtosParaPanfleto` aqui na casca,
+ * o Panfleto os incorpora e avisa de volta (`aoReceberProdutos`) pra essa fila
+ * não ficar sendo reenviada a cada render.
  */
 export function CartazesPage() {
   useDocumentTitle('Cartazes e panfletos');
-  const { orgSlug } = useParams<{ orgSlug: string }>();
   const [modo, setModo] = useState<Modo>('story');
+  const [produtosParaPanfleto, setProdutosParaPanfleto] = useState<ProdutoPanfleto[] | null>(null);
 
   return (
     <FerramentaShell titulo="Cartazes e panfletos">
@@ -32,20 +36,25 @@ export function CartazesPage() {
         <button type="button" className={`mode-tab${modo === 'panfleto' ? ' active' : ''}`} onClick={() => setModo('panfleto')}>
           🗞️ Panfleto (vários)
         </button>
+        <button type="button" className={`mode-tab${modo === 'planilha' ? ' active' : ''}`} onClick={() => setModo('planilha')}>
+          📊 Importar planilha
+        </button>
       </div>
 
       <div style={{ display: modo === 'story' ? 'block' : 'none' }}>
         <StoryModo />
       </div>
       <div style={{ display: modo === 'panfleto' ? 'block' : 'none' }}>
-        <PanfletoModo />
+        <PanfletoModo produtosRecebidos={produtosParaPanfleto} aoReceberProdutos={() => setProdutosParaPanfleto(null)} />
       </div>
-
-      <p className="footnote" style={{ marginTop: 20 }}>
-        Precisa importar uma planilha de produtos?{' '}
-        <Link to={`/${orgSlug}/cartazes/completo`}>Abrir a ferramenta completa</Link> (esse modo ainda não foi migrado
-        pra esta tela nova).
-      </p>
+      <div style={{ display: modo === 'planilha' ? 'block' : 'none' }}>
+        <ImportarPlanilhaModo
+          aoEnviarParaPanfleto={(produtos) => {
+            setProdutosParaPanfleto(produtos);
+            setModo('panfleto');
+          }}
+        />
+      </div>
     </FerramentaShell>
   );
 }

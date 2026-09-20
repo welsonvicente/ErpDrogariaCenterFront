@@ -940,3 +940,88 @@ table.data-table th {
   text-align: center;
   padding: 14px 0;
 }
+
+/* ===========================================================================
+   Importar planilha — ver components/cartazes/ImportarPlanilhaModo.tsx.
+   Cada produto importado vira uma "batch-row": foto (ou placeholder), nome,
+   preço, selo de status da busca de imagem, e as ações (buscar, trocar,
+   câmera, ajustar, copiar, remover).
+   =========================================================================== */
+
+.batch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.batch-row .thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #e4e9e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  overflow: hidden;
+}
+.batch-row .thumb img { width: 100%; height: 100%; object-fit: cover; }
+.batch-row .binfo { flex: 1 1 160px; min-width: 0; }
+.batch-row .bname {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.batch-row .bprice { font-size: 12px; color: var(--ink-soft); }
+.batch-row .bstatus {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  display: inline-block;
+  margin-top: 3px;
+}
+.batch-row .bstatus.found { background: var(--ok-bg); color: var(--ok); }
+.batch-row .bstatus.manual { background: var(--mint); color: var(--teal-deep); }
+.batch-row .bstatus.pending { background: var(--warn-bg); color: var(--warn); }
+.batch-row .bstatus.searching { background: var(--warn-bg); color: var(--warn); }
+.batch-row .bstatus.failed { background: var(--late-bg); color: var(--late); }
+.batch-row .bactions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1 1 100%;
+}
+.batch-row .bactions button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--teal-deep);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.batch-row .bactions button:hover { background: var(--mint); }
+.batch-row .bactions button.del { color: var(--late); }
+@media (min-width: 640px) {
+  .batch-row .bactions { flex: 0 0 auto; margin-left: auto; }
+}
+
+.paste-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .paste-grid { grid-template-columns: minmax(0, 1fr); }
+}

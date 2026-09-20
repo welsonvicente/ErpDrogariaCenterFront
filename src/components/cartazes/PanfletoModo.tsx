@@ -47,7 +47,14 @@ const TAMANHO_QR_LOGICO = 130;
  * tinha efeito visual ali — só valia pra gerar um story individual daquele
  * produto, recurso que fica pra uma fase futura se for pedido.
  */
-export function PanfletoModo() {
+interface PanfletoModoProps {
+  /** Produtos enviados pelo modo Importar planilha ("Usar no panfleto") — null quando não há nada pendente. */
+  produtosRecebidos?: ProdutoPanfleto[] | null;
+  /** Avisa que `produtosRecebidos` já foi incorporado, pra não importar de novo a cada render. */
+  aoReceberProdutos?: () => void;
+}
+
+export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoModoProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paginasCanvasRef = useRef<HTMLCanvasElement[]>([]);
   const inputPendenteRef = useRef<HTMLInputElement>(null);
@@ -104,6 +111,14 @@ export function PanfletoModo() {
     const timer = setTimeout(() => setToast(''), 2500);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  // Recebe produtos enviados pelo modo Importar planilha ("Usar no panfleto").
+  useEffect(() => {
+    if (!produtosRecebidos || produtosRecebidos.length === 0) return;
+    setProdutos((atual) => [...atual, ...produtosRecebidos]);
+    aoReceberProdutos?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [produtosRecebidos]);
 
   // Gera o QR (async) quando o link muda — cacheado por texto em utils/qrCode.ts.
   useEffect(() => {

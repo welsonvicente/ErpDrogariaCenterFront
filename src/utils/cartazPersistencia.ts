@@ -231,6 +231,36 @@ export function limparRascunhoPanfleto() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Importar planilha — só as 3 cores dos stories gerados em lote são
+// "preferência permanente" (mesmo padrão da versão HTML). A lista de produtos
+// importados não é persistida entre sessões: pode vir de uma planilha grande,
+// e reimportar é mais simples do que arriscar lotar o localStorage.
+
+const CHAVE_CONFIGURACOES_LOTE = 'cartazes_batch_settings_v1';
+
+export interface ConfiguracoesLote {
+  corLogo: string;
+  corTextoNome: string;
+  corPreco: string;
+}
+
+export function carregarConfiguracoesLote(): Partial<ConfiguracoesLote> | null {
+  try {
+    return JSON.parse(localStorage.getItem(CHAVE_CONFIGURACOES_LOTE) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+export function salvarConfiguracoesLote(config: ConfiguracoesLote) {
+  try {
+    localStorage.setItem(CHAVE_CONFIGURACOES_LOTE, JSON.stringify(config));
+  } catch {
+    /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
+  }
+}
+
 export function carregarImagemDeDataUrl(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
