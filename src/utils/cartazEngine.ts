@@ -126,6 +126,25 @@ export function desenharImagemCover(
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
 
+/** Encaixa a imagem inteira dentro da caixa sem cortar nada (usado nos cards do panfleto — cover cortaria a foto do produto). */
+export function desenharImagemContain(ctx: CanvasRenderingContext2D, img: FonteImagem, x: number, y: number, w: number, h: number) {
+  const { w: iw, h: ih } = tamanhoOrigem(img);
+  const imgRatio = iw / ih;
+  const boxRatio = w / h;
+  let dw: number;
+  let dh: number;
+  if (imgRatio > boxRatio) {
+    dw = w;
+    dh = w / imgRatio;
+  } else {
+    dh = h;
+    dw = h * imgRatio;
+  }
+  const dx = x + (w - dw) / 2;
+  const dy = y + (h - dh) / 2;
+  ctx.drawImage(img, dx, dy, dw, dh);
+}
+
 export function desenharRetanguloArredondado(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);

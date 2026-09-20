@@ -836,3 +836,107 @@ table.data-table th {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ===========================================================================
+   Panfleto (vários produtos por página) — ver components/cartazes/PanfletoModo.tsx.
+   Mesma casca de duas colunas do Story; a moldura do preview fica mais larga
+   (o panfleto não é vertical 9:16 como o story) e com fundo claro, já que o
+   canvas do panfleto pinta fundo branco por padrão.
+   =========================================================================== */
+
+.mode-tabs {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 22px;
+  max-width: 420px;
+}
+.mode-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 11px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mode-tab.active { background: var(--teal); color: #fff; }
+
+.cartaz-canvas-frame--panfleto {
+  max-width: 560px;
+  background: #fff;
+}
+.cartaz-canvas--panfleto { background: #fff; }
+
+.panfleto-paginacao {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.panfleto-paginacao span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.product-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+.product-row img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.product-row .pinfo { flex: 1; min-width: 0; }
+.product-row .pname {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.product-row .pprice { color: var(--ink-soft); }
+.product-row button {
+  border: none;
+  background: none;
+  color: var(--late);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.product-row button.product-row-acao {
+  background: var(--mint);
+  color: var(--teal-deep);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 14px;
+}
+.product-row button.product-row-acao:hover { background: var(--teal); color: #fff; }
+
+.empty-note {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  text-align: center;
+  padding: 14px 0;
+}

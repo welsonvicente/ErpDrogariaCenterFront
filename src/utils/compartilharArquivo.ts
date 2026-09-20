@@ -1,7 +1,10 @@
-async function dataUrlParaArquivo(dataUrl: string, nomeArquivo: string, mime?: string): Promise<File> {
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  return new File([blob], nomeArquivo, { type: mime || blob.type });
+async function paraArquivo(conteudo: string | Blob, nomeArquivo: string, mime?: string): Promise<File> {
+  if (typeof conteudo === 'string') {
+    const res = await fetch(conteudo);
+    const blob = await res.blob();
+    return new File([blob], nomeArquivo, { type: mime || blob.type });
+  }
+  return new File([conteudo], nomeArquivo, { type: mime || conteudo.type });
 }
 
 /**
@@ -12,14 +15,17 @@ async function dataUrlParaArquivo(dataUrl: string, nomeArquivo: string, mime?: s
  * Imagem"/"Salvar Arquivo". Em desktop/Android o download normal já funciona
  * bem, então só usa o compartilhamento quando o navegador realmente suportar
  * compartilhar aquele arquivo.
+ *
+ * Aceita uma dataURL (caso comum, uma imagem só) ou um `Blob` já pronto (caso
+ * do .zip de várias páginas de panfleto, que nunca faria sentido virar dataURL).
  */
 export async function salvarOuCompartilharArquivo(
-  dataUrl: string,
+  conteudo: string | Blob,
   nomeArquivo: string,
   mime: string,
   tituloCompartilhamento?: string,
 ) {
-  const arquivo = await dataUrlParaArquivo(dataUrl, nomeArquivo, mime);
+  const arquivo = await paraArquivo(conteudo, nomeArquivo, mime);
 
   const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean; share?: (data: { files: File[]; title?: string }) => Promise<void> };
   if (nav.canShare?.({ files: [arquivo] })) {

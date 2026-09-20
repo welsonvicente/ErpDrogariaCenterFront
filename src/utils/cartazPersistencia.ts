@@ -140,6 +140,97 @@ export function limparRascunho() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Panfleto (vários produtos por página) — mesma separação settings/rascunho
+// do Story acima, em chaves próprias.
+
+const CHAVE_CONFIGURACOES_PANFLETO = 'cartazes_flyer_settings_v1';
+
+export interface ConfiguracoesPanfleto {
+  nomeLoja: string;
+  nomeLojaAlinhamento: 'left' | 'center' | 'right';
+  titulo: string;
+  tituloAlinhamento: 'left' | 'center' | 'right';
+  mostrarTextosCabecalho: boolean;
+  mostrarTextosRodape: boolean;
+  textoRodape1: string;
+  textoRodape1Alinhamento: 'left' | 'center' | 'right';
+  textoRodape2: string;
+  textoRodape2Alinhamento: 'left' | 'center' | 'right';
+  qrAlinhamento: 'left' | 'right';
+  link: string;
+  itensPorPagina: number;
+  corLogo: string;
+  corDescricao: string;
+  corPreco: string;
+  corFundoCard: string;
+  tamanhoNome: number;
+  tamanhoPreco: number;
+  tamanhoBorda: number;
+  tamanhoSelo: number;
+  manterFaixaBranca: boolean;
+}
+
+export function carregarConfiguracoesPanfleto(): Partial<ConfiguracoesPanfleto> | null {
+  try {
+    return JSON.parse(localStorage.getItem(CHAVE_CONFIGURACOES_PANFLETO) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+export function salvarConfiguracoesPanfleto(config: ConfiguracoesPanfleto) {
+  try {
+    localStorage.setItem(CHAVE_CONFIGURACOES_PANFLETO, JSON.stringify(config));
+  } catch {
+    /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
+  }
+}
+
+const CHAVE_RASCUNHO_PANFLETO = 'cartazes_flyer_draft_v1';
+
+export interface ProdutoPanfletoRascunho {
+  imgSrc: string;
+  nome: string;
+  de: string;
+  por: string;
+}
+
+export interface RascunhoPanfleto {
+  savedAt: number;
+  produtos: ProdutoPanfletoRascunho[];
+}
+
+export function carregarRascunhoPanfleto(): RascunhoPanfleto | null {
+  try {
+    const raw = localStorage.getItem(CHAVE_RASCUNHO_PANFLETO);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function salvarRascunhoPanfleto(produtos: ProdutoPanfletoRascunho[]) {
+  try {
+    if (produtos.length) {
+      localStorage.setItem(CHAVE_RASCUNHO_PANFLETO, JSON.stringify({ produtos, savedAt: Date.now() }));
+    } else {
+      localStorage.removeItem(CHAVE_RASCUNHO_PANFLETO);
+    }
+  } catch {
+    /* armazenamento indisponível/cheio (comum com várias fotos) — sem rascunho desta vez, sem quebrar nada */
+  }
+}
+
+export function limparRascunhoPanfleto() {
+  try {
+    localStorage.removeItem(CHAVE_RASCUNHO_PANFLETO);
+  } catch {
+    /* nada a limpar */
+  }
+}
+
 export function carregarImagemDeDataUrl(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
