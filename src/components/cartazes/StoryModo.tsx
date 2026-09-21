@@ -83,6 +83,7 @@ export function StoryModo() {
   const [guiaFrases, setGuiaFrases] = useState<Guia>({ y: 560, offsetX: 0 });
   const [caixasPreview, setCaixasPreview] = useState<CaixasStory>({ nome: null, preco: null, frases: null });
   const [elementoSelecionado, setElementoSelecionado] = useState<'nome' | 'preco' | 'frases' | null>(null);
+  const [mostrarInterfaceInstagram, setMostrarInterfaceInstagram] = useState(true);
 
   const [produtosRecentes, setProdutosRecentes] = useState<ProdutoRecente[]>([]);
 
@@ -555,14 +556,44 @@ export function StoryModo() {
 
         <div className="cartaz-preview">
           <div className="cartaz-preview-head">
-            <strong>Prévia em tempo real</strong>
+            <div className="cartaz-preview-title-row">
+              <strong>Prévia em tempo real</strong>
+              <button
+                type="button"
+                className="btn-ghost cartaz-preview-toggle"
+                aria-pressed={mostrarInterfaceInstagram}
+                onClick={() => setMostrarInterfaceInstagram((atual) => !atual)}
+              >
+                {mostrarInterfaceInstagram ? 'Ver imagem final' : 'Simular Instagram'}
+              </button>
+            </div>
             <span>{elementoSelecionado ? 'Item selecionado — arraste para mover ou redimensionar.' : 'Clique em um item da arte para editar.'}</span>
           </div>
-          <div className="cartaz-canvas-frame">
-            <div className="cartaz-canvas-stage" ref={frameRef} onPointerDownCapture={(e) => {
-              if (e.target === canvasRef.current) setElementoSelecionado(null);
-            }}>
-              <canvas ref={canvasRef} width={LARGURA_STORY} height={ALTURA_STORY} className="cartaz-canvas" />
+          <div className="story-phone">
+            <div className="story-phone-speaker" aria-hidden="true" />
+            <div className="cartaz-canvas-frame">
+              <div className="cartaz-canvas-stage" ref={frameRef} onPointerDownCapture={(e) => {
+                if (e.target === canvasRef.current) setElementoSelecionado(null);
+              }}>
+                <canvas ref={canvasRef} width={LARGURA_STORY} height={ALTURA_STORY} className="cartaz-canvas" />
+                {mostrarInterfaceInstagram && (
+                  <div className="instagram-story-ui" aria-hidden="true">
+                    <div className="instagram-safe-content"><span>área segura · 1080 × 1330</span></div>
+                    <div className="instagram-safe-zone instagram-safe-zone--top">
+                      <div className="instagram-progress"><i /><i /><i /></div>
+                      <div className="instagram-profile-row">
+                        <span className="instagram-avatar">P</span>
+                        <span><b>pharmamind</b> · 1 h</span>
+                        <em>•••</em>
+                      </div>
+                      <small>250 px reservados ao perfil</small>
+                    </div>
+                    <div className="instagram-safe-zone instagram-safe-zone--bottom">
+                      <small>340 px reservados a comentários e ações</small>
+                      <div className="instagram-reply">Enviar mensagem...</div>
+                    </div>
+                  </div>
+                )}
               <ElementoStoryEditavel
                 frameRef={frameRef}
                 caixa={caixasPreview.nome}
@@ -605,7 +636,9 @@ export function StoryModo() {
                   if (tamanho !== undefined) setTamanhoFrases(tamanho);
                 }}
               />
+              </div>
             </div>
+            <div className="story-phone-home" aria-hidden="true" />
           </div>
         </div>
       </div>

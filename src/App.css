@@ -758,6 +758,48 @@ table.data-table th {
 .cartaz-preview-head { display: flex; flex-direction: column; gap: 3px; }
 .cartaz-preview-head strong { color: var(--ink); font-size: 15px; }
 .cartaz-preview-head span { color: var(--ink-soft); font-size: 11.5px; line-height: 1.4; }
+.cartaz-preview-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cartaz-preview-toggle { width: auto; margin: 0; padding: 6px 9px; font-size: 11px; white-space: nowrap; }
+.story-phone {
+  position: relative;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 17px 8px 19px;
+  box-sizing: border-box;
+  border: 3px solid #183331;
+  border-radius: 34px;
+  background: linear-gradient(145deg, #20403d, #071b1a 56%, #123331);
+  box-shadow: 0 16px 30px rgba(5, 28, 28, .25), inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.story-phone-speaker {
+  position: absolute;
+  z-index: 4;
+  top: 7px;
+  left: 50%;
+  width: 58px;
+  height: 5px;
+  margin-left: -29px;
+  border-radius: 99px;
+  background: rgba(3, 14, 13, .92);
+}
+.story-phone-home {
+  width: 78px;
+  height: 4px;
+  margin: 8px auto 0;
+  border-radius: 99px;
+  background: rgba(255,255,255,.72);
+}
+.story-phone .cartaz-canvas-frame {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 25px;
+  background: #071b1a;
+  overflow: hidden;
+}
 .cartaz-canvas-frame {
   position: relative;
   background: #0a2422;
@@ -792,6 +834,88 @@ table.data-table th {
   object-fit: contain;
   border-radius: 10px;
   display: block;
+}
+.instagram-story-ui {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  color: #fff;
+  font-family: Inter, sans-serif;
+  font-size: clamp(7px, 2.15vw, 11px);
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0,0,0,.72);
+}
+.instagram-safe-content {
+  position: absolute;
+  top: 13.02%; /* 250 px em uma arte 1080 × 1920 */
+  right: 0;
+  bottom: 17.71%; /* 340 px em uma arte 1080 × 1920 */
+  left: 0;
+  border: 1px dashed rgba(255,255,255,.52);
+  box-shadow: inset 0 0 0 999px rgba(88, 206, 186, .035);
+}
+.instagram-safe-content span {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: rgba(5,28,28,.55);
+  color: rgba(255,255,255,.76);
+  font-size: .78em;
+  letter-spacing: .02em;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.instagram-safe-zone {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+.instagram-safe-zone--top {
+  top: 0;
+  height: 13.02%;
+  padding: 8px 9px 6px;
+  background: linear-gradient(180deg, rgba(4,14,14,.74), rgba(4,14,14,.2));
+  border-bottom: 1px dashed rgba(255,255,255,.45);
+}
+.instagram-progress { display: flex; gap: 3px; }
+.instagram-progress i { flex: 1; height: 2px; border-radius: 5px; background: rgba(255,255,255,.88); }
+.instagram-progress i:not(:first-child) { background: rgba(255,255,255,.48); }
+.instagram-profile-row { display: flex; align-items: center; gap: 5px; margin-top: 7px; }
+.instagram-profile-row b { font-weight: 700; }
+.instagram-profile-row em { margin-left: auto; font-style: normal; font-weight: 800; letter-spacing: 1px; }
+.instagram-avatar {
+  display: grid;
+  width: 19px;
+  height: 19px;
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 50%;
+  place-items: center;
+  background: #6f9b3f;
+  font-size: .8em;
+  font-weight: 800;
+}
+.instagram-safe-zone small { margin-top: auto; color: rgba(255,255,255,.78); font-size: .78em; }
+.instagram-safe-zone--bottom {
+  bottom: 0;
+  height: 17.71%;
+  justify-content: end;
+  padding: 6px 9px 9px;
+  background: linear-gradient(0deg, rgba(4,14,14,.8), rgba(4,14,14,.18));
+  border-top: 1px dashed rgba(255,255,255,.45);
+}
+.instagram-reply {
+  margin-top: 5px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255,255,255,.78);
+  border-radius: 99px;
+  color: rgba(255,255,255,.85);
+  font-size: .92em;
 }
 .cartaz-preview:has(.panfleto-paginacao) .cartaz-canvas { max-height: calc(100vh - 224px); }
 
