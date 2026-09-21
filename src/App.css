@@ -1011,6 +1011,7 @@ table.data-table th {
   position: absolute;
   z-index: 2;
   box-sizing: border-box;
+  overflow: hidden;
   border: 1px solid transparent;
   border-radius: 10px;
   cursor: grab;
@@ -1023,16 +1024,6 @@ table.data-table th {
   border-color: rgba(255, 255, 255, .92);
   box-shadow: 0 0 0 2px rgba(18, 117, 124, .62), 0 4px 16px rgba(5, 28, 28, .24);
 }
-.story-elemento-editavel::before,
-.story-elemento-editavel::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 16px;
-}
-.story-elemento-editavel::before { left: -8px; cursor: ew-resize; }
-.story-elemento-editavel::after { right: -8px; cursor: ew-resize; }
 .story-elemento-editavel.is-selected { cursor: grab; }
 .story-elemento-editavel.is-dragging { cursor: grabbing; }
 .story-alignment-guide {
@@ -1049,22 +1040,23 @@ table.data-table th {
 .story-handle {
   position: absolute;
   top: 50%;
-  width: 14px;
-  height: 14px;
-  margin-top: -7px;
+  width: 10px;
+  height: 10px;
+  box-sizing: border-box;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .72);
+  background: rgba(255, 255, 255, .82);
   border: 1px solid rgba(18, 117, 124, .9);
   box-shadow: 0 1px 5px rgba(5, 28, 28, .3);
 }
-.story-handle--left { left: -8px; cursor: ew-resize; }
-.story-handle--right { right: -8px; cursor: ew-resize; }
-.story-handle--top-left { left: -8px; top: -8px; margin-top: 0; cursor: nwse-resize; }
-.story-handle--top { left: 50%; top: -8px; margin: 0 0 0 -7px; cursor: ns-resize; }
-.story-handle--top-right { right: -8px; top: -8px; margin-top: 0; cursor: nesw-resize; }
-.story-handle--bottom-left { left: -8px; bottom: -8px; top: auto; margin-top: 0; cursor: nesw-resize; }
-.story-handle--bottom { left: 50%; bottom: -8px; top: auto; margin: 0 0 0 -7px; cursor: ns-resize; }
-.story-handle--bottom-right { right: -8px; bottom: -8px; top: auto; margin-top: 0; cursor: nwse-resize; }
+/* As alças ficam DENTRO da caixa pintada: a seleção nunca mede mais do que o item. */
+.story-handle--left { left: 2px; transform: translateY(-50%); cursor: ew-resize; }
+.story-handle--right { right: 2px; transform: translateY(-50%); cursor: ew-resize; }
+.story-handle--top-left { left: 2px; top: 2px; cursor: nwse-resize; }
+.story-handle--top { left: 50%; top: 2px; transform: translateX(-50%); cursor: ns-resize; }
+.story-handle--top-right { right: 2px; top: 2px; cursor: nesw-resize; }
+.story-handle--bottom-left { left: 2px; bottom: 2px; top: auto; cursor: nesw-resize; }
+.story-handle--bottom { left: 50%; bottom: 2px; top: auto; transform: translateX(-50%); cursor: ns-resize; }
+.story-handle--bottom-right { right: 2px; bottom: 2px; top: auto; cursor: nwse-resize; }
 
 .cartaz-ajuste-contextual {
   margin-top: 18px;
