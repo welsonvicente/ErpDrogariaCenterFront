@@ -15,6 +15,7 @@ import { ManagerDashboardPage } from './pages/ManagerDashboardPage';
 import { ManagerFuncionariosPage } from './pages/ManagerFuncionariosPage';
 import { ManagerLoginPage } from './pages/ManagerLoginPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
+import { OrganizationRequiredPage } from './pages/OrganizationRequiredPage';
 import { RegisterOrganizationPage } from './pages/RegisterOrganizationPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -64,6 +65,20 @@ function App() {
         {/* Login geral: o gerente entra com e-mail+senha sem saber o slug da organização de antemão. */}
         <Route path="/" element={<OrganizationLoginPage />} />
         <Route path="/cadastro" element={<RegisterOrganizationPage />} />
+
+        {/*
+          Links sem o slug da empresa (por exemplo, "/funcionario") não podem
+          cair em ":orgSlug": nesse caso a palavra "funcionario" seria lida
+          como uma organização. Primeiro pedimos o contexto e então levamos ao
+          login apropriado, preservando a rota de ferramentas solicitada.
+        */}
+        <Route path="funcionario/*" element={<OrganizationRequiredPage entrada="funcionario" />} />
+        <Route path="gerente/*" element={<OrganizationRequiredPage entrada="gerente" />} />
+        <Route path="gestor/*" element={<OrganizationRequiredPage entrada="gerente" />} />
+        <Route path="cartazes/*" element={<OrganizationRequiredPage entrada="ferramenta" />} />
+        <Route path="folgas/*" element={<OrganizationRequiredPage entrada="ferramenta" />} />
+        <Route path="ferramentas/*" element={<OrganizationRequiredPage entrada="ferramenta" />} />
+        <Route path="configuracoes/*" element={<OrganizationRequiredPage entrada="gerente" />} />
 
         <Route path=":orgSlug" element={<OrgLayout />}>
           {/* Entrada pública do funcionário (terminal do balcão): pede código+PIN direto, sem tela intermediária. */}
