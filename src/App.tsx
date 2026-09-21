@@ -16,6 +16,7 @@ import { ManagerFuncionariosPage } from './pages/ManagerFuncionariosPage';
 import { ManagerLoginPage } from './pages/ManagerLoginPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { OrganizationRequiredPage } from './pages/OrganizationRequiredPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { RegisterOrganizationPage } from './pages/RegisterOrganizationPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -150,12 +151,12 @@ function App() {
           */}
           <Route path="gestor/*" element={<RedirecionaGestorParaGerente />} />
 
-          {/* Qualquer outro caminho dentro da organização volta pra entrada dela. */}
-          <Route path="*" element={<Navigate to="." replace />} />
+          {/* Uma rota inválida da organização não pode cair no login por PIN. */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
 
-        {/* Fora de uma organização, qualquer caminho desconhecido volta pro login geral. */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Fora de uma organização, caminhos desconhecidos também recebem um erro claro. */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>
   );
