@@ -25,7 +25,7 @@
 }
 
 .page {
-  max-width: 1080px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 28px 20px 60px;
 }
@@ -514,7 +514,7 @@ table.data-table th {
 
 .painel-main {
   flex: 1;
-  max-width: 1080px;
+  max-width: 1440px;
   width: 100%;
   margin: 0 auto;
   padding: 28px 24px 60px;
