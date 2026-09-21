@@ -774,11 +774,21 @@ table.data-table th {
   overflow: hidden;
   margin: 0 auto;
 }
-.cartaz-canvas {
-  width: auto;
+.cartaz-canvas-stage {
+  position: relative;
+  display: inline-block;
+  /* O canvas do Story é limitado pela altura da janela. Definir a mesma
+     proporção aqui impede que as alças usem a largura maior do contêiner. */
+  width: min(100%, calc((100vh - 180px) * 9 / 16));
   max-width: 100%;
-  height: auto;
-  max-height: calc(100vh - 180px);
+  aspect-ratio: 9 / 16;
+  line-height: 0;
+}
+.cartaz-canvas {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
   object-fit: contain;
   border-radius: 10px;
   display: block;
@@ -1185,6 +1195,7 @@ table.data-table th {
   .cartaz-preview { position: static; max-height: none; overflow: visible; }
   .cartaz-canvas-frame { max-height: none; overflow: visible; }
   .cartaz-canvas { max-height: none; }
+  .cartaz-canvas-stage { width: 100%; }
   .cartaz-canvas-frame--panfleto { max-width: 720px; }
 }
 

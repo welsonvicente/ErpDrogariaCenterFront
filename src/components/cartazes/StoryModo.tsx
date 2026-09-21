@@ -558,52 +558,54 @@ export function StoryModo() {
             <strong>Prévia em tempo real</strong>
             <span>{elementoSelecionado ? 'Item selecionado — arraste para mover ou redimensionar.' : 'Clique em um item da arte para editar.'}</span>
           </div>
-          <div className="cartaz-canvas-frame" ref={frameRef} onPointerDownCapture={(e) => {
-            if (e.target === canvasRef.current) setElementoSelecionado(null);
-          }}>
-            <canvas ref={canvasRef} width={LARGURA_STORY} height={ALTURA_STORY} className="cartaz-canvas" />
-            <ElementoStoryEditavel
-              frameRef={frameRef}
-              caixa={caixasPreview.nome}
-              selecionado={elementoSelecionado === 'nome'}
-              descricao="Nome do produto"
-              tamanho={tamanhoNome}
-              tamanhoMinimo={24}
-              tamanhoMaximo={70}
-              onSelecionar={() => setElementoSelecionado('nome')}
-              onAlterar={(caixa, tamanho) => {
-                atualizarGuia(setGuiaNome, caixa);
-                if (tamanho !== undefined) setTamanhoNome(tamanho);
-              }}
-            />
-            <ElementoStoryEditavel
-              frameRef={frameRef}
-              caixa={caixasPreview.preco}
-              selecionado={elementoSelecionado === 'preco'}
-              descricao="Preço da oferta"
-              tamanho={tamanhoPreco}
-              tamanhoMinimo={34}
-              tamanhoMaximo={90}
-              onSelecionar={() => setElementoSelecionado('preco')}
-              onAlterar={(caixa, tamanho) => {
-                atualizarGuia(setGuiaPreco, caixa);
-                if (tamanho !== undefined) setTamanhoPreco(tamanho);
-              }}
-            />
-            <ElementoStoryEditavel
-              frameRef={frameRef}
-              caixa={caixasPreview.frases}
-              selecionado={elementoSelecionado === 'frases'}
-              descricao="Frases extras"
-              tamanho={tamanhoFrases}
-              tamanhoMinimo={18}
-              tamanhoMaximo={50}
-              onSelecionar={() => setElementoSelecionado('frases')}
-              onAlterar={(caixa, tamanho) => {
-                atualizarGuia(setGuiaFrases, caixa);
-                if (tamanho !== undefined) setTamanhoFrases(tamanho);
-              }}
-            />
+          <div className="cartaz-canvas-frame">
+            <div className="cartaz-canvas-stage" ref={frameRef} onPointerDownCapture={(e) => {
+              if (e.target === canvasRef.current) setElementoSelecionado(null);
+            }}>
+              <canvas ref={canvasRef} width={LARGURA_STORY} height={ALTURA_STORY} className="cartaz-canvas" />
+              <ElementoStoryEditavel
+                frameRef={frameRef}
+                caixa={caixasPreview.nome}
+                selecionado={elementoSelecionado === 'nome'}
+                descricao="Nome do produto"
+                tamanho={tamanhoNome}
+                tamanhoMinimo={24}
+                tamanhoMaximo={70}
+                onSelecionar={() => setElementoSelecionado('nome')}
+                onAlterar={(caixa, tamanho) => {
+                  atualizarGuia(setGuiaNome, caixa);
+                  if (tamanho !== undefined) setTamanhoNome(tamanho);
+                }}
+              />
+              <ElementoStoryEditavel
+                frameRef={frameRef}
+                caixa={caixasPreview.preco}
+                selecionado={elementoSelecionado === 'preco'}
+                descricao="Preço da oferta"
+                tamanho={tamanhoPreco}
+                tamanhoMinimo={34}
+                tamanhoMaximo={90}
+                onSelecionar={() => setElementoSelecionado('preco')}
+                onAlterar={(caixa, tamanho) => {
+                  atualizarGuia(setGuiaPreco, caixa);
+                  if (tamanho !== undefined) setTamanhoPreco(tamanho);
+                }}
+              />
+              <ElementoStoryEditavel
+                frameRef={frameRef}
+                caixa={caixasPreview.frases}
+                selecionado={elementoSelecionado === 'frases'}
+                descricao="Frases extras"
+                tamanho={tamanhoFrases}
+                tamanhoMinimo={18}
+                tamanhoMaximo={50}
+                onSelecionar={() => setElementoSelecionado('frases')}
+                onAlterar={(caixa, tamanho) => {
+                  atualizarGuia(setGuiaFrases, caixa);
+                  if (tamanho !== undefined) setTamanhoFrases(tamanho);
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
