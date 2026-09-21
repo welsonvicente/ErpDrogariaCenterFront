@@ -79,6 +79,10 @@ function escaparHtml(valor: CelulaRelatorio) {
   return String(valor).replace(/[&<>"']/g, (caractere) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[caractere]!);
 }
 
+function nomeComparavel(nome: string) {
+  return nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
+}
+
 export function FolgasPage() {
   useDocumentTitle('Folgas');
   const { usuario } = useAuth();
@@ -173,7 +177,17 @@ export function FolgasPage() {
     }
   }, [carregar, ehGestor, estado, salvando, usuario, versao]);
 
-  const colaboradorAtual = estado.employees.find((item) => item.usuarioId === usuario?.id);
+  // Registros antigos de folgas podiam existir antes do vínculo com usuário.
+  // Conservamos o ID como referência principal, mas recuperamos um vínculo
+  // legado por nome quando ele for único — assim uma pessoa que já está na
+  // escala não perde o próprio saldo após atualização ou promoção de papel.
+  const colaboradorAtual = usuario
+    ? estado.employees.find((item) => item.usuarioId === usuario.id)
+      ?? (() => {
+        const mesmosNomes = estado.employees.filter((item) => nomeComparavel(item.name) === nomeComparavel(usuario.nome));
+        return mesmosNomes.length === 1 ? mesmosNomes[0] : undefined;
+      })()
+    : undefined;
   const dentroDoPeriodo = (data: string) => !!data && data.slice(0, 10) >= periodo.inicio && data.slice(0, 10) <= periodo.fim;
   const nomeColaborador = (id: string) => estado.employees.find((item) => item.id === id)?.name ?? '—';
   const hoje = hojeIso();

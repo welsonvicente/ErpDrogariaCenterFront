@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { useLocation } from 'react-router-dom';
 import { areaDaRota, lerSessao, removerSessao, salvarSessao, type AreaSessao } from '../services/api';
 import { authService } from '../services/authService';
+import { perfilService } from '../services/perfilService';
 import type { UsuarioSessao } from '../types';
 
 interface AuthContextValue {
@@ -60,6 +61,30 @@ export function AuthProvider({ orgSlug, children }: { orgSlug: string; children:
     setEstado({ area, usuario: usuarioDaSessaoSalva(orgSlug, area) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug]);
+
+  // Papel e nome podem ter mudado desde o login (por exemplo, alguém promovido
+  // a gerente). A sessão local serve para evitar a tela piscando, mas não pode
+  // congelar a interface numa permissão antiga até o próximo login.
+  useEffect(() => {
+    const sessao = lerSessao(area);
+    if (!sessao || sessao.orgSlug !== orgSlug) return;
+
+    let ativo = true;
+    perfilService.getMe()
+      .then((usuarioAtual) => {
+        if (!ativo) return;
+        salvarSessao(area, { ...sessao, usuario: usuarioAtual });
+        setEstado({ area, usuario: usuarioAtual });
+      })
+      .catch(() => {
+        // Se a rede cair, a sessão local ainda mantém a experiência disponível.
+        // A API continua sendo a autoridade de segurança em toda requisição.
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [area, orgSlug]);
 
   async function login(email: string, senha: string) {
     const { token, usuario: usuarioLogado } = await authService.login(orgSlug, email, senha);
