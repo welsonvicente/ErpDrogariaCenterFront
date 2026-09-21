@@ -25,10 +25,9 @@ function usuarioDaSessaoSalva(orgSlug: string, area: AreaSessao): UsuarioSessao 
 /**
  * Provedor de sessão escopado a uma organização (o slug vem da URL, ver
  * OrgLayout.tsx) e à área atual — gerente ou funcionário, derivada do
- * caminho (ver `areaDaRota` em services/api.ts). Gerente e funcionário usam
- * chaves de sessão separadas: assim, entrar como funcionário numa aba (ou
- * navegar pra tela de funcionário) nunca reaproveita nem sobrescreve a
- * sessão de quem está logado como gerente, e vice-versa.
+ * caminho (ver `areaDaRota` em services/api.ts). As chaves continuam
+ * separadas para cada área, mas o login é exclusivo: autenticar uma nova
+ * identidade remove a sessão da outra área no navegador inteiro.
  */
 export function AuthProvider({ orgSlug, children }: { orgSlug: string; children: ReactNode }) {
   const location = useLocation();
@@ -86,20 +85,46 @@ export function AuthProvider({ orgSlug, children }: { orgSlug: string; children:
     };
   }, [area, orgSlug]);
 
+  // `storage` não dispara na aba que fez a alteração, mas dispara nas demais.
+  // Assim, quando alguém troca o login em outra aba, a aba anterior deixa de
+  // exibir conteúdo daquela identidade imediatamente.
+  useEffect(() => {
+    function sincronizarTrocaDeSessao(event: StorageEvent) {
+      if (event.storageArea !== localStorage) return;
+      if (event.key && event.key !== 'drogaria:session:gestor' && event.key !== 'drogaria:session:funcionario') return;
+
+      const sessaoAtual = lerSessao(area);
+      if (!sessaoAtual || sessaoAtual.orgSlug !== orgSlug) {
+        setEstado({ area, usuario: null });
+      }
+    }
+
+    window.addEventListener('storage', sincronizarTrocaDeSessao);
+    return () => window.removeEventListener('storage', sincronizarTrocaDeSessao);
+  }, [area, orgSlug]);
+
   async function login(email: string, senha: string) {
     const { token, usuario: usuarioLogado } = await authService.login(orgSlug, email, senha);
+    // Login de gestão e login de balcão são mutuamente exclusivos no navegador.
+    // Isso impede que uma rota compartilhada (Folgas/Cartazes) reaproveite a
+    // identidade anterior de outra pessoa.
+    removerSessao('funcionario');
     salvarSessao('gerente', { orgSlug, token, usuario: usuarioLogado });
     setUsuario(usuarioLogado);
   }
 
   async function loginFuncionario(codigo: string, pin: string) {
     const { token, usuario: usuarioLogado } = await authService.loginFuncionario(orgSlug, codigo, pin);
+    removerSessao('gerente');
     salvarSessao('funcionario', { orgSlug, token, usuario: usuarioLogado });
     setUsuario(usuarioLogado);
   }
 
   function logout() {
-    removerSessao(area);
+    // Também limpa um eventual resquício de sessão antigo. A partir daqui,
+    // sair de qualquer área deixa o navegador completamente deslogado.
+    removerSessao('gerente');
+    removerSessao('funcionario');
     setUsuario(null);
   }
 
