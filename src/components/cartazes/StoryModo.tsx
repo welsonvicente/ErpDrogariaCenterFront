@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal } from '../CameraModal';
-import { FaixaArrastavel } from '../FaixaArrastavel';
+import { ElementoStoryEditavel } from '../ElementoStoryEditavel';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
 import {
   ALTURA_STORY,
   LARGURA_STORY,
+  calcularCaixasStory,
   fmtMoney,
   montarTituloCompartilhamento,
   pintarStory,
+  type CaixasStory,
+  type CaixaStory,
   type TransformImagem,
 } from '../../utils/cartazEngine';
 import {
@@ -30,6 +33,8 @@ const TRANSFORM_PADRAO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
 interface Guia {
   y: number;
   offsetX: number;
+  x?: number;
+  largura?: number;
 }
 
 /**
@@ -76,6 +81,8 @@ export function StoryModo() {
   const [guiaNome, setGuiaNome] = useState<Guia>({ y: 130, offsetX: 0 });
   const [guiaPreco, setGuiaPreco] = useState<Guia>({ y: 320, offsetX: 0 });
   const [guiaFrases, setGuiaFrases] = useState<Guia>({ y: 560, offsetX: 0 });
+  const [caixasPreview, setCaixasPreview] = useState<CaixasStory>({ nome: null, preco: null, frases: null });
+  const [elementoSelecionado, setElementoSelecionado] = useState<'nome' | 'preco' | 'frases' | null>(null);
 
   const [produtosRecentes, setProdutosRecentes] = useState<ProdutoRecente[]>([]);
 
@@ -211,7 +218,7 @@ export function StoryModo() {
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
-    pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, {
+    const parametros = {
       imagem,
       transformImagem,
       nome: nomeAtivo ? nome.trim() : '',
@@ -225,18 +232,29 @@ export function StoryModo() {
       precoY: guiaPreco.y,
       nomeOffsetX: guiaNome.offsetX,
       precoOffsetX: guiaPreco.offsetX,
+      nomeX: guiaNome.x,
+      nomeLargura: guiaNome.largura,
+      precoX: guiaPreco.x,
+      precoLargura: guiaPreco.largura,
       tamanhoNome,
       tamanhoPreco,
       frases: frasesAtivo ? frases : '',
       frasesY: guiaFrases.y,
       frasesOffsetX: guiaFrases.offsetX,
+      frasesX: guiaFrases.x,
+      frasesLargura: guiaFrases.largura,
       corFundoFrases,
       corTextoFrases,
       tamanhoFrases,
       margemNome,
       margemPreco,
       margemFrases,
-    });
+    };
+    pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, parametros);
+    const proximasCaixas = calcularCaixasStory(ctx, LARGURA_STORY, parametros);
+    setCaixasPreview((atuais) =>
+      JSON.stringify(atuais) === JSON.stringify(proximasCaixas) ? atuais : proximasCaixas,
+    );
   }, [
     imagem,
     transformImagem,
@@ -274,6 +292,10 @@ export function StoryModo() {
   function definirImagem(img: HTMLImageElement, transform: TransformImagem = TRANSFORM_PADRAO) {
     setImagem(img);
     setTransformImagem(transform);
+  }
+
+  function atualizarGuia(setGuia: (atualizar: (atual: Guia) => Guia) => void, caixa: CaixaStory) {
+    setGuia((atual) => ({ ...atual, x: caixa.x, y: caixa.y, largura: caixa.largura }));
   }
 
   async function handleEscolherArquivo(event: ChangeEvent<HTMLInputElement>) {
@@ -407,8 +429,8 @@ export function StoryModo() {
             </button>
           )}
           <p className="footnote" style={{ textAlign: 'left', margin: '-4px 0 14px' }}>
-            Arraste as faixas verde, rosa e escura na prévia (pra qualquer direção) pra escolher onde cada
-            informação vai ficar na foto.
+            Na prévia, clique no próprio nome, preço ou frase. Arraste pelo centro para mover e pelas laterais para
+            ajustar a largura.
           </p>
 
           <label className="cartaz-checkbox">
@@ -539,39 +561,53 @@ export function StoryModo() {
         <div className="cartaz-preview">
           <div className="cartaz-preview-head">
             <strong>Prévia em tempo real</strong>
-            <span>Arraste as faixas para posicionar o conteúdo.</span>
+            <span>Clique no item; arraste pelo centro para mover ou pela borda para redimensionar.</span>
           </div>
-          <div className="cartaz-canvas-frame" ref={frameRef}>
+          <div className="cartaz-canvas-frame" ref={frameRef} onPointerDownCapture={(e) => {
+            if (e.target === canvasRef.current) setElementoSelecionado(null);
+          }}>
             <canvas ref={canvasRef} width={LARGURA_STORY} height={ALTURA_STORY} className="cartaz-canvas" />
-            <FaixaArrastavel
+            <ElementoStoryEditavel
               frameRef={frameRef}
-              y={guiaNome.y}
-              offsetX={guiaNome.offsetX}
-              margem={margemNome}
-              visivel={nomeAtivo}
-              corClasse="faixa-arrasto--nome"
-              rotulo="NOME"
-              onMover={(offsetX, y) => setGuiaNome({ offsetX, y })}
+              caixa={caixasPreview.nome}
+              selecionado={elementoSelecionado === 'nome'}
+              descricao="Nome do produto"
+              tamanho={tamanhoNome}
+              tamanhoMinimo={24}
+              tamanhoMaximo={70}
+              onSelecionar={() => setElementoSelecionado('nome')}
+              onAlterar={(caixa, tamanho) => {
+                atualizarGuia(setGuiaNome, caixa);
+                if (tamanho !== undefined) setTamanhoNome(tamanho);
+              }}
             />
-            <FaixaArrastavel
+            <ElementoStoryEditavel
               frameRef={frameRef}
-              y={guiaPreco.y}
-              offsetX={guiaPreco.offsetX}
-              margem={margemPreco}
-              visivel={precoAtivo}
-              corClasse="faixa-arrasto--preco"
-              rotulo="PREÇO"
-              onMover={(offsetX, y) => setGuiaPreco({ offsetX, y })}
+              caixa={caixasPreview.preco}
+              selecionado={elementoSelecionado === 'preco'}
+              descricao="Preço da oferta"
+              tamanho={tamanhoPreco}
+              tamanhoMinimo={34}
+              tamanhoMaximo={90}
+              onSelecionar={() => setElementoSelecionado('preco')}
+              onAlterar={(caixa, tamanho) => {
+                atualizarGuia(setGuiaPreco, caixa);
+                if (tamanho !== undefined) setTamanhoPreco(tamanho);
+              }}
             />
-            <FaixaArrastavel
+            <ElementoStoryEditavel
               frameRef={frameRef}
-              y={guiaFrases.y}
-              offsetX={guiaFrases.offsetX}
-              margem={margemFrases}
-              visivel={frasesAtivo}
-              corClasse="faixa-arrasto--frases"
-              rotulo="FRASES"
-              onMover={(offsetX, y) => setGuiaFrases({ offsetX, y })}
+              caixa={caixasPreview.frases}
+              selecionado={elementoSelecionado === 'frases'}
+              descricao="Frases extras"
+              tamanho={tamanhoFrases}
+              tamanhoMinimo={18}
+              tamanhoMaximo={50}
+              onSelecionar={() => setElementoSelecionado('frases')}
+              onAlterar={(caixa, tamanho) => {
+                atualizarGuia(setGuiaFrases, caixa);
+                if (tamanho !== undefined) setTamanhoFrases(tamanho);
+              }}
             />
           </div>
         </div>

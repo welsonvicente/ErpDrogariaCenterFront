@@ -38,6 +38,29 @@ export interface ParametrosStory {
   margemNome: number;
   margemPreco: number;
   margemFrases: number;
+  /** Posições/larguras livres usadas pela edição direta no preview. Quando
+   * ausentes, preservam a regra antiga de margem + deslocamento. */
+  nomeX?: number;
+  nomeLargura?: number;
+  precoX?: number;
+  precoLargura?: number;
+  frasesX?: number;
+  frasesLargura?: number;
+}
+
+export interface CaixaStory {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+  larguraMinima: number;
+  alturaMinima: number;
+}
+
+export interface CaixasStory {
+  nome: CaixaStory | null;
+  preco: CaixaStory | null;
+  frases: CaixaStory | null;
 }
 
 export const LARGURA_STORY = 1080;
@@ -184,6 +207,85 @@ function quebrarLinhas(ctx: CanvasRenderingContext2D, texto: string, larguraMax:
   return linhas.slice(0, 3);
 }
 
+function caixaLivre(larguraCanvas: number, margem: number, offsetX: number, xLivre?: number, larguraLivre?: number, larguraMinima = 1) {
+  const largura = Math.max(larguraMinima, Math.min(larguraCanvas, larguraLivre ?? larguraCanvas - margem * 2));
+  const xPadrao = posicaoXFaixa(margem, offsetX, larguraCanvas);
+  const x = Math.max(0, Math.min(larguraCanvas - largura, xLivre ?? xPadrao));
+  return { x, largura };
+}
+
+/**
+ * Mede as caixas realmente desenhadas no story. O preview usa essa mesma
+ * geometria para a seleção direta, portanto a área clicável acompanha o
+ * conteúdo final — não uma faixa genérica maior que o item.
+ */
+export function calcularCaixasStory(ctx: CanvasRenderingContext2D, largura: number, p: ParametrosStory): CaixasStory {
+  let nome: CaixaStory | null = null;
+  let preco: CaixaStory | null = null;
+  let frases: CaixaStory | null = null;
+
+  ctx.save();
+  if (p.nome) {
+    ctx.font = `600 ${p.tamanhoNome}px Fredoka`;
+    const maiorPalavra = Math.max(...p.nome.toUpperCase().split(/\s+/).map((palavra) => ctx.measureText(palavra).width));
+    const larguraMinima = Math.min(largura, maiorPalavra + 60);
+    const caixa = caixaLivre(largura, p.margemNome, p.nomeOffsetX, p.nomeX, p.nomeLargura, larguraMinima);
+    const linhas = quebrarLinhas(ctx, p.nome.toUpperCase(), caixa.largura - 60);
+    const alturaLinha = Math.round(p.tamanhoNome * 1.3);
+    const padVertical = Math.round(p.tamanhoNome * 0.6);
+    nome = {
+      ...caixa,
+      y: p.nomeY,
+      altura: linhas.length * alturaLinha + padVertical * 2,
+      larguraMinima,
+      alturaMinima: alturaLinha + padVertical * 2,
+    };
+  }
+
+  if (p.de || p.por) {
+    const textoDe = p.de ? `De: R$${fmtMoney(p.de)}` : '';
+    const textoPor = p.por ? `Por: R$${fmtMoney(p.por)} ${p.emoji || ''}` : '';
+    ctx.font = `700 ${Math.max(24, p.tamanhoPreco - 8)}px Fredoka`;
+    const larguraDe = textoDe ? ctx.measureText(textoDe).width : 0;
+    ctx.font = `700 ${p.tamanhoPreco}px Fredoka`;
+    const larguraPor = textoPor ? ctx.measureText(textoPor).width : 0;
+    const larguraMinima = Math.min(largura, Math.max(larguraDe, larguraPor) + 72);
+    const caixa = caixaLivre(largura, p.margemPreco, p.precoOffsetX, p.precoX, p.precoLargura, larguraMinima);
+    const alturaLinha = Math.round(p.tamanhoPreco * 1.48);
+    const padVertical = Math.round(p.tamanhoPreco * 0.55);
+    preco = {
+      ...caixa,
+      y: p.precoY,
+      altura: (p.de && p.por ? alturaLinha * 2 : alturaLinha) + padVertical * 2,
+      larguraMinima,
+      alturaMinima: (p.de && p.por ? alturaLinha * 2 : alturaLinha) + padVertical * 2,
+    };
+  }
+
+  const linhasFrases = p.frases
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (linhasFrases.length) {
+    const tamanho = p.tamanhoFrases || 32;
+    const alturaLinha = Math.round(tamanho * 1.375);
+    const padVertical = Math.round(tamanho * 0.625);
+    ctx.font = `600 ${tamanho}px Inter`;
+    const larguraMinima = Math.min(largura, Math.max(...linhasFrases.map((linha) => ctx.measureText(linha).width)) + 60);
+    const caixa = caixaLivre(largura, p.margemFrases, p.frasesOffsetX, p.frasesX, p.frasesLargura, larguraMinima);
+    frases = {
+      ...caixa,
+      y: p.frasesY,
+      altura: linhasFrases.length * alturaLinha + padVertical * 2,
+      larguraMinima,
+      alturaMinima: linhasFrases.length * alturaLinha + padVertical * 2,
+    };
+  }
+  ctx.restore();
+
+  return { nome, preco, frases };
+}
+
 /** Pinta o story inteiro (1080×1920) no contexto dado — usada tanto pro preview ao vivo quanto pra exportar fora de tela. */
 export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altura: number, p: ParametrosStory) {
   ctx.clearRect(0, 0, largura, altura);
@@ -199,16 +301,19 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
     ctx.fillText('Escolha a foto do produto', largura / 2, altura / 2);
   }
 
+  const caixas = calcularCaixasStory(ctx, largura, p);
+
   // Faixa com o nome do produto.
   if (p.nome) {
     ctx.save();
-    const larguraFaixa = largura - p.margemNome * 2;
-    const xFaixa = posicaoXFaixa(p.margemNome, p.nomeOffsetX, largura);
+    const caixa = caixas.nome!;
+    const larguraFaixa = caixa.largura;
+    const xFaixa = caixa.x;
     ctx.font = `600 ${p.tamanhoNome}px Fredoka`;
     const linhas = quebrarLinhas(ctx, p.nome.toUpperCase(), larguraFaixa - 60);
     const alturaLinha = Math.round(p.tamanhoNome * 1.3);
     const padVertical = Math.round(p.tamanhoNome * 0.6);
-    const alturaFaixa = linhas.length * alturaLinha + padVertical * 2;
+    const alturaFaixa = caixa.altura;
 
     ctx.fillStyle = p.corLogo;
     desenharRetanguloArredondado(ctx, xFaixa, p.nomeY, larguraFaixa, alturaFaixa, 28);
@@ -226,14 +331,15 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
   // Faixa de preço.
   if (p.de || p.por) {
     ctx.save();
-    const larguraFaixa = largura - p.margemPreco * 2;
-    const xFaixa = posicaoXFaixa(p.margemPreco, p.precoOffsetX, largura);
+    const caixa = caixas.preco!;
+    const larguraFaixa = caixa.largura;
+    const xFaixa = caixa.x;
     const tamanhoDe = Math.max(24, p.tamanhoPreco - 8);
     const textoDe = p.de ? `De: R$${fmtMoney(p.de)}` : '';
     const textoPor = p.por ? `Por: R$${fmtMoney(p.por)} ${p.emoji || ''}` : '';
     const alturaLinha = Math.round(p.tamanhoPreco * 1.48);
     const padVertical = Math.round(p.tamanhoPreco * 0.55);
-    const alturaFaixa = textoDe && textoPor ? alturaLinha * 2 + padVertical * 2 : alturaLinha + padVertical * 2;
+    const alturaFaixa = caixa.altura;
     const yFaixa = p.precoY;
 
     ctx.fillStyle = '#FBD6E4';
@@ -273,13 +379,14 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
       .filter(Boolean);
     if (linhas.length) {
       ctx.save();
-      const larguraFaixa = largura - p.margemFrases * 2;
-      const xFaixa = posicaoXFaixa(p.margemFrases, p.frasesOffsetX, largura);
+      const caixa = caixas.frases!;
+      const larguraFaixa = caixa.largura;
+      const xFaixa = caixa.x;
       const tamanho = p.tamanhoFrases || 32;
       ctx.font = `600 ${tamanho}px Inter`;
       const alturaLinha = Math.round(tamanho * 1.375);
       const padVertical = Math.round(tamanho * 0.625);
-      const alturaFaixa = linhas.length * alturaLinha + padVertical * 2;
+      const alturaFaixa = caixa.altura;
 
       ctx.fillStyle = p.corFundoFrases || 'rgba(23,60,58,0.82)';
       desenharRetanguloArredondado(ctx, xFaixa, p.frasesY, larguraFaixa, alturaFaixa, 24);

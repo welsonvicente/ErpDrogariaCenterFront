@@ -75,9 +75,9 @@ export interface ConfiguracoesStory {
   corTextoFrases: string;
   tamanhoFrases: number;
   margemFrases: number;
-  guiaNome: { y: number; offsetX: number };
-  guiaPreco: { y: number; offsetX: number };
-  guiaFrases: { y: number; offsetX: number };
+  guiaNome: { y: number; offsetX: number; x?: number; largura?: number };
+  guiaPreco: { y: number; offsetX: number; x?: number; largura?: number };
+  guiaFrases: { y: number; offsetX: number; x?: number; largura?: number };
 }
 
 export function carregarConfiguracoes(): Partial<ConfiguracoesStory> | null {

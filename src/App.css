@@ -824,6 +824,56 @@ table.data-table th {
   text-align: center;
 }
 
+/* Edição direta no Story: a área clicável acompanha a caixa pintada. A moldura
+   só aparece depois do clique, sem faixas, rótulos ou botões sobre a arte. */
+.story-elemento-editavel {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+.story-elemento-editavel:hover,
+.story-elemento-editavel:focus-visible,
+.story-elemento-editavel.is-selected {
+  border-color: rgba(255, 255, 255, .92);
+  box-shadow: 0 0 0 2px rgba(18, 117, 124, .62), 0 4px 16px rgba(5, 28, 28, .24);
+}
+.story-elemento-editavel::before,
+.story-elemento-editavel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+}
+.story-elemento-editavel::before { left: -8px; cursor: ew-resize; }
+.story-elemento-editavel::after { right: -8px; cursor: ew-resize; }
+.story-elemento-editavel.is-selected { cursor: grab; }
+.story-elemento-editavel.is-dragging { cursor: grabbing; }
+.story-handle {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(18, 117, 124, .9);
+  pointer-events: none;
+}
+.story-handle--left { left: -5px; }
+.story-handle--right { right: -5px; }
+.story-handle--top-left { left: -5px; top: -5px; margin-top: 0; }
+.story-handle--top { left: 50%; top: -5px; margin: 0 0 0 -4px; }
+.story-handle--top-right { right: -5px; top: -5px; margin-top: 0; }
+.story-handle--bottom-left { left: -5px; bottom: -5px; top: auto; margin-top: 0; }
+.story-handle--bottom { left: 50%; bottom: -5px; top: auto; margin: 0 0 0 -4px; }
+.story-handle--bottom-right { right: -5px; bottom: -5px; top: auto; margin-top: 0; }
+
 .cartaz-emoji-row {
   display: flex;
   flex-wrap: wrap;
