@@ -144,6 +144,8 @@ export interface RascunhoStory {
   nome: string;
   de: string;
   por: string;
+  imagemExtraSrc?: string | null;
+  imagemExtraCaixa?: { x: number; y: number; largura: number; altura: number; larguraMinima: number; alturaMinima: number } | null;
 }
 
 export function carregarRascunho(): RascunhoStory | null {

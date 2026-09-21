@@ -46,6 +46,8 @@ export interface ParametrosStory {
   precoLargura?: number;
   frasesX?: number;
   frasesLargura?: number;
+  imagemExtra?: HTMLImageElement | null;
+  imagemExtraCaixa?: CaixaStory | null;
 }
 
 export interface CaixaStory {
@@ -61,6 +63,7 @@ export interface CaixasStory {
   nome: CaixaStory | null;
   preco: CaixaStory | null;
   frases: CaixaStory | null;
+  imagemExtra: CaixaStory | null;
 }
 
 export const LARGURA_STORY = 1080;
@@ -223,6 +226,7 @@ export function calcularCaixasStory(ctx: CanvasRenderingContext2D, largura: numb
   let nome: CaixaStory | null = null;
   let preco: CaixaStory | null = null;
   let frases: CaixaStory | null = null;
+  const imagemExtra = p.imagemExtra && p.imagemExtraCaixa ? p.imagemExtraCaixa : null;
 
   ctx.save();
   if (p.nome) {
@@ -283,7 +287,7 @@ export function calcularCaixasStory(ctx: CanvasRenderingContext2D, largura: numb
   }
   ctx.restore();
 
-  return { nome, preco, frases };
+  return { nome, preco, frases, imagemExtra };
 }
 
 /** Pinta o story inteiro (1080×1920) no contexto dado — usada tanto pro preview ao vivo quanto pra exportar fora de tela. */
@@ -400,5 +404,13 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
       });
       ctx.restore();
     }
+  }
+
+  // PNG/logomarca opcional, por cima da arte e com transparência preservada.
+  if (p.imagemExtra && caixas.imagemExtra) {
+    const caixa = caixas.imagemExtra;
+    ctx.save();
+    desenharImagemContain(ctx, p.imagemExtra, caixa.x, caixa.y, caixa.largura, caixa.altura);
+    ctx.restore();
   }
 }

@@ -736,6 +736,21 @@ table.data-table th {
   background: var(--bg);
 }
 .upload-box:hover { border-color: var(--teal); background: var(--mint); color: var(--teal-deep); }
+.cartaz-imagem-extra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 14px;
+  padding: 12px;
+  border: 1px dashed rgba(18, 117, 124, .32);
+  border-radius: 12px;
+  background: rgba(222, 243, 239, .48);
+}
+.cartaz-imagem-extra strong { display: block; color: var(--teal-deep); font-size: 12px; }
+.cartaz-imagem-extra span { display: block; margin-top: 3px; color: var(--ink-soft); font-size: 11px; line-height: 1.35; }
+.cartaz-imagem-extra-actions { display: flex; flex-shrink: 0; gap: 6px; }
+.cartaz-imagem-extra .btn-ghost { width: auto; margin: 0; padding: 7px 9px; font-size: 11px; white-space: nowrap; }
 
 .cartaz-preview {
   display: flex;

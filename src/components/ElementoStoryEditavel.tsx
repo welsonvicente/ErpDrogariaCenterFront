@@ -25,6 +25,7 @@ export function ElementoStoryEditavel({
   tamanho,
   tamanhoMinimo,
   tamanhoMaximo,
+  controlaTipografia = true,
   caixasVizinhas = [],
   onSelecionar,
   onAlterar,
@@ -37,6 +38,7 @@ export function ElementoStoryEditavel({
   tamanho: number;
   tamanhoMinimo: number;
   tamanhoMaximo: number;
+  controlaTipografia?: boolean;
   caixasVizinhas?: CaixaStory[];
   onSelecionar: () => void;
   onAlterar: (caixa: CaixaStory, tamanho?: number) => void;
@@ -108,7 +110,7 @@ export function ElementoStoryEditavel({
     const mexeDireita = estado.lado === 'right' || estado.lado === 'top-right' || estado.lado === 'bottom-right';
     const mexeCima = estado.lado === 'top' || estado.lado === 'top-left' || estado.lado === 'top-right';
     const mexeBaixo = estado.lado === 'bottom' || estado.lado === 'bottom-left' || estado.lado === 'bottom-right';
-    const minAltura = estado.caixa.alturaMinima * (tamanhoMinimo / estado.tamanho);
+    const minAltura = controlaTipografia ? estado.caixa.alturaMinima * (tamanhoMinimo / estado.tamanho) : estado.caixa.alturaMinima;
     let proxima: CaixaStory = { ...estado.caixa };
 
     if (mexeDireita) proxima.largura = Math.max(minLargura, Math.min(LARGURA_STORY - estado.caixa.x, estado.caixa.largura + dx));
@@ -125,7 +127,7 @@ export function ElementoStoryEditavel({
     }
 
     const redimensionouAltura = mexeCima || mexeBaixo;
-    const proximoTamanho = redimensionouAltura
+    const proximoTamanho = redimensionouAltura && controlaTipografia
       ? Math.max(tamanhoMinimo, Math.min(tamanhoMaximo, Math.round(estado.tamanho * (proxima.altura / estado.caixa.altura))))
       : undefined;
     onAlterar(proxima, proximoTamanho);

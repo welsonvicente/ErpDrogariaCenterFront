@@ -37,6 +37,8 @@ interface Guia {
   largura?: number;
 }
 
+type ElementoStory = 'nome' | 'preco' | 'frases' | 'imagemExtra';
+
 /**
  * Gerador de Story (produto único) — reescrita de Cartazes como tela React
  * nativa (ver PLANO-REESCRITA-FERRAMENTAS.md).
@@ -49,8 +51,11 @@ export function StoryModo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const inputArquivoRef = useRef<HTMLInputElement>(null);
+  const inputImagemExtraRef = useRef<HTMLInputElement>(null);
 
   const [imagem, setImagem] = useState<HTMLImageElement | null>(null);
+  const [imagemExtra, setImagemExtra] = useState<HTMLImageElement | null>(null);
+  const [imagemExtraCaixa, setImagemExtraCaixa] = useState<CaixaStory | null>(null);
   const [transformImagem, setTransformImagem] = useState<TransformImagem>(TRANSFORM_PADRAO);
   const [carregandoImagem, setCarregandoImagem] = useState(false);
   const [cameraAberta, setCameraAberta] = useState(false);
@@ -81,8 +86,8 @@ export function StoryModo() {
   const [guiaNome, setGuiaNome] = useState<Guia>({ y: 130, offsetX: 0 });
   const [guiaPreco, setGuiaPreco] = useState<Guia>({ y: 320, offsetX: 0 });
   const [guiaFrases, setGuiaFrases] = useState<Guia>({ y: 560, offsetX: 0 });
-  const [caixasPreview, setCaixasPreview] = useState<CaixasStory>({ nome: null, preco: null, frases: null });
-  const [elementoSelecionado, setElementoSelecionado] = useState<'nome' | 'preco' | 'frases' | null>(null);
+  const [caixasPreview, setCaixasPreview] = useState<CaixasStory>({ nome: null, preco: null, frases: null, imagemExtra: null });
+  const [elementoSelecionado, setElementoSelecionado] = useState<ElementoStory | null>(null);
   const [guiasAlinhamento, setGuiasAlinhamento] = useState<GuiasAlinhamentoStory | null>(null);
   const [mostrarInterfaceInstagram, setMostrarInterfaceInstagram] = useState(true);
 
@@ -136,7 +141,7 @@ export function StoryModo() {
 
     async function restaurarRascunhoSeConfirmado() {
       const rascunho = carregarRascunho();
-      const temAlgo = rascunho && (rascunho.imgSrc || rascunho.nome || rascunho.de || rascunho.por);
+      const temAlgo = rascunho && (rascunho.imgSrc || rascunho.imagemExtraSrc || rascunho.nome || rascunho.de || rascunho.por);
       if (!rascunho || !temAlgo) return;
 
       const quando = rascunho.savedAt ? new Date(rascunho.savedAt).toLocaleString('pt-BR') : '';
@@ -152,6 +157,14 @@ export function StoryModo() {
           setTransformImagem(rascunho.transform || TRANSFORM_PADRAO);
         } catch {
           /* foto do rascunho corrompida — segue sem ela */
+        }
+      }
+      if (rascunho.imagemExtraSrc) {
+        try {
+          setImagemExtra(await carregarImagemDeDataUrl(rascunho.imagemExtraSrc));
+          setImagemExtraCaixa(rascunho.imagemExtraCaixa || null);
+        } catch {
+          /* PNG do rascunho corrompido — segue sem ele */
         }
       }
       setNome(rascunho.nome || '');
@@ -212,10 +225,18 @@ export function StoryModo() {
   useEffect(() => {
     if (!prontoParaPersistir) return;
     const timer = setTimeout(() => {
-      salvarRascunho({ imgSrc: imagem?.src ?? null, transform: transformImagem, nome, de, por });
+      salvarRascunho({
+        imgSrc: imagem?.src ?? null,
+        imagemExtraSrc: imagemExtra?.src ?? null,
+        imagemExtraCaixa,
+        transform: transformImagem,
+        nome,
+        de,
+        por,
+      });
     }, 700);
     return () => clearTimeout(timer);
-  }, [prontoParaPersistir, imagem, transformImagem, nome, de, por]);
+  }, [prontoParaPersistir, imagem, imagemExtra, imagemExtraCaixa, transformImagem, nome, de, por]);
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d');
@@ -245,6 +266,8 @@ export function StoryModo() {
       frasesOffsetX: guiaFrases.offsetX,
       frasesX: guiaFrases.x,
       frasesLargura: guiaFrases.largura,
+      imagemExtra,
+      imagemExtraCaixa,
       corFundoFrases,
       corTextoFrases,
       tamanhoFrases,
@@ -283,6 +306,8 @@ export function StoryModo() {
     margemNome,
     margemPreco,
     margemFrases,
+    imagemExtra,
+    imagemExtraCaixa,
   ]);
 
   useEffect(() => {
@@ -313,6 +338,11 @@ export function StoryModo() {
       setGuiaFrases({ y: 560, offsetX: 0 });
       setTamanhoFrases(32);
     }
+    if (elementoSelecionado === 'imagemExtra' && imagemExtra) {
+      const largura = 240;
+      const altura = Math.max(80, Math.round(largura * ((imagemExtra.naturalHeight || imagemExtra.height) / (imagemExtra.naturalWidth || imagemExtra.width))));
+      setImagemExtraCaixa({ x: LARGURA_STORY - largura - 60, y: 1280, largura, altura, larguraMinima: 56, alturaMinima: 56 });
+    }
   }
 
   async function handleEscolherArquivo(event: ChangeEvent<HTMLInputElement>) {
@@ -325,6 +355,18 @@ export function StoryModo() {
     } finally {
       setCarregandoImagem(false);
     }
+  }
+
+  async function handleEscolherImagemExtra(event: ChangeEvent<HTMLInputElement>) {
+    const arquivo = event.target.files?.[0];
+    event.target.value = '';
+    if (!arquivo) return;
+    const png = await carregarImagemDeArquivo(arquivo);
+    const largura = Math.min(320, Math.max(120, png.naturalWidth || png.width));
+    const altura = Math.max(56, Math.round(largura * ((png.naturalHeight || png.height) / (png.naturalWidth || png.width))));
+    setImagemExtra(png);
+    setImagemExtraCaixa({ x: LARGURA_STORY - largura - 60, y: 1280, largura, altura, larguraMinima: 56, alturaMinima: 56 });
+    setElementoSelecionado('imagemExtra');
   }
 
   function handleUsarProdutoRecente(produto: ProdutoRecente) {
@@ -445,6 +487,23 @@ export function StoryModo() {
               🖼️ Ajustar enquadramento da foto
             </button>
           )}
+          <div className="cartaz-imagem-extra">
+            <div>
+              <strong>Logomarca ou selo</strong>
+              <span>PNG com fundo transparente vira um item livre na arte.</span>
+            </div>
+            <div className="cartaz-imagem-extra-actions">
+              <button type="button" className="btn-ghost" onClick={() => inputImagemExtraRef.current?.click()}>
+                {imagemExtra ? 'Trocar PNG' : '+ Adicionar PNG'}
+              </button>
+              {imagemExtra && <button type="button" className="btn-ghost" onClick={() => {
+                setImagemExtra(null);
+                setImagemExtraCaixa(null);
+                if (elementoSelecionado === 'imagemExtra') setElementoSelecionado(null);
+              }}>Remover</button>}
+            </div>
+            <input ref={inputImagemExtraRef} type="file" accept="image/png" style={{ display: 'none' }} onChange={handleEscolherImagemExtra} />
+          </div>
           <p className="footnote" style={{ textAlign: 'left', margin: '-4px 0 14px' }}>
             Preencha os dados e ajuste a arte diretamente na prévia.
           </p>
@@ -507,12 +566,12 @@ export function StoryModo() {
               <div className="cartaz-ajuste-contextual-head">
                 <div>
                   <span>Ajustando na prévia</span>
-                  <strong>{elementoSelecionado === 'nome' ? 'Nome do produto' : elementoSelecionado === 'preco' ? 'Oferta (De / Por)' : 'Frases extras'}</strong>
+                  <strong>{elementoSelecionado === 'nome' ? 'Nome do produto' : elementoSelecionado === 'preco' ? 'Oferta (De / Por)' : elementoSelecionado === 'frases' ? 'Frases extras' : 'Logomarca ou selo'}</strong>
                 </div>
                 <button type="button" className="btn-ghost" onClick={resetarElementoSelecionado}>Redefinir</button>
               </div>
               <p>Arraste o centro para mover. Use as bordas ou os pontos para redimensionar.</p>
-              <div className="field-row">
+              {elementoSelecionado !== 'imagemExtra' && <div className="field-row">
                 <div className="field">
                   <label>Tamanho {elementoSelecionado === 'nome' ? tamanhoNome : elementoSelecionado === 'preco' ? tamanhoPreco : tamanhoFrases}px</label>
                   <input
@@ -537,7 +596,7 @@ export function StoryModo() {
                   <div className="field"><label>Fundo</label><input type="color" value={corFundoFrases} onChange={(e) => setCorFundoFrases(e.target.value)} /></div>
                   <div className="field"><label>Texto</label><input type="color" value={corTextoFrases} onChange={(e) => setCorTextoFrases(e.target.value)} /></div>
                 </>}
-              </div>
+              </div>}
             </section>
           )}
 
@@ -608,7 +667,7 @@ export function StoryModo() {
                 tamanho={tamanhoNome}
                 tamanhoMinimo={24}
                 tamanhoMaximo={70}
-                caixasVizinhas={[caixasPreview.preco, caixasPreview.frases].filter((caixa): caixa is CaixaStory => caixa !== null)}
+                caixasVizinhas={[caixasPreview.preco, caixasPreview.frases, caixasPreview.imagemExtra].filter((caixa): caixa is CaixaStory => caixa !== null)}
                 onSelecionar={() => setElementoSelecionado('nome')}
                 onGuiasAlinhadas={setGuiasAlinhamento}
                 onAlterar={(caixa, tamanho) => {
@@ -624,7 +683,7 @@ export function StoryModo() {
                 tamanho={tamanhoPreco}
                 tamanhoMinimo={34}
                 tamanhoMaximo={90}
-                caixasVizinhas={[caixasPreview.nome, caixasPreview.frases].filter((caixa): caixa is CaixaStory => caixa !== null)}
+                caixasVizinhas={[caixasPreview.nome, caixasPreview.frases, caixasPreview.imagemExtra].filter((caixa): caixa is CaixaStory => caixa !== null)}
                 onSelecionar={() => setElementoSelecionado('preco')}
                 onGuiasAlinhadas={setGuiasAlinhamento}
                 onAlterar={(caixa, tamanho) => {
@@ -640,13 +699,27 @@ export function StoryModo() {
                 tamanho={tamanhoFrases}
                 tamanhoMinimo={18}
                 tamanhoMaximo={50}
-                caixasVizinhas={[caixasPreview.nome, caixasPreview.preco].filter((caixa): caixa is CaixaStory => caixa !== null)}
+                caixasVizinhas={[caixasPreview.nome, caixasPreview.preco, caixasPreview.imagemExtra].filter((caixa): caixa is CaixaStory => caixa !== null)}
                 onSelecionar={() => setElementoSelecionado('frases')}
                 onGuiasAlinhadas={setGuiasAlinhamento}
                 onAlterar={(caixa, tamanho) => {
                   atualizarGuia(setGuiaFrases, caixa);
                   if (tamanho !== undefined) setTamanhoFrases(tamanho);
                 }}
+              />
+              <ElementoStoryEditavel
+                frameRef={frameRef}
+                caixa={caixasPreview.imagemExtra}
+                selecionado={elementoSelecionado === 'imagemExtra'}
+                descricao="Logomarca ou selo"
+                tamanho={1}
+                tamanhoMinimo={1}
+                tamanhoMaximo={1}
+                controlaTipografia={false}
+                caixasVizinhas={[caixasPreview.nome, caixasPreview.preco, caixasPreview.frases].filter((caixa): caixa is CaixaStory => caixa !== null)}
+                onSelecionar={() => setElementoSelecionado('imagemExtra')}
+                onGuiasAlinhadas={setGuiasAlinhamento}
+                onAlterar={(caixa) => setImagemExtraCaixa(caixa)}
               />
               </div>
             </div>
