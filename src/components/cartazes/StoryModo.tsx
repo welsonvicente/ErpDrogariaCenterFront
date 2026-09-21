@@ -407,7 +407,7 @@ export function StoryModo() {
             </button>
           )}
           <p className="footnote" style={{ textAlign: 'left', margin: '-4px 0 14px' }}>
-            Arraste as faixas verde, rosa e escura no preview ao lado (pra qualquer direção) pra escolher onde cada
+            Arraste as faixas verde, rosa e escura na prévia (pra qualquer direção) pra escolher onde cada
             informação vai ficar na foto.
           </p>
 
@@ -522,19 +522,25 @@ export function StoryModo() {
             <input type="range" min={0} max={180} value={margemFrases} onChange={(e) => setMargemFrases(Number(e.target.value))} />
           </div>
 
-          <button className="btn-primary" onClick={handleBaixar} disabled={salvando} style={{ width: '100%' }}>
-            {salvando ? 'Preparando...' : '⬇️ Baixar ou compartilhar (WhatsApp etc.)'}
-          </button>
-          <button className="btn-ghost" onClick={handleBaixarDireto} disabled={salvandoDireto} style={{ width: '100%', marginTop: 8 }}>
-            {salvandoDireto ? 'Preparando...' : '💾 Salvar direto no computador'}
-          </button>
-          <button className="btn-ghost" onClick={handleCopiarTexto} style={{ width: '100%', marginTop: 8 }}>
-            📋 Copiar texto pronto (WhatsApp/Instagram)
-          </button>
+          <div className="cartaz-actions">
+            <button className="btn-primary" onClick={handleBaixar} disabled={salvando}>
+              {salvando ? 'Preparando...' : '⬇️ Baixar ou compartilhar (WhatsApp etc.)'}
+            </button>
+            <button className="btn-ghost" onClick={handleBaixarDireto} disabled={salvandoDireto}>
+              {salvandoDireto ? 'Preparando...' : '💾 Salvar direto no computador'}
+            </button>
+            <button className="btn-ghost" onClick={handleCopiarTexto}>
+              📋 Copiar texto pronto (WhatsApp/Instagram)
+            </button>
+          </div>
           <p className="footnote">Formato 1080×1920 — pronto pra postar no Instagram/WhatsApp Status.</p>
         </div>
 
         <div className="cartaz-preview">
+          <div className="cartaz-preview-head">
+            <strong>Prévia em tempo real</strong>
+            <span>Arraste as faixas para posicionar o conteúdo.</span>
+          </div>
           <div className="cartaz-canvas-frame" ref={frameRef}>
             <canvas ref={canvasRef} width={LARGURA_STORY} height={ALTURA_STORY} className="cartaz-canvas" />
             <FaixaArrastavel

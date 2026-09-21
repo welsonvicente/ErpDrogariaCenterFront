@@ -298,9 +298,9 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
 
   return (
     <>
-      <div className="card cartaz-painel" style={{ marginBottom: 20 }}>
+      <div className="card cartaz-painel">
         <h3 className="cartaz-titulo-secao">Importar planilha (.xls ou .xlsx)</h3>
-        <label className="upload-box" style={{ display: 'block', cursor: 'pointer', maxWidth: 420 }} onClick={() => inputPlanilhaRef.current?.click()}>
+        <label className="upload-box cartaz-upload-planilha" onClick={() => inputPlanilhaRef.current?.click()}>
           📊 Clique para escolher o arquivo da planilha
         </label>
         <input ref={inputPlanilhaRef} type="file" accept=".xls,.xlsx" style={{ display: 'none' }} onChange={handleEscolherPlanilha} />
@@ -338,7 +338,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
             <textarea rows={4} value={eanColada} onChange={(e) => setEanColada(e.target.value)} placeholder={'7894164000050\n...'} />
           </div>
         </div>
-        <button type="button" className="btn-ghost" onClick={handleAdicionarColados}>
+        <button type="button" className="btn-primary cartaz-import-action" onClick={handleAdicionarColados}>
           + Adicionar produtos colados
         </button>
       </div>

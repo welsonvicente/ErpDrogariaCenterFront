@@ -873,23 +873,31 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos }: PanfletoM
             <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Ex: https://wa.me/5511999999999" />
           </div>
 
-          <button type="button" className="btn-ghost" style={{ width: '100%' }} onClick={handleBaixarPanfleto} disabled={salvando}>
-            {salvando ? 'Gerando…' : '⬇️ Baixar ou compartilhar (WhatsApp etc.)'}
-          </button>
-          <button type="button" className="btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={handleBaixarPanfletoDireto} disabled={salvandoDireto}>
-            {salvandoDireto ? 'Gerando…' : '💾 Salvar direto no computador'}
-          </button>
+          <div className="cartaz-actions">
+            <button type="button" className="btn-ghost" onClick={handleBaixarPanfleto} disabled={salvando}>
+              {salvando ? 'Gerando…' : '⬇️ Baixar ou compartilhar (WhatsApp etc.)'}
+            </button>
+            <button type="button" className="btn-primary" onClick={handleBaixarPanfletoDireto} disabled={salvandoDireto}>
+              {salvandoDireto ? 'Gerando…' : '💾 Salvar direto no computador'}
+            </button>
+          </div>
           <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
             "Salvar direto no computador" vai sem passar pela folha de compartilhar — cai certinho na pasta de
             Downloads.
           </p>
-          <button type="button" className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={handleCopiarTexto}>
-            📋 Copiar texto pronto (WhatsApp/Instagram)
-          </button>
+          <div className="cartaz-actions cartaz-actions--single">
+            <button type="button" className="btn-ghost" onClick={handleCopiarTexto}>
+              📋 Copiar texto pronto (WhatsApp/Instagram)
+            </button>
+          </div>
           <p className="footnote">Sem limite de gerações. Adicione quantos produtos quiser — o layout se ajusta sozinho.</p>
         </div>
 
         <div className="cartaz-preview">
+          <div className="cartaz-preview-head">
+            <strong>Prévia em tempo real</strong>
+            <span>O panfleto se atualiza conforme você edita.</span>
+          </div>
           <div className="cartaz-canvas-frame cartaz-canvas-frame--panfleto">
             <canvas ref={canvasRef} className="cartaz-canvas cartaz-canvas--panfleto" />
           </div>
