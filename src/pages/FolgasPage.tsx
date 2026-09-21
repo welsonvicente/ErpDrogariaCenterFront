@@ -494,14 +494,19 @@ export function FolgasPage() {
               </div>
             </div>
 
-            <div className="folgas-toolbar">
-              <button type="button" className="btn-ghost" onClick={() => void abrirColaboradores()}>👤 Colaboradores</button>
-              <button type="button" className="btn-ghost" onClick={abrirAfastamentos}>🏖️ Férias / atestados</button>
-              <button type="button" className="btn-ghost" onClick={() => setModal('bloqueios')}>🚫 Bloquear dias</button>
-              <button type="button" className="btn-primary" onClick={abrirCredito}>＋ Registrar crédito</button>
-              <button type="button" className="btn-ghost" onClick={() => exportarExcel(todosRelatorios)}>📊 Excel completo</button>
-              <button type="button" className="btn-ghost" onClick={() => exportarPdf(todosRelatorios)}>📄 PDF completo</button>
-              <button type="button" className="btn-ghost" onClick={() => setModal('auditoria')}>📋 Auditoria</button>
+            <div className="folgas-toolbar" aria-label="Ações da gestão de folgas">
+              <div className="folgas-toolbar-group">
+                <button type="button" className="btn-ghost" onClick={() => void abrirColaboradores()}>👤 Colaboradores</button>
+                <button type="button" className="btn-ghost" onClick={abrirAfastamentos}>🏖️ Férias / atestados</button>
+                <button type="button" className="btn-ghost" onClick={() => setModal('bloqueios')}>🚫 Bloquear dias</button>
+                <button type="button" className="btn-primary" onClick={abrirCredito}>＋ Registrar crédito</button>
+              </div>
+              <span className="folgas-toolbar-divider" aria-hidden="true" />
+              <div className="folgas-toolbar-group folgas-toolbar-group--reports">
+                <button type="button" className="btn-ghost" onClick={() => exportarExcel(todosRelatorios)}>📊 Excel completo</button>
+                <button type="button" className="btn-ghost" onClick={() => exportarPdf(todosRelatorios)}>📄 PDF completo</button>
+                <button type="button" className="btn-ghost" onClick={() => setModal('auditoria')}>📋 Auditoria</button>
+              </div>
             </div>
 
             <div className="folgas-stats">
