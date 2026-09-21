@@ -298,6 +298,21 @@ export function StoryModo() {
     setGuia((atual) => ({ ...atual, x: caixa.x, y: caixa.y, largura: caixa.largura }));
   }
 
+  function resetarElementoSelecionado() {
+    if (elementoSelecionado === 'nome') {
+      setGuiaNome({ y: 130, offsetX: 0 });
+      setTamanhoNome(40);
+    }
+    if (elementoSelecionado === 'preco') {
+      setGuiaPreco({ y: 320, offsetX: 0 });
+      setTamanhoPreco(62);
+    }
+    if (elementoSelecionado === 'frases') {
+      setGuiaFrases({ y: 560, offsetX: 0 });
+      setTamanhoFrases(32);
+    }
+  }
+
   async function handleEscolherArquivo(event: ChangeEvent<HTMLInputElement>) {
     const arquivo = event.target.files?.[0];
     event.target.value = ''; // permite escolher o mesmo arquivo de novo depois
@@ -429,8 +444,7 @@ export function StoryModo() {
             </button>
           )}
           <p className="footnote" style={{ textAlign: 'left', margin: '-4px 0 14px' }}>
-            Na prévia, clique no próprio nome, preço ou frase. Arraste pelo centro para mover e pelas laterais para
-            ajustar a largura.
+            Preencha os dados e ajuste a arte diretamente na prévia.
           </p>
 
           <label className="cartaz-checkbox">
@@ -438,7 +452,7 @@ export function StoryModo() {
             produto na imagem
           </label>
           <div className="field">
-            <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Johnson's Baby Sabonete 180ml" />
+            <input value={nome} onFocus={() => setElementoSelecionado('nome')} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Johnson's Baby Sabonete 180ml" />
           </div>
 
           <label className="cartaz-checkbox">
@@ -448,11 +462,11 @@ export function StoryModo() {
           <div className="field-row">
             <div className="field">
               <label>De (R$)</label>
-              <input type="number" step="0.01" value={de} onChange={(e) => setDe(e.target.value)} placeholder="15,99" />
+              <input type="number" step="0.01" value={de} onFocus={() => setElementoSelecionado('preco')} onChange={(e) => setDe(e.target.value)} placeholder="15,99" />
             </div>
             <div className="field">
               <label>Por (R$)</label>
-              <input type="number" step="0.01" value={por} onChange={(e) => setPor(e.target.value)} placeholder="9,99" />
+              <input type="number" step="0.01" value={por} onFocus={() => setElementoSelecionado('preco')} onChange={(e) => setPor(e.target.value)} placeholder="9,99" />
             </div>
           </div>
 
@@ -472,46 +486,6 @@ export function StoryModo() {
             </div>
           </div>
 
-          <div className="field-row">
-            <div className="field">
-              <label>Cor do logo/nome</label>
-              <input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Cor do texto do nome</label>
-              <input type="color" value={corTextoNome} onChange={(e) => setCorTextoNome(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Cor do preço</label>
-              <input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="field-row">
-            <div className="field">
-              <label>Tamanho do nome {tamanhoNome}px</label>
-              <input type="range" min={24} max={70} value={tamanhoNome} onChange={(e) => setTamanhoNome(Number(e.target.value))} />
-            </div>
-            <div className="field">
-              <label>Tamanho do preço {tamanhoPreco}px</label>
-              <input type="range" min={34} max={90} value={tamanhoPreco} onChange={(e) => setTamanhoPreco(Number(e.target.value))} />
-            </div>
-          </div>
-          <div className="field-row">
-            <div className="field">
-              <label>Margem lateral do nome {margemNome}px</label>
-              <input type="range" min={0} max={180} value={margemNome} onChange={(e) => setMargemNome(Number(e.target.value))} />
-            </div>
-            <div className="field">
-              <label>Margem lateral do preço {margemPreco}px</label>
-              <input type="range" min={0} max={180} value={margemPreco} onChange={(e) => setMargemPreco(Number(e.target.value))} />
-            </div>
-          </div>
-          <p className="footnote" style={{ textAlign: 'left', margin: '-6px 0 12px' }}>
-            Margem menor = a faixa fica mais colada nas bordas. O tamanho da letra continua controlado só pelos
-            controles de "Tamanho" acima — um não mexe no outro.
-          </p>
-
           <label className="cartaz-checkbox">
             <input type="checkbox" checked={frasesAtivo} onChange={(e) => setFrasesAtivo(e.target.checked)} /> Usar frases
             extras na imagem
@@ -521,28 +495,49 @@ export function StoryModo() {
             <textarea
               rows={2}
               value={frases}
+              onFocus={() => setElementoSelecionado('frases')}
               onChange={(e) => setFrases(e.target.value)}
               placeholder={'Chama! Entrega grátis\n(81) 99913-7573'}
             />
           </div>
-          <div className="field-row">
-            <div className="field">
-              <label>Cor de fundo das frases</label>
-              <input type="color" value={corFundoFrases} onChange={(e) => setCorFundoFrases(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Cor do texto das frases</label>
-              <input type="color" value={corTextoFrases} onChange={(e) => setCorTextoFrases(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Tamanho {tamanhoFrases}px</label>
-              <input type="range" min={18} max={50} value={tamanhoFrases} onChange={(e) => setTamanhoFrases(Number(e.target.value))} />
-            </div>
-          </div>
-          <div className="field">
-            <label>Margem lateral das frases {margemFrases}px</label>
-            <input type="range" min={0} max={180} value={margemFrases} onChange={(e) => setMargemFrases(Number(e.target.value))} />
-          </div>
+          {elementoSelecionado && (
+            <section className="cartaz-ajuste-contextual" aria-live="polite">
+              <div className="cartaz-ajuste-contextual-head">
+                <div>
+                  <span>Ajustando na prévia</span>
+                  <strong>{elementoSelecionado === 'nome' ? 'Nome do produto' : elementoSelecionado === 'preco' ? 'Oferta (De / Por)' : 'Frases extras'}</strong>
+                </div>
+                <button type="button" className="btn-ghost" onClick={resetarElementoSelecionado}>Redefinir</button>
+              </div>
+              <p>Arraste o centro para mover. Use as bordas ou os pontos para redimensionar.</p>
+              <div className="field-row">
+                <div className="field">
+                  <label>Tamanho {elementoSelecionado === 'nome' ? tamanhoNome : elementoSelecionado === 'preco' ? tamanhoPreco : tamanhoFrases}px</label>
+                  <input
+                    type="range"
+                    min={elementoSelecionado === 'nome' ? 24 : elementoSelecionado === 'preco' ? 34 : 18}
+                    max={elementoSelecionado === 'nome' ? 70 : elementoSelecionado === 'preco' ? 90 : 50}
+                    value={elementoSelecionado === 'nome' ? tamanhoNome : elementoSelecionado === 'preco' ? tamanhoPreco : tamanhoFrases}
+                    onChange={(e) => {
+                      const valor = Number(e.target.value);
+                      if (elementoSelecionado === 'nome') setTamanhoNome(valor);
+                      if (elementoSelecionado === 'preco') setTamanhoPreco(valor);
+                      if (elementoSelecionado === 'frases') setTamanhoFrases(valor);
+                    }}
+                  />
+                </div>
+                {elementoSelecionado === 'nome' && <>
+                  <div className="field"><label>Fundo</label><input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} /></div>
+                  <div className="field"><label>Texto</label><input type="color" value={corTextoNome} onChange={(e) => setCorTextoNome(e.target.value)} /></div>
+                </>}
+                {elementoSelecionado === 'preco' && <div className="field"><label>Texto</label><input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} /></div>}
+                {elementoSelecionado === 'frases' && <>
+                  <div className="field"><label>Fundo</label><input type="color" value={corFundoFrases} onChange={(e) => setCorFundoFrases(e.target.value)} /></div>
+                  <div className="field"><label>Texto</label><input type="color" value={corTextoFrases} onChange={(e) => setCorTextoFrases(e.target.value)} /></div>
+                </>}
+              </div>
+            </section>
+          )}
 
           <div className="cartaz-actions">
             <button className="btn-primary" onClick={handleBaixar} disabled={salvando}>
@@ -561,7 +556,7 @@ export function StoryModo() {
         <div className="cartaz-preview">
           <div className="cartaz-preview-head">
             <strong>Prévia em tempo real</strong>
-            <span>Clique no item; arraste pelo centro para mover ou pela borda para redimensionar.</span>
+            <span>{elementoSelecionado ? 'Item selecionado — arraste para mover ou redimensionar.' : 'Clique em um item da arte para editar.'}</span>
           </div>
           <div className="cartaz-canvas-frame" ref={frameRef} onPointerDownCapture={(e) => {
             if (e.target === canvasRef.current) setElementoSelecionado(null);

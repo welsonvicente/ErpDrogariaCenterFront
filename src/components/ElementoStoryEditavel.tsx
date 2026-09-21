@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent, type RefObject } from 'react';
+import { useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import { ALTURA_STORY, LARGURA_STORY, type CaixaStory } from '../utils/cartazEngine';
 
 type Lado = 'move' | 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -115,6 +115,26 @@ export function ElementoStoryEditavel({
     setArrastando(false);
   }
 
+  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      onSelecionar();
+      e.preventDefault();
+      return;
+    }
+    const passo = e.shiftKey ? 20 : 8;
+    const movimentos: Record<string, Partial<CaixaStory>> = {
+      ArrowLeft: { x: Math.max(0, caixaAtiva.x - passo) },
+      ArrowRight: { x: Math.min(LARGURA_STORY - caixaAtiva.largura, caixaAtiva.x + passo) },
+      ArrowUp: { y: Math.max(0, caixaAtiva.y - passo) },
+      ArrowDown: { y: Math.min(ALTURA_STORY - caixaAtiva.altura, caixaAtiva.y + passo) },
+    };
+    if (movimentos[e.key]) {
+      onSelecionar();
+      onAlterar({ ...caixaAtiva, ...movimentos[e.key] });
+      e.preventDefault();
+    }
+  }
+
   return (
     <div
       className={`story-elemento-editavel${selecionado ? ' is-selected' : ''}${arrastando ? ' is-dragging' : ''}`}
@@ -131,6 +151,7 @@ export function ElementoStoryEditavel({
       onPointerMove={handlePointerMove}
       onPointerUp={encerrar}
       onPointerCancel={encerrar}
+      onKeyDown={handleKeyDown}
     >
       {selecionado && <>
         <i className="story-handle story-handle--top-left" /><i className="story-handle story-handle--top" /><i className="story-handle story-handle--top-right" />

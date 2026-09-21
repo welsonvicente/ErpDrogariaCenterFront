@@ -857,22 +857,47 @@ table.data-table th {
 .story-handle {
   position: absolute;
   top: 50%;
-  width: 8px;
-  height: 8px;
-  margin-top: -4px;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .82);
+  background: rgba(255, 255, 255, .72);
   border: 1px solid rgba(18, 117, 124, .9);
-  pointer-events: none;
+  box-shadow: 0 1px 5px rgba(5, 28, 28, .3);
 }
-.story-handle--left { left: -5px; }
-.story-handle--right { right: -5px; }
-.story-handle--top-left { left: -5px; top: -5px; margin-top: 0; }
-.story-handle--top { left: 50%; top: -5px; margin: 0 0 0 -4px; }
-.story-handle--top-right { right: -5px; top: -5px; margin-top: 0; }
-.story-handle--bottom-left { left: -5px; bottom: -5px; top: auto; margin-top: 0; }
-.story-handle--bottom { left: 50%; bottom: -5px; top: auto; margin: 0 0 0 -4px; }
-.story-handle--bottom-right { right: -5px; bottom: -5px; top: auto; margin-top: 0; }
+.story-handle--left { left: -8px; cursor: ew-resize; }
+.story-handle--right { right: -8px; cursor: ew-resize; }
+.story-handle--top-left { left: -8px; top: -8px; margin-top: 0; cursor: nwse-resize; }
+.story-handle--top { left: 50%; top: -8px; margin: 0 0 0 -7px; cursor: ns-resize; }
+.story-handle--top-right { right: -8px; top: -8px; margin-top: 0; cursor: nesw-resize; }
+.story-handle--bottom-left { left: -8px; bottom: -8px; top: auto; margin-top: 0; cursor: nesw-resize; }
+.story-handle--bottom { left: 50%; bottom: -8px; top: auto; margin: 0 0 0 -7px; cursor: ns-resize; }
+.story-handle--bottom-right { right: -8px; bottom: -8px; top: auto; margin-top: 0; cursor: nwse-resize; }
+
+.cartaz-ajuste-contextual {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(18, 117, 124, .2);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(222, 243, 239, .8), rgba(255, 255, 255, .94));
+}
+.cartaz-ajuste-contextual-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cartaz-ajuste-contextual-head span {
+  display: block;
+  color: var(--teal);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.cartaz-ajuste-contextual-head strong { display: block; margin-top: 2px; color: var(--teal-deep); font-size: 14px; }
+.cartaz-ajuste-contextual-head .btn-ghost { width: auto; margin: 0; padding: 6px 9px; font-size: 11px; }
+.cartaz-ajuste-contextual p { margin: 10px 0 12px; color: var(--ink-soft); font-size: 12px; line-height: 1.45; }
 
 .cartaz-emoji-row {
   display: flex;
