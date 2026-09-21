@@ -222,6 +222,20 @@ export function FolgasPage() {
     if (ok) setNovoUsuarioId('');
   }
 
+  /** Administração e direito à folga são coisas independentes: gerente também pode entrar na própria escala. */
+  async function entrarNaMinhaEscala() {
+    if (!usuario || colaboradorAtual) return;
+    await salvar(
+      (rascunho) => {
+        if (!rascunho.employees.some((item) => item.usuarioId === usuario.id)) {
+          rascunho.employees.push({ id: uid('emp'), usuarioId: usuario.id, name: usuario.nome });
+        }
+      },
+      { acao: 'Entrou na escala de folgas', detalhes: usuario.nome },
+      'Você entrou na escala de folgas.',
+    );
+  }
+
   async function removerColaborador(id: string) {
     const colaborador = estado.employees.find((item) => item.id === id);
     if (!window.confirm('Remover este colaborador da escala? O histórico de créditos e folgas será mantido.')) return;
@@ -494,6 +508,29 @@ export function FolgasPage() {
               </div>
             </div>
 
+            {!colaboradorAtual ? (
+              <div className="card folgas-participacao">
+                <div>
+                  <span className="folgas-eyebrow">Sua participação</span>
+                  <h3>Você também pode participar da escala</h3>
+                  <p>Seu perfil de gerente mantém as permissões de gestão e também permite acumular e agendar folgas.</p>
+                </div>
+                <button type="button" className="btn-primary" onClick={() => void entrarNaMinhaEscala()}>＋ Entrar na escala</button>
+              </div>
+            ) : (
+              <div className="card folgas-participacao">
+                <div>
+                  <span className="folgas-eyebrow">Suas folgas</span>
+                  <h3>Você participa da escala</h3>
+                  <p>{saldoDe(estado, colaboradorAtual.id)} folga(s) disponível(is).</p>
+                </div>
+                <div className="folgas-participacao-actions">
+                  <button type="button" className="btn-primary" disabled={saldoDe(estado, colaboradorAtual.id) <= 0} onClick={() => { setDataAgendada(amanhaIso()); setModal('agendar'); }}>📅 Agendar minha folga</button>
+                  <button type="button" className="btn-ghost" onClick={() => { setAtestadoForm({ inicio: hojeIso(), fim: hojeIso(), motivo: '' }); setModal('atestado'); }}>🩹 Informar atestado</button>
+                </div>
+              </div>
+            )}
+
             <div className="folgas-toolbar" aria-label="Ações da gestão de folgas">
               <div className="folgas-toolbar-group">
                 <button type="button" className="btn-ghost" onClick={() => void abrirColaboradores()}>👤 Colaboradores</button>
@@ -563,7 +600,7 @@ export function FolgasPage() {
 
       {modal === 'atestado' && <ModalFolgas titulo="Informar atestado" fechar={() => setModal(null)}><div className="field-row"><div className="field"><label>Início</label><input type="date" value={atestadoForm.inicio} onChange={(e) => setAtestadoForm({ ...atestadoForm, inicio: e.target.value })} /></div><div className="field"><label>Fim</label><input type="date" value={atestadoForm.fim} onChange={(e) => setAtestadoForm({ ...atestadoForm, fim: e.target.value })} /></div></div><div className="field"><label>Motivo</label><textarea value={atestadoForm.motivo} onChange={(e) => setAtestadoForm({ ...atestadoForm, motivo: e.target.value })} placeholder="Ex.: gripe forte, consulta médica..." /></div><p className="folgas-privacidade">🔒 Informação sensível, visível somente para administradores e gerentes.</p><div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Cancelar</button><button type="button" className="btn-primary" onClick={() => void registrarMeuAtestado()}>Enviar atestado</button></div></ModalFolgas>}
 
-      {modal === 'colaboradores' && <ModalFolgas titulo="Colaboradores na escala" fechar={() => setModal(null)}><div className="folgas-modal-list">{estado.employees.map((item) => <div className="folgas-list-row" key={item.id}><span><strong>{item.name}</strong>{!item.usuarioId && <small className="danger">Sem vínculo com usuário</small>}</span><button type="button" className="btn-link danger" onClick={() => void removerColaborador(item.id)}>Remover</button></div>)}{!estado.employees.length && <Vazio>Nenhum colaborador na escala.</Vazio>}</div><hr /><div className="field"><label>Adicionar usuário à escala</label><select value={novoUsuarioId} onChange={(e) => setNovoUsuarioId(e.target.value)}><option value="">Selecione...</option>{disponiveis.map((item) => <option key={item.id} value={item.id}>{item.nome}{item.perfil !== 'FUNCIONARIO' ? ` (${item.perfil})` : ''}</option>)}</select></div><p className="folgas-privacidade">Cadastros novos são criados na tela “Funcionários” do PharmaMind.</p><div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Fechar</button><button type="button" className="btn-primary" disabled={!novoUsuarioId} onClick={() => void adicionarColaborador()}>Adicionar</button></div></ModalFolgas>}
+      {modal === 'colaboradores' && <ModalFolgas titulo="Colaboradores na escala" fechar={() => setModal(null)}><div className="folgas-modal-list">{estado.employees.map((item) => <div className="folgas-list-row" key={item.id}><span><strong>{item.name}</strong>{!item.usuarioId && <small className="danger">Sem vínculo com usuário</small>}</span><button type="button" className="btn-link danger" onClick={() => void removerColaborador(item.id)}>Remover</button></div>)}{!estado.employees.length && <Vazio>Nenhum colaborador na escala.</Vazio>}</div><hr /><div className="field"><label>Adicionar usuário à escala</label><select value={novoUsuarioId} onChange={(e) => setNovoUsuarioId(e.target.value)}><option value="">Selecione...</option>{disponiveis.map((item) => <option key={item.id} value={item.id}>{item.nome}{item.perfil !== 'FUNCIONARIO' ? ` (${item.perfil})` : ''}</option>)}</select></div><p className="folgas-privacidade">Todos os usuários ativos podem participar, inclusive gerentes e administradores.</p><div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Fechar</button><button type="button" className="btn-primary" disabled={!novoUsuarioId} onClick={() => void adicionarColaborador()}>Adicionar</button></div></ModalFolgas>}
 
       {modal === 'credito' && <ModalFolgas titulo="Registrar crédito de folga" fechar={() => setModal(null)}><div className="field"><label>Colaborador</label><select value={creditoForm.employeeId} onChange={(e) => setCreditoForm({ ...creditoForm, employeeId: e.target.value })}><option value="">Selecione...</option>{estado.employees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><div className="field"><label>Domingo ou feriado trabalhado</label><input type="date" value={creditoForm.data} onChange={(e) => setCreditoForm({ ...creditoForm, data: e.target.value })} /></div><div className="field"><label>Observação</label><input value={creditoForm.nota} onChange={(e) => setCreditoForm({ ...creditoForm, nota: e.target.value })} /></div><div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Cancelar</button><button type="button" className="btn-primary" onClick={() => void registrarCredito()}>Registrar</button></div></ModalFolgas>}
 

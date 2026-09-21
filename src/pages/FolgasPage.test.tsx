@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +26,7 @@ function renderizar() {
 describe('FolgasPage', () => {
   beforeEach(() => {
     vi.mocked(folgasService.get).mockReset();
+    vi.mocked(folgasService.save).mockReset();
   });
 
   it('renderiza a gestão como tela React nativa, sem iframe', async () => {
@@ -54,5 +56,26 @@ describe('FolgasPage', () => {
     expect(await screen.findByText('Seu banco de folgas')).toBeInTheDocument();
     expect(screen.getByText('folga(s) disponível(is)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Agendar folga/i })).toBeEnabled();
+  });
+
+  it('permite que um gerente entre na própria escala de folgas', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useAuth).mockReturnValue({
+      usuario: { id: 'gerente-1', nome: 'Carlos', email: 'carlos@teste.local', perfil: 'GERENTE' },
+    } as ReturnType<typeof useAuth>);
+    vi.mocked(folgasService.get).mockResolvedValue({ estado: estadoFolgasVazio(), versao: 0 });
+    vi.mocked(folgasService.save).mockResolvedValue(1);
+
+    renderizar();
+    await user.click(await screen.findByRole('button', { name: /entrar na escala/i }));
+
+    await waitFor(() => {
+      expect(folgasService.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          employees: [expect.objectContaining({ usuarioId: 'gerente-1', name: 'Carlos' })],
+        }),
+        0,
+      );
+    });
   });
 });

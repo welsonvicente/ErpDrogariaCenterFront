@@ -1424,6 +1424,11 @@ table.data-table th {
 
 .folgas-periodo { display: flex; justify-content: space-between; align-items: center; gap: 28px; padding: 26px 28px; }
 .folgas-periodo-controles { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; }
+.folgas-participacao { display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 20px 24px; border-color: #c8e2d5; background: linear-gradient(110deg, #effaf4 0%, #f9fffb 100%); }
+.folgas-participacao h3 { margin: 4px 0; color: var(--ink); font-size: 16px; }
+.folgas-participacao p { margin: 0; color: var(--ink-soft); font-size: 12.5px; }
+.folgas-participacao button { width: auto; margin: 0; white-space: nowrap; }
+.folgas-participacao-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .folgas-segmented { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 11px; background: var(--bg); }
 .folgas-segmented button { border: 0; background: transparent; padding: 8px 11px; border-radius: 8px; color: var(--ink-soft); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
 .folgas-segmented button.active { background: var(--teal); color: #fff; }
@@ -1490,6 +1495,9 @@ table.data-table th {
   .folgas-grid--2 { grid-template-columns: minmax(0, 1fr); }
   .folgas-periodo { flex-direction: column; align-items: stretch; }
   .folgas-periodo-controles { align-items: stretch; }
+  .folgas-participacao { flex-direction: column; align-items: stretch; }
+  .folgas-participacao button { width: 100%; }
+  .folgas-participacao-actions { flex-direction: column; }
   .folgas-inline-fields { flex-wrap: wrap; }
   .folgas-inline-fields input { flex: 1; }
   .folgas-toolbar { align-items: stretch; gap: 10px; }
