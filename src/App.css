@@ -988,6 +988,17 @@ table.data-table th {
 .story-elemento-editavel::after { right: -8px; cursor: ew-resize; }
 .story-elemento-editavel.is-selected { cursor: grab; }
 .story-elemento-editavel.is-dragging { cursor: grabbing; }
+.story-alignment-guide {
+  position: absolute;
+  z-index: 3;
+  display: block;
+  box-sizing: border-box;
+  background: rgba(72, 225, 207, .92);
+  box-shadow: 0 0 0 1px rgba(5, 60, 57, .36), 0 0 8px rgba(72,225,207,.75);
+  pointer-events: none;
+}
+.story-alignment-guide--vertical { top: 0; bottom: 0; width: 1px; }
+.story-alignment-guide--horizontal { right: 0; left: 0; height: 1px; }
 .story-handle {
   position: absolute;
   top: 50%;

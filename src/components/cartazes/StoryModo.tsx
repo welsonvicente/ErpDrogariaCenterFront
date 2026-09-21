@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal } from '../CameraModal';
-import { ElementoStoryEditavel } from '../ElementoStoryEditavel';
+import { ElementoStoryEditavel, type GuiasAlinhamentoStory } from '../ElementoStoryEditavel';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
 import {
   ALTURA_STORY,
@@ -83,6 +83,7 @@ export function StoryModo() {
   const [guiaFrases, setGuiaFrases] = useState<Guia>({ y: 560, offsetX: 0 });
   const [caixasPreview, setCaixasPreview] = useState<CaixasStory>({ nome: null, preco: null, frases: null });
   const [elementoSelecionado, setElementoSelecionado] = useState<'nome' | 'preco' | 'frases' | null>(null);
+  const [guiasAlinhamento, setGuiasAlinhamento] = useState<GuiasAlinhamentoStory | null>(null);
   const [mostrarInterfaceInstagram, setMostrarInterfaceInstagram] = useState(true);
 
   const [produtosRecentes, setProdutosRecentes] = useState<ProdutoRecente[]>([]);
@@ -573,9 +574,14 @@ export function StoryModo() {
             <div className="story-phone-speaker" aria-hidden="true" />
             <div className="cartaz-canvas-frame">
               <div className="cartaz-canvas-stage" ref={frameRef} onPointerDownCapture={(e) => {
-                if (e.target === canvasRef.current) setElementoSelecionado(null);
+                if (e.target === canvasRef.current) {
+                  setElementoSelecionado(null);
+                  setGuiasAlinhamento(null);
+                }
               }}>
                 <canvas ref={canvasRef} width={LARGURA_STORY} height={ALTURA_STORY} className="cartaz-canvas" />
+                {guiasAlinhamento?.vertical !== undefined && <i className="story-alignment-guide story-alignment-guide--vertical" style={{ left: `${(guiasAlinhamento.vertical / LARGURA_STORY) * 100}%` }} aria-hidden="true" />}
+                {guiasAlinhamento?.horizontal !== undefined && <i className="story-alignment-guide story-alignment-guide--horizontal" style={{ top: `${(guiasAlinhamento.horizontal / ALTURA_STORY) * 100}%` }} aria-hidden="true" />}
                 {mostrarInterfaceInstagram && (
                   <div className="instagram-story-ui" aria-hidden="true">
                     <div className="instagram-safe-content"><span>área segura · 1080 × 1330</span></div>
@@ -602,7 +608,9 @@ export function StoryModo() {
                 tamanho={tamanhoNome}
                 tamanhoMinimo={24}
                 tamanhoMaximo={70}
+                caixasVizinhas={[caixasPreview.preco, caixasPreview.frases].filter((caixa): caixa is CaixaStory => caixa !== null)}
                 onSelecionar={() => setElementoSelecionado('nome')}
+                onGuiasAlinhadas={setGuiasAlinhamento}
                 onAlterar={(caixa, tamanho) => {
                   atualizarGuia(setGuiaNome, caixa);
                   if (tamanho !== undefined) setTamanhoNome(tamanho);
@@ -616,7 +624,9 @@ export function StoryModo() {
                 tamanho={tamanhoPreco}
                 tamanhoMinimo={34}
                 tamanhoMaximo={90}
+                caixasVizinhas={[caixasPreview.nome, caixasPreview.frases].filter((caixa): caixa is CaixaStory => caixa !== null)}
                 onSelecionar={() => setElementoSelecionado('preco')}
+                onGuiasAlinhadas={setGuiasAlinhamento}
                 onAlterar={(caixa, tamanho) => {
                   atualizarGuia(setGuiaPreco, caixa);
                   if (tamanho !== undefined) setTamanhoPreco(tamanho);
@@ -630,7 +640,9 @@ export function StoryModo() {
                 tamanho={tamanhoFrases}
                 tamanhoMinimo={18}
                 tamanhoMaximo={50}
+                caixasVizinhas={[caixasPreview.nome, caixasPreview.preco].filter((caixa): caixa is CaixaStory => caixa !== null)}
                 onSelecionar={() => setElementoSelecionado('frases')}
+                onGuiasAlinhadas={setGuiasAlinhamento}
                 onAlterar={(caixa, tamanho) => {
                   atualizarGuia(setGuiaFrases, caixa);
                   if (tamanho !== undefined) setTamanhoFrases(tamanho);

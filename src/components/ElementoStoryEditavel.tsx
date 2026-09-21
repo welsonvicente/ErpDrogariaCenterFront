@@ -11,6 +11,11 @@ interface Inicio {
   tamanho: number;
 }
 
+export interface GuiasAlinhamentoStory {
+  vertical?: number;
+  horizontal?: number;
+}
+
 /** Seleção discreta e edição por gesto do conteúdo já desenhado no canvas. */
 export function ElementoStoryEditavel({
   frameRef,
@@ -20,8 +25,10 @@ export function ElementoStoryEditavel({
   tamanho,
   tamanhoMinimo,
   tamanhoMaximo,
+  caixasVizinhas = [],
   onSelecionar,
   onAlterar,
+  onGuiasAlinhadas,
 }: {
   frameRef: RefObject<HTMLDivElement | null>;
   caixa: CaixaStory | null;
@@ -30,8 +37,10 @@ export function ElementoStoryEditavel({
   tamanho: number;
   tamanhoMinimo: number;
   tamanhoMaximo: number;
+  caixasVizinhas?: CaixaStory[];
   onSelecionar: () => void;
   onAlterar: (caixa: CaixaStory, tamanho?: number) => void;
+  onGuiasAlinhadas?: (guias: GuiasAlinhamentoStory | null) => void;
 }) {
   const inicio = useRef<Inicio | null>(null);
   const [arrastando, setArrastando] = useState(false);
@@ -75,11 +84,23 @@ export function ElementoStoryEditavel({
     const minLargura = estado.caixa.larguraMinima;
 
     if (estado.lado === 'move') {
-      onAlterar({
+      let proxima = {
         ...estado.caixa,
         x: Math.max(0, Math.min(LARGURA_STORY - estado.caixa.largura, estado.caixa.x + dx)),
         y: Math.max(0, Math.min(ALTURA_STORY - estado.caixa.altura, estado.caixa.y + dy)),
-      });
+      };
+      const tolerancia = 28;
+      const centrosX = [LARGURA_STORY / 2, ...caixasVizinhas.map((vizinha) => vizinha.x + vizinha.largura / 2)];
+      const centrosY = [ALTURA_STORY / 2, ...caixasVizinhas.map((vizinha) => vizinha.y + vizinha.altura / 2)];
+      const centroX = proxima.x + proxima.largura / 2;
+      const centroY = proxima.y + proxima.altura / 2;
+      const encaixeX = centrosX.find((centro) => Math.abs(centro - centroX) <= tolerancia);
+      const encaixeY = centrosY.find((centro) => Math.abs(centro - centroY) <= tolerancia);
+
+      if (encaixeX !== undefined) proxima.x = Math.max(0, Math.min(LARGURA_STORY - proxima.largura, encaixeX - proxima.largura / 2));
+      if (encaixeY !== undefined) proxima.y = Math.max(0, Math.min(ALTURA_STORY - proxima.altura, encaixeY - proxima.altura / 2));
+      onGuiasAlinhadas?.(encaixeX !== undefined || encaixeY !== undefined ? { vertical: encaixeX, horizontal: encaixeY } : null);
+      onAlterar(proxima);
       return;
     }
 
@@ -113,6 +134,7 @@ export function ElementoStoryEditavel({
   function encerrar() {
     inicio.current = null;
     setArrastando(false);
+    onGuiasAlinhadas?.(null);
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
