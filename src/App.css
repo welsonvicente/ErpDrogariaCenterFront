@@ -1418,6 +1418,11 @@ table.data-table th {
 .folgas-list-row > span { min-width: 0; }
 .folgas-list-row strong { display: block; font-size: 13px; color: var(--ink); }
 .folgas-list-row small { display: block; margin-top: 3px; color: var(--ink-soft); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.folgas-colaborador-vinculo { align-items: flex-start; }
+.folgas-vinculo-controle { display: flex; gap: 7px; margin-top: 7px; }
+.folgas-vinculo-controle select { min-width: 190px; max-width: 260px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; font-size: 11px; }
+.folgas-vinculo-controle button, .folgas-vinculo-lote { width: auto; margin: 0; padding: 6px 9px; font-size: 11px; }
+.folgas-vinculo-lote { margin: 12px 0 2px; }
 .folgas-vazio { padding: 18px 4px; text-align: center; color: var(--ink-soft); font-size: 12px; }
 .btn-link { border: 0; background: none; color: var(--teal-deep); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .btn-link.danger, .danger { color: var(--late); }
@@ -1500,6 +1505,8 @@ table.data-table th {
   .folgas-participacao-actions { flex-direction: column; }
   .folgas-inline-fields { flex-wrap: wrap; }
   .folgas-inline-fields input { flex: 1; }
+  .folgas-vinculo-controle { flex-direction: column; }
+  .folgas-vinculo-controle select { max-width: none; width: 100%; }
   .folgas-toolbar { align-items: stretch; gap: 10px; }
   .folgas-toolbar-group { width: 100%; }
   .folgas-toolbar-group button { flex: 1 1 160px; }

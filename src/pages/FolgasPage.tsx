@@ -111,6 +111,7 @@ export function FolgasPage() {
   const [dataAgendada, setDataAgendada] = useState(amanhaIso());
   const [atestadoForm, setAtestadoForm] = useState({ inicio: hojeIso(), fim: hojeIso(), motivo: '' });
   const [novoUsuarioId, setNovoUsuarioId] = useState('');
+  const [vinculosPendentes, setVinculosPendentes] = useState<Record<string, string>>({});
   const [creditoForm, setCreditoForm] = useState({ employeeId: '', data: hojeIso(), nota: '' });
   const [trocaForm, setTrocaForm] = useState<{ employeeId: string; valor: string; forma: FormaPagamentoFolga; nota: string }>({ employeeId: '', valor: '', forma: 'dinheiro', nota: '' });
   const [afastamentoForm, setAfastamentoForm] = useState<{ employeeId: string; tipo: FolgasAfastamento['type']; inicio: string; fim: string; nota: string }>({ employeeId: '', tipo: 'ferias', inicio: hojeIso(), fim: hojeIso(), nota: '' });
@@ -205,6 +206,14 @@ export function FolgasPage() {
       setUsuarios(lista);
       const vinculados = new Set(estado.employees.map((item) => item.usuarioId));
       setNovoUsuarioId(lista.find((item) => item.ativo && !vinculados.has(item.id))?.id ?? '');
+      setVinculosPendentes(Object.fromEntries(
+        estado.employees
+          .filter((item) => !item.usuarioId)
+          .map((colaborador) => {
+            const encontrados = lista.filter((usuario) => usuario.ativo && nomeComparavel(usuario.nome) === nomeComparavel(colaborador.name));
+            return [colaborador.id, encontrados.length === 1 ? encontrados[0].id : ''];
+          }),
+      ));
     } catch {
       setErro('Não foi possível carregar os usuários da organização.');
     }
@@ -258,6 +267,57 @@ export function FolgasPage() {
       { acao: 'Removeu colaborador da escala', detalhes: colaborador?.name ?? id },
       'Colaborador removido da escala.',
     );
+  }
+
+  async function vincularColaborador(id: string, usuarioId: string) {
+    const colaborador = estado.employees.find((item) => item.id === id);
+    const usuarioParaVincular = usuarios.find((item) => item.id === usuarioId && item.ativo);
+    if (!colaborador || !usuarioParaVincular) return setErro('Escolha um usuário ativo para vincular.');
+    if (estado.employees.some((item) => item.id !== id && item.usuarioId === usuarioId)) {
+      return setErro(`${usuarioParaVincular.nome} já está vinculado a outro colaborador da escala.`);
+    }
+
+    const ok = await salvar(
+      (rascunho) => {
+        const alvo = rascunho.employees.find((item) => item.id === id);
+        if (alvo) {
+          alvo.usuarioId = usuarioParaVincular.id;
+          alvo.name = usuarioParaVincular.nome;
+        }
+      },
+      { acao: 'Vinculou colaborador da escala', detalhes: `${colaborador.name} → ${usuarioParaVincular.nome}` },
+      `${usuarioParaVincular.nome} foi vinculado à escala.`,
+    );
+    if (ok) setVinculosPendentes((atuais) => ({ ...atuais, [id]: '' }));
+  }
+
+  async function vincularNomesEncontrados() {
+    const pares = estado.employees.reduce<Array<{ colaboradorId: string; usuarioId: string }>>((acumulado, colaborador) => {
+      const usuarioId = vinculosPendentes[colaborador.id];
+      return !colaborador.usuarioId && usuarioId ? [...acumulado, { colaboradorId: colaborador.id, usuarioId }] : acumulado;
+    }, []);
+    if (!pares.length) return setErro('Nenhum nome pendente teve uma correspondência única no cadastro de usuários.');
+
+    const usuarioIds = new Set(pares.map((item) => item.usuarioId));
+    if (usuarioIds.size !== pares.length || pares.some((item) => estado.employees.some((atual) => atual.id !== item.colaboradorId && atual.usuarioId === item.usuarioId))) {
+      return setErro('Há vínculos duplicados na seleção. Ajuste cada colaborador manualmente.');
+    }
+
+    const ok = await salvar(
+      (rascunho) => {
+        pares.forEach(({ colaboradorId, usuarioId }) => {
+          const alvo = rascunho.employees.find((item) => item.id === colaboradorId);
+          const usuarioParaVincular = usuarios.find((item) => item.id === usuarioId);
+          if (alvo && usuarioParaVincular) {
+            alvo.usuarioId = usuarioParaVincular.id;
+            alvo.name = usuarioParaVincular.nome;
+          }
+        });
+      },
+      { acao: 'Vinculou colaboradores legados', detalhes: `${pares.length} vínculo(s) por nome` },
+      `${pares.length} colaborador(es) foram vinculados à escala.`,
+    );
+    if (ok) setVinculosPendentes({});
   }
 
   async function registrarCredito() {
@@ -614,7 +674,28 @@ export function FolgasPage() {
 
       {modal === 'atestado' && <ModalFolgas titulo="Informar atestado" fechar={() => setModal(null)}><div className="field-row"><div className="field"><label>Início</label><input type="date" value={atestadoForm.inicio} onChange={(e) => setAtestadoForm({ ...atestadoForm, inicio: e.target.value })} /></div><div className="field"><label>Fim</label><input type="date" value={atestadoForm.fim} onChange={(e) => setAtestadoForm({ ...atestadoForm, fim: e.target.value })} /></div></div><div className="field"><label>Motivo</label><textarea value={atestadoForm.motivo} onChange={(e) => setAtestadoForm({ ...atestadoForm, motivo: e.target.value })} placeholder="Ex.: gripe forte, consulta médica..." /></div><p className="folgas-privacidade">🔒 Informação sensível, visível somente para administradores e gerentes.</p><div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Cancelar</button><button type="button" className="btn-primary" onClick={() => void registrarMeuAtestado()}>Enviar atestado</button></div></ModalFolgas>}
 
-      {modal === 'colaboradores' && <ModalFolgas titulo="Colaboradores na escala" fechar={() => setModal(null)}><div className="folgas-modal-list">{estado.employees.map((item) => <div className="folgas-list-row" key={item.id}><span><strong>{item.name}</strong>{!item.usuarioId && <small className="danger">Sem vínculo com usuário</small>}</span><button type="button" className="btn-link danger" onClick={() => void removerColaborador(item.id)}>Remover</button></div>)}{!estado.employees.length && <Vazio>Nenhum colaborador na escala.</Vazio>}</div><hr /><div className="field"><label>Adicionar usuário à escala</label><select value={novoUsuarioId} onChange={(e) => setNovoUsuarioId(e.target.value)}><option value="">Selecione...</option>{disponiveis.map((item) => <option key={item.id} value={item.id}>{item.nome}{item.perfil !== 'FUNCIONARIO' ? ` (${item.perfil})` : ''}</option>)}</select></div><p className="folgas-privacidade">Todos os usuários ativos podem participar, inclusive gerentes e administradores.</p><div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Fechar</button><button type="button" className="btn-primary" disabled={!novoUsuarioId} onClick={() => void adicionarColaborador()}>Adicionar</button></div></ModalFolgas>}
+      {modal === 'colaboradores' && <ModalFolgas titulo="Colaboradores na escala" fechar={() => setModal(null)}>
+        <div className="folgas-modal-list">
+          {estado.employees.map((item) => <div className="folgas-list-row folgas-colaborador-vinculo" key={item.id}>
+            <span><strong>{item.name}</strong>{!item.usuarioId && <small className="danger">Sem vínculo com usuário</small>}
+              {!item.usuarioId && <div className="folgas-vinculo-controle">
+                <select aria-label={`Vincular ${item.name} a um usuário`} value={vinculosPendentes[item.id] ?? ''} onChange={(e) => setVinculosPendentes((atuais) => ({ ...atuais, [item.id]: e.target.value }))}>
+                  <option value="">Escolha o usuário...</option>
+                  {usuarios.filter((usuario) => usuario.ativo && !estado.employees.some((atual) => atual.id !== item.id && atual.usuarioId === usuario.id)).map((usuario) => <option key={usuario.id} value={usuario.id}>{usuario.nome}{usuario.perfil !== 'FUNCIONARIO' ? ` (${usuario.perfil})` : ''}</option>)}
+                </select>
+                <button type="button" className="btn-ghost" disabled={!vinculosPendentes[item.id]} onClick={() => void vincularColaborador(item.id, vinculosPendentes[item.id])}>Vincular</button>
+              </div>}
+            </span>
+            <button type="button" className="btn-link danger" onClick={() => void removerColaborador(item.id)}>Remover</button>
+          </div>)}
+          {!estado.employees.length && <Vazio>Nenhum colaborador na escala.</Vazio>}
+        </div>
+        {estado.employees.some((item) => !item.usuarioId) && <button type="button" className="btn-ghost folgas-vinculo-lote" onClick={() => void vincularNomesEncontrados()}>✨ Vincular nomes encontrados</button>}
+        <hr />
+        <div className="field"><label>Adicionar usuário à escala</label><select value={novoUsuarioId} onChange={(e) => setNovoUsuarioId(e.target.value)}><option value="">Selecione...</option>{disponiveis.map((item) => <option key={item.id} value={item.id}>{item.nome}{item.perfil !== 'FUNCIONARIO' ? ` (${item.perfil})` : ''}</option>)}</select></div>
+        <p className="folgas-privacidade">Todos os usuários ativos podem participar, inclusive gerentes e administradores.</p>
+        <div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Fechar</button><button type="button" className="btn-primary" disabled={!novoUsuarioId} onClick={() => void adicionarColaborador()}>Adicionar</button></div>
+      </ModalFolgas>}
 
       {modal === 'credito' && <ModalFolgas titulo="Registrar crédito de folga" fechar={() => setModal(null)}><div className="field"><label>Colaborador</label><select value={creditoForm.employeeId} onChange={(e) => setCreditoForm({ ...creditoForm, employeeId: e.target.value })}><option value="">Selecione...</option>{estado.employees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><div className="field"><label>Domingo ou feriado trabalhado</label><input type="date" value={creditoForm.data} onChange={(e) => setCreditoForm({ ...creditoForm, data: e.target.value })} /></div><div className="field"><label>Observação</label><input value={creditoForm.nota} onChange={(e) => setCreditoForm({ ...creditoForm, nota: e.target.value })} /></div><div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Cancelar</button><button type="button" className="btn-primary" onClick={() => void registrarCredito()}>Registrar</button></div></ModalFolgas>}
 

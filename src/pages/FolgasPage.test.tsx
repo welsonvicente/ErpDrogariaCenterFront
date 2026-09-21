@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuth } from '../context/AuthContext';
+import { funcionarioService } from '../services/funcionarioService';
 import { folgasService } from '../services/folgasService';
 import { estadoFolgasVazio } from '../types/folgas';
 import { FolgasPage } from './FolgasPage';
@@ -27,6 +28,8 @@ describe('FolgasPage', () => {
   beforeEach(() => {
     vi.mocked(folgasService.get).mockReset();
     vi.mocked(folgasService.save).mockReset();
+    vi.mocked(funcionarioService.list).mockReset();
+    vi.mocked(funcionarioService.list).mockResolvedValue([]);
   });
 
   it('renderiza a gestão como tela React nativa, sem iframe', async () => {
@@ -92,5 +95,30 @@ describe('FolgasPage', () => {
 
     expect(await screen.findByText('Você participa da escala')).toBeInTheDocument();
     expect(screen.getByText('1 folga(s) disponível(is).')).toBeInTheDocument();
+  });
+
+  it('vincula em lote nomes legados encontrados no cadastro', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useAuth).mockReturnValue({
+      usuario: { id: 'admin-1', nome: 'Admin', email: 'admin@teste.local', perfil: 'ADMIN' },
+    } as ReturnType<typeof useAuth>);
+    const estado = estadoFolgasVazio();
+    estado.employees.push({ id: 'emp-1', usuarioId: null, name: 'Wesley' });
+    vi.mocked(folgasService.get).mockResolvedValue({ estado, versao: 3 });
+    vi.mocked(folgasService.save).mockResolvedValue(4);
+    vi.mocked(funcionarioService.list).mockResolvedValue([
+      { id: 'usuario-wesley', nome: 'Wesley', codigo: '7', icone: '🙂', perfil: 'FUNCIONARIO', ativo: true, criadoEm: '', atualizadoEm: '' },
+    ]);
+
+    renderizar();
+    await user.click(await screen.findByRole('button', { name: /colaboradores/i }));
+    await user.click(await screen.findByRole('button', { name: /vincular nomes encontrados/i }));
+
+    await waitFor(() => {
+      expect(folgasService.save).toHaveBeenCalledWith(
+        expect.objectContaining({ employees: [expect.objectContaining({ usuarioId: 'usuario-wesley', name: 'Wesley' })] }),
+        3,
+      );
+    });
   });
 });
