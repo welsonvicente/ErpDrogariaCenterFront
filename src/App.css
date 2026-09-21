@@ -777,8 +777,9 @@ table.data-table th {
 .cartaz-preview-toggle { width: auto; margin: 0; padding: 6px 9px; font-size: 11px; white-space: nowrap; }
 .story-phone {
   position: relative;
-  width: 100%;
-  max-width: 412px;
+  /* Corpo do iPhone (aprox. 9:19,5), independente da arte Story 9:16. */
+  width: min(100%, 350px, calc((100vh - 190px) * 9 / 19.5));
+  aspect-ratio: 9 / 19.5;
   margin: 0 auto;
   padding: 9px;
   box-sizing: border-box;
@@ -826,6 +827,7 @@ table.data-table th {
 }
 .story-phone .cartaz-canvas-frame {
   width: 100%;
+  height: 100%;
   max-width: none;
   max-height: none;
   margin: 0;
@@ -834,6 +836,15 @@ table.data-table th {
   background: #000;
   box-shadow: none;
   overflow: hidden;
+}
+.story-phone .cartaz-canvas-stage {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 121.875%; /* 19,5 ÷ 16: mantém a arte 9:16 sem deformar */
+  height: 100%;
+  max-width: none;
+  transform: translateX(-50%);
 }
 .cartaz-canvas-frame {
   position: relative;
