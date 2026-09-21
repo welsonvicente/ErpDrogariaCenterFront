@@ -8,6 +8,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { CartazesPage } from './pages/CartazesPage';
 import { EmployeeCodePage } from './pages/EmployeeCodePage';
 import { EmployeeExpensePage } from './pages/EmployeeExpensePage';
+import { FolgasPage } from './pages/FolgasPage';
 import { ManagerAuditoriaPage } from './pages/ManagerAuditoriaPage';
 import { ManagerCategoriesPage } from './pages/ManagerCategoriesPage';
 import { ManagerDashboardPage } from './pages/ManagerDashboardPage';
@@ -30,11 +31,10 @@ function RedirecionaGestorParaGerente() {
 }
 
 /**
- * Ferramentas que ainda são páginas estáticas (public/tools/*), fora do bundle
- * do React — ver PLANO-REESCRITA-FERRAMENTAS.md pra saber o que já foi
- * reescrito como tela nativa (Cartazes/Story, em CartazesPage) e o que segue
- * aqui (Folgas; e o restante de Cartazes — Panfleto e Importar planilha,
- * acessível por "/cartazes/completo").
+ * Ferramentas legadas mantidas apenas como referência/backup. Cartazes e
+ * Folgas já possuem telas React nativas nas rotas usadas no dia a dia; hoje
+ * esta casca atende somente a versão histórica de Cartazes em
+ * "/cartazes/completo".
  *
  * Ficam sob a rota da organização como todo o resto ("/:orgSlug/folgas"), e
  * não soltas em "/tools/arquivo.html": o slug na URL é o que identifica o
@@ -77,10 +77,7 @@ function App() {
             path="cartazes/completo"
             element={<FerramentaEstatica arquivo="cartazes.html" titulo="Cartazes e panfletos (completo)" />}
           />
-          <Route
-            path="folgas"
-            element={<FerramentaEstatica arquivo="folgas-drogaria-center.html" titulo="Folgas" />}
-          />
+          <Route path="folgas" element={<FolgasPage />} />
 
           {/* Login direto de gerente já sabendo o slug (atalho opcional) e o hub pós-login. */}
           <Route path="gerente/login" element={<ManagerLoginPage />} />

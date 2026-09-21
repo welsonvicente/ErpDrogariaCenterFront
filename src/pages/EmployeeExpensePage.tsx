@@ -24,24 +24,12 @@ function fmtHora(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-/**
- * A ferramenta de Cartazes é uma página HTML estática (fora do bundle do
- * React — ver public/tools/cartazes.html), não uma rota do app. Ela descobre a
- * URL da API pela sessão salva no localStorage, não por query string: um
- * arquivo estático não enxerga VITE_API_URL, mas o app grava a URL resolvida
- * junto da sessão (ver `salvarSessao`). É ferramenta de funcionário (balcão),
- * por isso mora aqui e não no hub do gerente.
- */
+/** Cartazes é uma tela React compartilhada por funcionário e gerente. */
 function urlFerramentaCartazes(orgSlug: string | undefined): string {
   return `/${orgSlug}/cartazes`;
 }
 
-/**
- * Ferramenta de Folgas (banco de folgas por domingo/feriado trabalhado,
- * atestados e escala) — mesmo esquema da de Cartazes. Tem papel de gerente
- * ("Administração", com senha própria) e de funcionário (código de acesso
- * próprio da ferramenta), por isso o link mora aqui e é usável por ambos.
- */
+/** Folgas também é uma tela React compartilhada, usando o papel da sessão atual. */
 function urlFerramentaFolgas(orgSlug: string | undefined): string {
   return `/${orgSlug}/folgas`;
 }

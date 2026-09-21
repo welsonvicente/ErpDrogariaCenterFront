@@ -1071,3 +1071,124 @@ table.data-table th {
 @media (max-width: 640px) {
   .paste-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ===========================================================================
+   Folgas — tela React nativa. Mantém a mesma linguagem visual do painel e
+   substitui integralmente o antigo HTML embutido em iframe.
+   =========================================================================== */
+
+.folgas-page { display: flex; flex-direction: column; gap: 18px; }
+.folgas-alerta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; }
+.folgas-alerta button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 16px; }
+.folgas-saving { position: fixed; right: 22px; bottom: 22px; z-index: 80; padding: 9px 14px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 8px 28px rgba(0,0,0,.18); }
+.folgas-feedback { text-align: center; padding: 44px 24px; }
+.folgas-feedback h2 { margin: 8px 0; font-size: 21px; }
+.folgas-feedback p { margin: 0; color: var(--ink-soft); }
+.folgas-feedback-icon { font-size: 38px; }
+.folgas-eyebrow { color: var(--teal-deep); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+.folgas-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 32px; align-items: center; padding: 28px; border-radius: 20px; background: linear-gradient(135deg, #effaf4 0%, #dcefe6 100%); border: 1px solid #c8e2d5; }
+.folgas-hero h2, .folgas-periodo h2 { margin: 4px 0 3px; font-size: 24px; color: var(--ink); }
+.folgas-hero p, .folgas-periodo p { margin: 0; color: var(--ink-soft); font-size: 13px; }
+.folgas-saldo { min-width: 145px; text-align: center; padding: 18px; border-radius: 16px; background: #fff; box-shadow: 0 8px 28px rgba(22, 91, 72, .09); }
+.folgas-saldo strong { display: block; font-size: 40px; line-height: 1; color: var(--teal-deep); }
+.folgas-saldo span { display: block; margin-top: 6px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
+.folgas-hero-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; }
+.folgas-hero-actions button, .folgas-toolbar button, .folgas-modal-actions button { width: auto; margin: 0; }
+
+.folgas-grid { display: grid; gap: 16px; margin-top: 16px; }
+.folgas-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.folgas-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.folgas-card-lista, .folgas-panel { padding: 20px; min-width: 0; }
+.folgas-card-lista h3, .folgas-panel h3 { margin: 0 0 14px; font-size: 15px; }
+.folgas-list-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.folgas-list-row:last-child { border-bottom: 0; }
+.folgas-list-row > span { min-width: 0; }
+.folgas-list-row strong { display: block; font-size: 13px; color: var(--ink); }
+.folgas-list-row small { display: block; margin-top: 3px; color: var(--ink-soft); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.folgas-vazio { padding: 18px 4px; text-align: center; color: var(--ink-soft); font-size: 12px; }
+.btn-link { border: 0; background: none; color: var(--teal-deep); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.btn-link.danger, .danger { color: var(--late); }
+
+.folgas-periodo { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 22px 24px; }
+.folgas-periodo-controles { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; }
+.folgas-segmented { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 11px; background: var(--bg); }
+.folgas-segmented button { border: 0; background: transparent; padding: 8px 11px; border-radius: 8px; color: var(--ink-soft); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.folgas-segmented button.active { background: var(--teal); color: #fff; }
+.folgas-inline-fields { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 11px; }
+.folgas-inline-fields input { width: 135px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 11px; }
+.folgas-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.folgas-toolbar .btn-ghost, .folgas-toolbar .btn-primary { padding: 9px 12px; font-size: 11.5px; }
+
+.folgas-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.folgas-stats .card { padding: 18px; display: flex; flex-direction: column; gap: 3px; }
+.folgas-stats strong { font-size: 28px; line-height: 1; color: var(--teal-deep); }
+.folgas-stats span { font-size: 11px; color: var(--ink-soft); font-weight: 650; }
+
+.folgas-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.folgas-panel-head h3 { margin: 0; }
+.folgas-panel-head > div { display: flex; gap: 5px; }
+.folgas-panel-head button { border: 1px solid var(--line); background: #fff; color: var(--teal-deep); border-radius: 7px; padding: 5px 7px; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
+.folgas-table-wrap { width: 100%; overflow-x: auto; }
+.folgas-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.folgas-table th { color: var(--ink-soft); font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; }
+.folgas-table th, .folgas-table td { padding: 9px 8px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.folgas-table tbody tr:last-child td { border-bottom: 0; }
+.folgas-badge { display: inline-block; padding: 3px 8px; border-radius: 999px; background: var(--bg); color: var(--ink-soft); font-size: 10px; font-weight: 800; }
+.folgas-badge--positivo { background: var(--ok-bg); color: var(--ok); }
+.folgas-today { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.folgas-today > div { padding: 13px; border-radius: 11px; background: var(--bg); }
+.folgas-today span, .folgas-today strong { display: block; }
+.folgas-today span { margin-bottom: 3px; color: var(--ink-soft); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.folgas-today strong { font-size: 12.5px; }
+.folgas-consulta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
+.folgas-consulta select, .folgas-consulta input { flex: 1; min-width: 110px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font: inherit; font-size: 11px; }
+.folgas-consulta-resultado { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.folgas-consulta-resultado > span { padding: 7px 9px; border-radius: 8px; background: var(--mint); color: var(--ink-soft); font-size: 11px; }
+
+.folgas-modal-overlay { position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(12, 31, 27, .48); backdrop-filter: blur(3px); }
+.folgas-modal { width: min(430px, 100%); max-height: min(720px, calc(100vh - 36px)); overflow-y: auto; padding: 22px; border-radius: 18px; background: var(--card); box-shadow: 0 24px 80px rgba(0,0,0,.24); }
+.folgas-modal--largo { width: min(620px, 100%); }
+.folgas-modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.folgas-modal-head h2 { margin: 0; font-size: 18px; }
+.folgas-icon-btn { border: 0; background: var(--bg); color: var(--ink-soft); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; }
+.folgas-modal textarea { min-height: 82px; resize: vertical; }
+.folgas-modal hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+.folgas-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.folgas-modal-list { max-height: 300px; overflow-y: auto; }
+.folgas-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.folgas-privacidade { margin: -4px 0 10px; color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
+.folgas-inline-alert { margin: 0 0 12px; padding: 9px 11px; border-radius: 9px; background: var(--warn-bg); color: var(--warn); font-size: 11.5px; }
+.folgas-subtitle { display: block; margin-bottom: 9px; font-size: 11px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; }
+.folgas-weekdays { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 16px; }
+.folgas-weekdays button { border: 1px solid var(--line); background: #fff; color: var(--ink-soft); padding: 8px 4px; border-radius: 8px; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
+.folgas-weekdays button.active { border-color: var(--late); background: var(--late-bg); color: var(--late); }
+.folgas-audit-row { align-items: flex-start; }
+.folgas-toast { position: fixed; left: 50%; bottom: 24px; z-index: 140; transform: translateX(-50%); padding: 11px 18px; border-radius: 12px; background: var(--green-deep); color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.22); font-size: 12px; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .folgas-grid--3 { grid-template-columns: minmax(0, 1fr); }
+  .folgas-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .folgas-grid--2 { grid-template-columns: minmax(0, 1fr); }
+  .folgas-periodo { flex-direction: column; align-items: stretch; }
+  .folgas-periodo-controles { align-items: stretch; }
+  .folgas-inline-fields { flex-wrap: wrap; }
+  .folgas-inline-fields input { flex: 1; }
+  .folgas-hero { grid-template-columns: minmax(0, 1fr); padding: 21px; }
+  .folgas-saldo { width: 100%; box-sizing: border-box; }
+  .folgas-hero-actions { grid-column: 1; }
+  .folgas-hero-actions button { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .folgas-stats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .folgas-stats .card { padding: 14px; }
+  .folgas-stats strong { font-size: 23px; }
+  .folgas-form-grid, .folgas-weekdays { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .folgas-modal { padding: 18px; }
+  .folgas-modal-actions { flex-direction: column-reverse; }
+  .folgas-modal-actions button { width: 100%; }
+}
