@@ -21,8 +21,14 @@ import {
 } from '../../utils/batchEngine';
 import { carregarConfiguracoesLote, montarGuiasCameraDoStory, salvarConfiguracoesLote } from '../../utils/cartazPersistencia';
 import { salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
-import { cartazService } from '../../services/cartazService';
+import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazService';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
+
+function formatarTamanho(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const ROTULO_STATUS: Record<ProdutoImportado['status'], string> = {
   pending: 'Sem imagem',
@@ -71,11 +77,32 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
   const [gerandoZip, setGerandoZip] = useState(false);
   const [toast, setToast] = useState('');
 
+  const [arquivosSalvos, setArquivosSalvos] = useState<ArquivoImportadoMeta[]>([]);
+  const [carregandoArquivosSalvos, setCarregandoArquivosSalvos] = useState(true);
+  const [usandoArquivoSalvoId, setUsandoArquivoSalvoId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(''), 2500);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  async function recarregarArquivosSalvos() {
+    try {
+      setArquivosSalvos(await cartazService.listarArquivos());
+    } catch {
+      /* lista fica vazia — não é crítico, a pessoa ainda pode importar um arquivo novo */
+    } finally {
+      setCarregandoArquivosSalvos(false);
+    }
+  }
+
+  // Arquivos já enviados por qualquer aparelho da organização — ver
+  // "Coloque essa opção de baixar/salvar também o arquivo que importo" (pedido
+  // de guardar o arquivo original no servidor, não só os produtos já lidos).
+  useEffect(() => {
+    recarregarArquivosSalvos();
+  }, []);
 
   useEffect(() => {
     const config = carregarConfiguracoesLote();
@@ -114,8 +141,54 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
       }
       setProdutos(importados);
       setStatusImportacao(`${importados.length} produto(s) importado(s) com sucesso.`);
+      enviarArquivoParaServidor(arquivo);
     } catch {
       setStatusImportacao('Não foi possível ler esse arquivo. Confirme que é um .xls ou .xlsx válido.');
+    }
+  }
+
+  /**
+   * Guarda o arquivo original no servidor depois de já ter lido com sucesso —
+   * best-effort: se a rede cair aqui, o import em si já funcionou (os
+   * produtos já estão na tela), só não vai dar pra reabrir esse arquivo de
+   * outro aparelho depois. Roda em paralelo, sem travar a tela de import.
+   */
+  async function enviarArquivoParaServidor(arquivo: File) {
+    try {
+      await cartazService.enviarArquivo(arquivo);
+      recarregarArquivosSalvos();
+    } catch {
+      setToast('Os produtos foram importados, mas não consegui guardar o arquivo original no servidor.');
+    }
+  }
+
+  async function handleUsarArquivoSalvo(meta: ArquivoImportadoMeta) {
+    setUsandoArquivoSalvoId(meta.id);
+    setStatusImportacao(`Baixando "${meta.nomeOriginal}"…`);
+    try {
+      const arquivo = await cartazService.baixarArquivo(meta.id);
+      const workbook = await lerArquivoComoWorkbook(arquivo);
+      const importados = parseWorkbookParaProdutos(workbook);
+      if (importados === null || importados.length === 0) {
+        setStatusImportacao('Não consegui reconhecer os produtos nesse arquivo salvo.');
+        return;
+      }
+      setProdutos(importados);
+      setStatusImportacao(`${importados.length} produto(s) importado(s) de "${meta.nomeOriginal}".`);
+    } catch {
+      setStatusImportacao('Não foi possível baixar esse arquivo. Tente novamente.');
+    } finally {
+      setUsandoArquivoSalvoId(null);
+    }
+  }
+
+  async function handleRemoverArquivoSalvo(meta: ArquivoImportadoMeta) {
+    if (!window.confirm(`Remover "${meta.nomeOriginal}" do servidor? Isso não afeta os produtos já importados na tela.`)) return;
+    try {
+      await cartazService.removerArquivo(meta.id);
+      setArquivosSalvos((atual) => atual.filter((a) => a.id !== meta.id));
+    } catch {
+      setToast('Não foi possível remover esse arquivo. Tente novamente.');
     }
   }
 
@@ -307,6 +380,33 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
         <p className="footnote" style={{ textAlign: 'left' }}>
           {statusImportacao}
         </p>
+
+        {!carregandoArquivosSalvos && arquivosSalvos.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <label>Arquivos já enviados (de qualquer computador ou celular)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              {arquivosSalvos.map((a) => (
+                <div key={a.id} className="batch-row" style={{ padding: '8px 10px' }}>
+                  <div className="thumb">📄</div>
+                  <div className="binfo">
+                    <div className="bname">{a.nomeOriginal}</div>
+                    <div className="bprice">
+                      {formatarTamanho(a.tamanhoBytes)} · {new Date(a.criadoEm).toLocaleString('pt-BR')}
+                    </div>
+                  </div>
+                  <div className="bactions">
+                    <button type="button" onClick={() => handleUsarArquivoSalvo(a)} disabled={usandoArquivoSalvoId !== null}>
+                      {usandoArquivoSalvoId === a.id ? 'Abrindo…' : '📥 Usar este arquivo'}
+                    </button>
+                    <button type="button" className="del" onClick={() => handleRemoverArquivoSalvo(a)}>
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '18px 0' }} />
 
