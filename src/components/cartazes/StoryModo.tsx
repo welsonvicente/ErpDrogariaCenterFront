@@ -177,29 +177,35 @@ export function StoryModo() {
 
   // Salva as configurações (preferências permanentes) — não inclui o produto
   // atual (nome/de/por/imagem), que é responsabilidade só do rascunho.
+  //
+  // Grava na hora (sem debounce): o Panfleto lê essa mesma chave só no
+  // instante de gerar um story individual (`carregarConfiguracoes()` em
+  // `handleGerarStoryIndividual`), sem estado ao vivo — um debounce aqui
+  // cria uma janela em que a posição/tamanho recém-arrastados no Story
+  // ainda não foram persistidos. No mouse a folga entre soltar o arrasto e
+  // trocar de aba costuma cobrir esse atraso; no toque (celular), arrastar
+  // e já tocar na aba "Panfleto" em seguida é rápido o bastante pra cair
+  // nessa janela e gerar com valores desatualizados.
   useEffect(() => {
     if (!prontoParaPersistir) return;
-    const timer = setTimeout(() => {
-      salvarConfiguracoes({
-        corLogo,
-        corTextoNome,
-        corPreco,
-        tamanhoNome,
-        tamanhoPreco,
-        margemNome,
-        margemPreco,
-        frasesAtivo,
-        frases,
-        corFundoFrases,
-        corTextoFrases,
-        tamanhoFrases,
-        margemFrases,
-        guiaNome,
-        guiaPreco,
-        guiaFrases,
-      });
-    }, 400);
-    return () => clearTimeout(timer);
+    salvarConfiguracoes({
+      corLogo,
+      corTextoNome,
+      corPreco,
+      tamanhoNome,
+      tamanhoPreco,
+      margemNome,
+      margemPreco,
+      frasesAtivo,
+      frases,
+      corFundoFrases,
+      corTextoFrases,
+      tamanhoFrases,
+      margemFrases,
+      guiaNome,
+      guiaPreco,
+      guiaFrases,
+    });
   }, [
     prontoParaPersistir,
     corLogo,
