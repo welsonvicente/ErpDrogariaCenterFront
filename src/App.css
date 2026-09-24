@@ -841,9 +841,17 @@ table.data-table th {
   position: absolute;
   top: 0;
   left: 50%;
-  /* Story 9:16 dentro da proporção física 76,7 × 159,9, sem deformar a arte. */
-  width: 117.27%;
+  /* Story (1080×1920) dentro da moldura do iPhone (76,7 × 159,9 mm) — são
+     proporções diferentes, então a arte fica mais larga que a moldura e
+     centralizada. `aspect-ratio` + `width: auto` deixa o navegador calcular
+     a largura exata a partir da altura real (100% do conteúdo já descontado
+     o padding/borda do .story-phone) — uma porcentagem fixa calculada à mão
+     (ex.: "117.27%") parte de uma largura sem padding/borda nenhum; em telas
+     pequenas essa diferença já é suficiente pra descentralizar a seleção
+     visivelmente em cima da arte. */
   height: 100%;
+  width: auto;
+  aspect-ratio: 1080 / 1920;
   max-width: none;
   transform: translateX(-50%);
 }
