@@ -4,8 +4,9 @@ import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal, type GuiaCamera } from '../CameraModal';
 import { EditarStoryProdutoModal } from './EditarStoryProdutoModal';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
-import { fmtMoney, montarTextoPromocional, type TransformImagem } from '../../utils/cartazEngine';
+import { ALTURA_STORY, fmtMoney, LARGURA_STORY, montarTextoPromocional, pintarStory, type TransformImagem } from '../../utils/cartazEngine';
 import {
+  carregarConfiguracoes,
   carregarConfiguracoesPanfleto,
   carregarImagemDeDataUrl,
   carregarProdutosRecentes,
@@ -17,11 +18,12 @@ import {
   salvarRascunhoPanfleto,
   type ProdutoRecente,
 } from '../../utils/cartazPersistencia';
-import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
+import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import {
   construirPaginasPanfleto,
   ESCALA_EXPORTACAO_PANFLETO,
   ITENS_POR_PAGINA_OPCOES,
+  montarParametrosStoryProduto,
   PRESETS_TAMANHO_PANFLETO,
   renderizarPaginaPanfleto,
   TRANSFORM_PADRAO_PANFLETO,
@@ -35,6 +37,7 @@ import { gerarImagemQr } from '../../utils/qrCode';
 type DestinoCamera = 'pendente' | number | null;
 
 const TAMANHO_QR_LOGICO = 130;
+const EMOJI_PADRAO_STORY = '🤩😱';
 
 /**
  * Gerador de Panfleto (vários produtos por página) — Fase 2 da reescrita de
@@ -117,6 +120,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   const [salvando, setSalvando] = useState(false);
   const [salvandoDireto, setSalvandoDireto] = useState(false);
+  const [baixandoStories, setBaixandoStories] = useState(false);
   const [toast, setToast] = useState('');
 
   const [ajusteIdx, setAjusteIdx] = useState<number | null>(null);
@@ -530,6 +534,41 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...campos, ajustesStory } : p)));
   }
 
+  /**
+   * Gera o story (1080×1920) de CADA produto do panfleto e manda tudo de uma
+   * vez — no celular, quando o navegador suporta compartilhar vários
+   * arquivos, abre a folha de compartilhar já com todas as imagens prontas
+   * pra postar no WhatsApp/Instagram (sem precisar descompactar nada); sem
+   * esse suporte (a maioria dos navegadores de desktop), baixa um único
+   * .zip com todas. Cada produto usa seu `ajustesStory`, senão o padrão do
+   * modo Story — mesma regra de `EditarStoryProdutoModal`.
+   */
+  async function handleBaixarTodosStories() {
+    if (produtos.length === 0) {
+      setToast('Adicione produtos ao panfleto antes de baixar os stories.');
+      return;
+    }
+    setBaixandoStories(true);
+    try {
+      const configPadrao = carregarConfiguracoes() || {};
+      const itens = produtos.map((produto, i) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = LARGURA_STORY;
+        canvas.height = ALTURA_STORY;
+        const ctx = canvas.getContext('2d')!;
+        pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY));
+        const nomeSeguro = produto.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${i + 1}`;
+        return { conteudo: canvas.toDataURL('image/png'), nomeArquivo: `story-${String(i + 1).padStart(2, '0')}-${nomeSeguro}.png`, mime: 'image/png' };
+      });
+      const tituloCompartilhamento = `${produtos.length} ${produtos.length === 1 ? 'story' : 'stories'} — ${titulo.trim() || nomeLoja.trim() || 'ofertas'}`;
+      await compartilharOuBaixarVarios(itens, `stories-${Date.now()}.zip`, tituloCompartilhamento);
+    } catch {
+      setToast('Não foi possível gerar os stories. Tente novamente.');
+    } finally {
+      setBaixandoStories(false);
+    }
+  }
+
   function OpcoesAlinhamento({ value, onChange }: { value: AlinhamentoTexto; onChange: (v: AlinhamentoTexto) => void }) {
     return (
       <select value={value} onChange={(e) => onChange(e.target.value as AlinhamentoTexto)}>
@@ -625,6 +664,22 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
             >
               🖋️ Editar tamanho/posição padrão dos stories (vale pra todo produto sem ajuste próprio)
             </button>
+          )}
+          {produtos.length > 0 && (
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
+              onClick={handleBaixarTodosStories}
+              disabled={baixandoStories}
+            >
+              {baixandoStories ? 'Gerando stories...' : `📲 Baixar/compartilhar todos os stories (${produtos.length})`}
+            </button>
+          )}
+          {produtos.length > 0 && (
+            <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
+              No celular, abre a folha de compartilhar já com todas as imagens prontas pra postar no WhatsApp/Instagram. No computador, baixa um .zip com todas.
+            </p>
           )}
           <div className="product-list">
             {produtos.length === 0 && <div className="empty-note">Nenhum produto adicionado ainda.</div>}

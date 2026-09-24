@@ -1,3 +1,5 @@
+import JSZip from 'jszip';
+
 async function paraArquivo(conteudo: string | Blob, nomeArquivo: string, mime?: string): Promise<File> {
   if (typeof conteudo === 'string') {
     const res = await fetch(conteudo);
@@ -67,4 +69,37 @@ export async function salvarOuCompartilharArquivo(
   // iPhone/iPad sem suporte a compartilhar arquivo, a saída é tocar e segurar
   // a imagem que já fica visível na tela pra salvar.
   baixarPorLink(arquivo);
+}
+
+/**
+ * Compartilha VÁRIOS arquivos de uma vez (ex.: o story de cada produto do
+ * panfleto) — quando o navegador suporta compartilhar múltiplos arquivos
+ * (a maioria dos celulares), WhatsApp/Instagram recebem as imagens prontas
+ * pra postar, sem precisar descompactar nada antes. Sem esse suporte (a
+ * maioria dos navegadores de desktop), baixa um único .zip com tudo dentro
+ * — pra isso servir tanto "mandar direto" no celular quanto "guardar tudo"
+ * no computador.
+ */
+export async function compartilharOuBaixarVarios(
+  itens: { conteudo: string | Blob; nomeArquivo: string; mime: string }[],
+  nomeZip: string,
+  tituloCompartilhamento?: string,
+) {
+  const arquivos = await Promise.all(itens.map((item) => paraArquivo(item.conteudo, item.nomeArquivo, item.mime)));
+
+  const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean; share?: (data: { files: File[]; title?: string }) => Promise<void> };
+  if (nav.canShare?.({ files: arquivos })) {
+    try {
+      await nav.share?.({ files: arquivos, title: tituloCompartilhamento });
+      return;
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return; // cancelou o compartilhamento, não é erro
+      // qualquer outro erro cai pro .zip abaixo
+    }
+  }
+
+  const zip = new JSZip();
+  arquivos.forEach((arquivo) => zip.file(arquivo.name, arquivo));
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  baixarPorLink(await paraArquivo(zipBlob, nomeZip, 'application/zip'));
 }

@@ -6,7 +6,8 @@
  * parâmetros, sem tocar no DOM da aplicação.
  */
 
-import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, type FonteImagem, type TransformImagem } from './cartazEngine';
+import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, type FonteImagem, type ParametrosStory, type TransformImagem } from './cartazEngine';
+import type { ConfiguracoesStory } from './cartazPersistencia';
 
 export type AlinhamentoTexto = 'left' | 'center' | 'right';
 
@@ -59,6 +60,65 @@ export interface ProdutoPanfleto {
   transform: TransformImagem;
   /** Ajustes salvos especificamente pro story deste produto — ver `AjustesStoryProduto`. Ausente = usa só o padrão do Story. */
   ajustesStory?: AjustesStoryProduto;
+}
+
+const GUIA_PADRAO_NOME: GuiaFaixa = { y: 130, offsetX: 0 };
+const GUIA_PADRAO_PRECO: GuiaFaixa = { y: 320, offsetX: 0 };
+const GUIA_PADRAO_FRASES: GuiaFaixa = { y: 560, offsetX: 0 };
+
+/**
+ * Monta os parâmetros completos pra pintar o story (1080×1920) de UM
+ * produto — usado tanto pelo editor individual quanto por "Baixar todos os
+ * stories". `ajustesStory` do produto tem prioridade, senão cai no padrão
+ * configurado no Story (`padrao`, de `carregarConfiguracoes()`), senão nas
+ * constantes embutidas — mesma cascata em qualquer lugar que gere um story.
+ */
+export function montarParametrosStoryProduto(
+  produto: ProdutoPanfleto,
+  padrao: Partial<ConfiguracoesStory>,
+  emoji: string,
+): ParametrosStory {
+  const a = produto.ajustesStory;
+  function r<T>(doProduto: T | undefined, doPadrao: T | undefined, embutido: T): T {
+    return doProduto ?? doPadrao ?? embutido;
+  }
+  const guiaNome = r(a?.guiaNome, padrao.guiaNome, GUIA_PADRAO_NOME);
+  const guiaPreco = r(a?.guiaPreco, padrao.guiaPreco, GUIA_PADRAO_PRECO);
+  const guiaFrases = r(a?.guiaFrases, padrao.guiaFrases, GUIA_PADRAO_FRASES);
+  const frasesAtivo = r(a?.frasesAtivo, padrao.frasesAtivo, true);
+
+  return {
+    imagem: produto.imagem,
+    transformImagem: produto.transform,
+    nome: produto.nome,
+    de: produto.de,
+    por: produto.por,
+    emoji,
+    corLogo: r(a?.corLogo, padrao.corLogo, '#436000'),
+    corTextoNome: r(a?.corTextoNome, padrao.corTextoNome, '#FFFFFF'),
+    corPreco: r(a?.corPreco, padrao.corPreco, '#E30613'),
+    nomeY: guiaNome.y,
+    precoY: guiaPreco.y,
+    nomeOffsetX: guiaNome.offsetX,
+    precoOffsetX: guiaPreco.offsetX,
+    nomeX: guiaNome.x,
+    nomeLargura: guiaNome.largura,
+    precoX: guiaPreco.x,
+    precoLargura: guiaPreco.largura,
+    tamanhoNome: r(a?.tamanhoNome, padrao.tamanhoNome, 40),
+    tamanhoPreco: r(a?.tamanhoPreco, padrao.tamanhoPreco, 62),
+    frases: frasesAtivo ? r(a?.frases, padrao.frases, '') : '',
+    frasesY: guiaFrases.y,
+    frasesOffsetX: guiaFrases.offsetX,
+    frasesX: guiaFrases.x,
+    frasesLargura: guiaFrases.largura,
+    corFundoFrases: r(a?.corFundoFrases, padrao.corFundoFrases, '#173C3A'),
+    corTextoFrases: r(a?.corTextoFrases, padrao.corTextoFrases, '#FFFFFF'),
+    tamanhoFrases: r(a?.tamanhoFrases, padrao.tamanhoFrases, 32),
+    margemNome: r(a?.margemNome, padrao.margemNome, 60),
+    margemPreco: r(a?.margemPreco, padrao.margemPreco, 60),
+    margemFrases: r(a?.margemFrases, padrao.margemFrases, 60),
+  };
 }
 
 export interface DimensaoCardPanfleto {
