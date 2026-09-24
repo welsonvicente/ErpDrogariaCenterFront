@@ -12,6 +12,39 @@ export type AlinhamentoTexto = 'left' | 'center' | 'right';
 
 export const TRANSFORM_PADRAO_PANFLETO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
 
+interface GuiaFaixa {
+  y: number;
+  offsetX: number;
+  x?: number;
+  largura?: number;
+}
+
+/**
+ * Ajustes do story individual (1080×1920) de UM produto específico —
+ * qualquer campo ausente cai no padrão configurado no modo Story
+ * (`cartazes_story_settings_v1`). Mesmo formato de `ConfiguracoesStory`,
+ * mas todo opcional: aqui é uma exceção pontual por produto, não uma
+ * preferência geral.
+ */
+export interface AjustesStoryProduto {
+  corLogo?: string;
+  corTextoNome?: string;
+  corPreco?: string;
+  tamanhoNome?: number;
+  tamanhoPreco?: number;
+  margemNome?: number;
+  margemPreco?: number;
+  frasesAtivo?: boolean;
+  frases?: string;
+  corFundoFrases?: string;
+  corTextoFrases?: string;
+  tamanhoFrases?: number;
+  margemFrases?: number;
+  guiaNome?: GuiaFaixa;
+  guiaPreco?: GuiaFaixa;
+  guiaFrases?: GuiaFaixa;
+}
+
 export interface ProdutoPanfleto {
   imagem: HTMLImageElement;
   nome: string;
@@ -24,6 +57,8 @@ export interface ProdutoPanfleto {
    * o grid, só a versão 1080×1920 gerada à parte.
    */
   transform: TransformImagem;
+  /** Ajustes salvos especificamente pro story deste produto — ver `AjustesStoryProduto`. Ausente = usa só o padrão do Story. */
+  ajustesStory?: AjustesStoryProduto;
 }
 
 export interface DimensaoCardPanfleto {

@@ -48,7 +48,11 @@ export function CartazesPage() {
           <StoryModo />
         </div>
         <div id="cartazes-panel-panfleto" role="tabpanel" aria-labelledby="cartazes-tab-panfleto" className="cartazes-mode" style={{ display: modo === 'panfleto' ? 'block' : 'none' }}>
-          <PanfletoModo produtosRecebidos={produtosParaPanfleto} aoReceberProdutos={() => setProdutosParaPanfleto(null)} />
+          <PanfletoModo
+            produtosRecebidos={produtosParaPanfleto}
+            aoReceberProdutos={() => setProdutosParaPanfleto(null)}
+            aoAbrirConfiguracaoPadrao={() => setModo('story')}
+          />
         </div>
         <div id="cartazes-panel-planilha" role="tabpanel" aria-labelledby="cartazes-tab-planilha" className="cartazes-mode cartazes-mode--planilha" style={{ display: modo === 'planilha' ? 'flex' : 'none' }}>
           <ImportarPlanilhaModo

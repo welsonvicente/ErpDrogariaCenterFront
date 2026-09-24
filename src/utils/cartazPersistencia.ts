@@ -1,4 +1,5 @@
 import type { TransformImagem } from './cartazEngine';
+import type { AjustesStoryProduto } from './panfletoEngine';
 
 /**
  * Persistência local (por navegador/aparelho) do gerador de Story — três
@@ -234,6 +235,7 @@ export interface ProdutoPanfletoRascunho {
   de: string;
   por: string;
   transform: TransformImagem;
+  ajustesStory?: AjustesStoryProduto;
 }
 
 export interface RascunhoPanfleto {
