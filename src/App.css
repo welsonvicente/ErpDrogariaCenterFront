@@ -881,6 +881,12 @@ table.data-table th {
   object-fit: contain;
   border-radius: 10px;
   display: block;
+  /* Sem isso, tocar e segurar no canvas no iOS abre o menu nativo de
+     "Salvar imagem" / lupa de seleção no meio do gesto de arrastar,
+     cancelando o pointermove antes de mover o elemento selecionado. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .instagram-story-ui {
   position: absolute;
@@ -1017,6 +1023,12 @@ table.data-table th {
   cursor: grab;
   touch-action: none;
   outline: none;
+  /* Mesmo motivo do .cartaz-canvas: bloqueia o menu nativo de callout/seleção
+     do iOS que, sem isso, interrompe o arrasto assim que o dedo fica parado
+     por um instante (efeito de toque-e-segure). */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .story-elemento-editavel:hover,
 .story-elemento-editavel:focus-visible,
