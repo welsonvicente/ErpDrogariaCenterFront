@@ -1,3 +1,4 @@
+import type { StatusImagemProduto } from './batchEngine';
 import type { TransformImagem } from './cartazEngine';
 import type { AjustesStoryProduto } from './panfletoEngine';
 
@@ -253,15 +254,37 @@ export function carregarRascunhoPanfleto(): RascunhoPanfleto | null {
   }
 }
 
-export function salvarRascunhoPanfleto(produtos: ProdutoPanfletoRascunho[]) {
-  try {
-    if (produtos.length) {
-      localStorage.setItem(CHAVE_RASCUNHO_PANFLETO, JSON.stringify({ produtos, savedAt: Date.now() }));
-    } else {
+export type ResultadoSalvarRascunho = 'completo' | 'sem-fotos' | 'falhou';
+
+/**
+ * Salva o rascunho (produtos em andamento) — se o navegador não tiver espaço
+ * pras fotos (localStorage costuma ter só uns 5-10MB por site, e fotos de
+ * câmera em quantidade estouram isso fácil), tenta de novo SEM as fotos em
+ * vez de desistir: perder a posição/nome/preço de tudo é bem pior do que só
+ * precisar tirar as fotos de novo. Devolve o que realmente conseguiu salvar,
+ * pra quem chamou avisar a pessoa em vez de deixá-la achando que está tudo
+ * protegido quando não está.
+ */
+export function salvarRascunhoPanfleto(produtos: ProdutoPanfletoRascunho[]): ResultadoSalvarRascunho {
+  if (!produtos.length) {
+    try {
       localStorage.removeItem(CHAVE_RASCUNHO_PANFLETO);
+    } catch {
+      /* nada a limpar */
     }
+    return 'completo';
+  }
+  try {
+    localStorage.setItem(CHAVE_RASCUNHO_PANFLETO, JSON.stringify({ produtos, savedAt: Date.now() }));
+    return 'completo';
   } catch {
-    /* armazenamento indisponível/cheio (comum com várias fotos) — sem rascunho desta vez, sem quebrar nada */
+    try {
+      const semFotos = produtos.map((p) => ({ ...p, imgSrc: '' }));
+      localStorage.setItem(CHAVE_RASCUNHO_PANFLETO, JSON.stringify({ produtos: semFotos, savedAt: Date.now() }));
+      return 'sem-fotos';
+    } catch {
+      return 'falhou';
+    }
   }
 }
 
@@ -274,10 +297,70 @@ export function limparRascunhoPanfleto() {
 }
 
 // ---------------------------------------------------------------------------
-// Importar planilha — só as 3 cores dos stories gerados em lote são
-// "preferência permanente" (mesmo padrão da versão HTML). A lista de produtos
-// importados não é persistida entre sessões: pode vir de uma planilha grande,
-// e reimportar é mais simples do que arriscar lotar o localStorage.
+// Importar planilha — as 3 cores dos stories gerados em lote são "preferência
+// permanente" (mesmo padrão da versão HTML). Os produtos importados (com
+// fotos manuais/tiradas na hora, já que a planilha em si não traz foto) têm
+// rascunho igual ao do Panfleto — perder um lote de fotos tiradas uma a uma
+// no celular é tão ruim quanto perder o painel do Panfleto.
+
+const CHAVE_RASCUNHO_LOTE = 'cartazes_batch_draft_v1';
+
+export interface ProdutoLoteRascunho {
+  descricao: string;
+  normal: number | null;
+  promo: number | null;
+  ean: string | null;
+  imgSrc: string;
+  status: StatusImagemProduto;
+  transform: TransformImagem;
+}
+
+export interface RascunhoLote {
+  savedAt: number;
+  produtos: ProdutoLoteRascunho[];
+}
+
+export function carregarRascunhoLote(): RascunhoLote | null {
+  try {
+    const raw = localStorage.getItem(CHAVE_RASCUNHO_LOTE);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Mesma estratégia de `salvarRascunhoPanfleto`: sem espaço pras fotos, tenta salvar só o texto em vez de perder tudo. */
+export function salvarRascunhoLote(produtos: ProdutoLoteRascunho[]): ResultadoSalvarRascunho {
+  if (!produtos.length) {
+    try {
+      localStorage.removeItem(CHAVE_RASCUNHO_LOTE);
+    } catch {
+      /* nada a limpar */
+    }
+    return 'completo';
+  }
+  try {
+    localStorage.setItem(CHAVE_RASCUNHO_LOTE, JSON.stringify({ produtos, savedAt: Date.now() }));
+    return 'completo';
+  } catch {
+    try {
+      const semFotos = produtos.map((p) => ({ ...p, imgSrc: '' }));
+      localStorage.setItem(CHAVE_RASCUNHO_LOTE, JSON.stringify({ produtos: semFotos, savedAt: Date.now() }));
+      return 'sem-fotos';
+    } catch {
+      return 'falhou';
+    }
+  }
+}
+
+export function limparRascunhoLote() {
+  try {
+    localStorage.removeItem(CHAVE_RASCUNHO_LOTE);
+  } catch {
+    /* nada a limpar */
+  }
+}
 
 const CHAVE_CONFIGURACOES_LOTE = 'cartazes_batch_settings_v1';
 
@@ -301,6 +384,40 @@ export function salvarConfiguracoesLote(config: ConfiguracoesLote) {
   } catch {
     /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
   }
+}
+
+/**
+ * Imagem "aviso" usada quando o rascunho não conseguiu guardar a foto de um
+ * produto (ver `ResultadoSalvarRascunho`) — assim o produto (nome/preço)
+ * ainda aparece pra pessoa recuperar depois de um recarregamento, só falta
+ * tirar a foto de novo, em vez de o produto inteiro sumir sem explicação.
+ */
+export function criarImagemAvisoSemFoto(): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 400;
+    canvas.height = 400;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      reject(new Error('canvas indisponível'));
+      return;
+    }
+    ctx.fillStyle = '#EAF7CC';
+    ctx.fillRect(0, 0, 400, 400);
+    ctx.fillStyle = '#436000';
+    ctx.textAlign = 'center';
+    ctx.font = '46px sans-serif';
+    ctx.fillText('📷', 200, 190);
+    ctx.font = '600 20px Inter, sans-serif';
+    ctx.fillText('Foto não salva', 200, 235);
+    ctx.font = '400 15px Inter, sans-serif';
+    ctx.fillStyle = '#4B6A67';
+    ctx.fillText('Toque em "Trocar foto"', 200, 262);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = canvas.toDataURL('image/png');
+  });
 }
 
 export function carregarImagemDeDataUrl(src: string): Promise<HTMLImageElement> {

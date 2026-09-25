@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal, type GuiaCamera } from '../CameraModal';
 import { EditarStoryProdutoModal } from './EditarStoryProdutoModal';
+import { GaleriaStoriesModal } from './GaleriaStoriesModal';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
 import { ALTURA_STORY, fmtMoney, LARGURA_STORY, montarTextoPromocional, pintarStory, type TransformImagem } from '../../utils/cartazEngine';
 import {
@@ -11,12 +12,14 @@ import {
   carregarImagemDeDataUrl,
   carregarProdutosRecentes,
   carregarRascunhoPanfleto,
+  criarImagemAvisoSemFoto,
   limparRascunhoPanfleto,
   montarGuiasCameraDoStory,
   salvarConfiguracoesPanfleto,
   salvarProdutoRecente,
   salvarRascunhoPanfleto,
   type ProdutoRecente,
+  type ResultadoSalvarRascunho,
 } from '../../utils/cartazPersistencia';
 import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import {
@@ -76,6 +79,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const inputTrocaRef = useRef<HTMLInputElement>(null);
   const inputFundoRef = useRef<HTMLInputElement>(null);
   const trocaAlvoIdx = useRef<number | null>(null);
+  const ultimoAvisoRascunhoRef = useRef<ResultadoSalvarRascunho | null>(null);
 
   const [produtos, setProdutos] = useState<ProdutoPanfleto[]>([]);
   const [imagemPendente, setImagemPendente] = useState<HTMLImageElement | null>(null);
@@ -121,6 +125,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [salvando, setSalvando] = useState(false);
   const [salvandoDireto, setSalvandoDireto] = useState(false);
   const [baixandoStories, setBaixandoStories] = useState(false);
+  const [itensGaleriaStories, setItensGaleriaStories] = useState<{ conteudo: string; nomeArquivo: string; mime: string; rotulo: string }[] | null>(null);
   const [toast, setToast] = useState('');
 
   const [ajusteIdx, setAjusteIdx] = useState<number | null>(null);
@@ -204,15 +209,24 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       }
 
       const restaurados: ProdutoPanfleto[] = [];
+      let semFotoCount = 0;
       for (const p of rascunho.produtos) {
         try {
-          const imagem = await carregarImagemDeDataUrl(p.imgSrc);
+          // `imgSrc` vazio = a foto não coube salvar no rascunho (ver
+          // salvarRascunhoPanfleto) — mostra um aviso no lugar da foto em vez
+          // de descartar o produto inteiro; nome/preço não se perdem, só a
+          // foto precisa ser tirada de novo.
+          if (!p.imgSrc) semFotoCount++;
+          const imagem = p.imgSrc ? await carregarImagemDeDataUrl(p.imgSrc) : await criarImagemAvisoSemFoto();
           restaurados.push({ imagem, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory });
         } catch {
           /* foto do rascunho corrompida — pula esse produto */
         }
       }
       setProdutos(restaurados);
+      if (semFotoCount > 0) {
+        setToast(`${semFotoCount} produto(s) recuperado(s) sem a foto — toque em "Trocar foto" pra tirar de novo.`);
+      }
     }
     restaurarRascunhoSeConfirmado().finally(() => setProntoParaPersistir(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -279,11 +293,26 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   ]);
 
   // Salva o rascunho (só os produtos) — recuperável se a aba fechar ou travar
-  // no meio de um panfleto com vários produtos já adicionados.
+  // no meio de um panfleto com vários produtos já adicionados. Quando as
+  // fotos não cabem mais no localStorage (comum no celular com várias fotos
+  // de câmera — ver salvarRascunhoPanfleto), avisa uma vez em vez de deixar
+  // a pessoa achando que está tudo protegido quando não está mais.
   useEffect(() => {
     if (!prontoParaPersistir) return;
     const timer = setTimeout(() => {
-      salvarRascunhoPanfleto(produtos.map((p) => ({ imgSrc: p.imagem.src, nome: p.nome, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })));
+      const resultado = salvarRascunhoPanfleto(
+        produtos.map((p) => ({ imgSrc: p.imagem.src, nome: p.nome, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
+      );
+      if (resultado !== 'completo' && ultimoAvisoRascunhoRef.current !== resultado) {
+        ultimoAvisoRascunhoRef.current = resultado;
+        setToast(
+          resultado === 'sem-fotos'
+            ? '⚠️ As fotos não couberam mais pra salvar automaticamente — baixe ou compartilhe o que já tem, pra não arriscar perder no meio do caminho.'
+            : '⚠️ Não foi possível salvar o rascunho automático — baixe ou compartilhe o que já tem, pra não arriscar perder no meio do caminho.',
+        );
+      } else if (resultado === 'completo') {
+        ultimoAvisoRascunhoRef.current = null;
+      }
     }, 700);
     return () => clearTimeout(timer);
   }, [prontoParaPersistir, produtos]);
@@ -535,33 +564,38 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   }
 
   /**
-   * Gera o story (1080×1920) de CADA produto do panfleto e manda tudo de uma
-   * vez — no celular, quando o navegador suporta compartilhar vários
-   * arquivos, abre a folha de compartilhar já com todas as imagens prontas
-   * pra postar no WhatsApp/Instagram (sem precisar descompactar nada); sem
-   * esse suporte (a maioria dos navegadores de desktop), baixa um único
-   * .zip com todas. Cada produto usa seu `ajustesStory`, senão o padrão do
-   * modo Story — mesma regra de `EditarStoryProdutoModal`.
+   * Gera o story (1080×1920) de CADA produto do panfleto e abre a prévia em
+   * galeria antes de baixar/compartilhar — dá pra conferir posição/corte/preço
+   * do lote inteiro de uma vez em vez de só descobrir um problema depois de já
+   * ter mandado pro grupo. Cada produto usa seu `ajustesStory`, senão o padrão
+   * do modo Story — mesma regra de `EditarStoryProdutoModal`.
    */
-  async function handleBaixarTodosStories() {
+  function handleGerarGaleriaStories() {
     if (produtos.length === 0) {
-      setToast('Adicione produtos ao panfleto antes de baixar os stories.');
+      setToast('Adicione produtos ao panfleto antes de gerar os stories.');
       return;
     }
+    const configPadrao = carregarConfiguracoes() || {};
+    const itens = produtos.map((produto, i) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = LARGURA_STORY;
+      canvas.height = ALTURA_STORY;
+      const ctx = canvas.getContext('2d')!;
+      pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY));
+      const nomeSeguro = produto.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${i + 1}`;
+      return { conteudo: canvas.toDataURL('image/png'), nomeArquivo: `story-${String(i + 1).padStart(2, '0')}-${nomeSeguro}.png`, mime: 'image/png', rotulo: produto.nome };
+    });
+    setItensGaleriaStories(itens);
+  }
+
+  /** Confirmação da galeria — mesma lógica de baixar/compartilhar de antes, só que agora depois de revisar. */
+  async function handleBaixarTodosStories() {
+    if (!itensGaleriaStories) return;
     setBaixandoStories(true);
     try {
-      const configPadrao = carregarConfiguracoes() || {};
-      const itens = produtos.map((produto, i) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = LARGURA_STORY;
-        canvas.height = ALTURA_STORY;
-        const ctx = canvas.getContext('2d')!;
-        pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY));
-        const nomeSeguro = produto.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${i + 1}`;
-        return { conteudo: canvas.toDataURL('image/png'), nomeArquivo: `story-${String(i + 1).padStart(2, '0')}-${nomeSeguro}.png`, mime: 'image/png' };
-      });
-      const tituloCompartilhamento = `${produtos.length} ${produtos.length === 1 ? 'story' : 'stories'} — ${titulo.trim() || nomeLoja.trim() || 'ofertas'}`;
-      await compartilharOuBaixarVarios(itens, `stories-${Date.now()}.zip`, tituloCompartilhamento);
+      const tituloCompartilhamento = `${itensGaleriaStories.length} ${itensGaleriaStories.length === 1 ? 'story' : 'stories'} — ${titulo.trim() || nomeLoja.trim() || 'ofertas'}`;
+      await compartilharOuBaixarVarios(itensGaleriaStories, `stories-${Date.now()}.zip`, tituloCompartilhamento);
+      setItensGaleriaStories(null);
     } catch {
       setToast('Não foi possível gerar os stories. Tente novamente.');
     } finally {
@@ -670,15 +704,14 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
               type="button"
               className="btn-primary"
               style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
-              onClick={handleBaixarTodosStories}
-              disabled={baixandoStories}
+              onClick={handleGerarGaleriaStories}
             >
-              {baixandoStories ? 'Gerando stories...' : `📲 Baixar/compartilhar todos os stories (${produtos.length})`}
+              👁️ Ver todos os stories antes de baixar ({produtos.length})
             </button>
           )}
           {produtos.length > 0 && (
             <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
-              No celular, abre a folha de compartilhar já com todas as imagens prontas pra postar no WhatsApp/Instagram. No computador, baixa um .zip com todas.
+              Mostra uma prévia de todos pra conferir antes. No celular, o botão de dentro abre a folha de compartilhar já com as imagens prontas pra postar no WhatsApp/Instagram; no computador, baixa um .zip com todas.
             </p>
           )}
           <div className="product-list">
@@ -955,6 +988,15 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
           produto={produtos[editarStoryIdx]}
           onFechar={() => setEditarStoryIdx(null)}
           onSalvar={(ajustesStory, campos) => handleSalvarAjustesStory(editarStoryIdx, ajustesStory, campos)}
+        />
+      )}
+
+      {itensGaleriaStories && (
+        <GaleriaStoriesModal
+          itens={itensGaleriaStories.map((item) => ({ nomeArquivo: item.nomeArquivo, rotulo: item.rotulo, dataUrl: item.conteudo }))}
+          baixando={baixandoStories}
+          onBaixar={handleBaixarTodosStories}
+          onFechar={() => setItensGaleriaStories(null)}
         />
       )}
     </>

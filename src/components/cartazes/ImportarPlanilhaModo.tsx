@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import JSZip from 'jszip';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal, type GuiaCamera } from '../CameraModal';
+import { GaleriaStoriesModal } from './GaleriaStoriesModal';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
 import {
   ALTURA_STORY,
@@ -19,8 +19,17 @@ import {
   TRANSFORM_PADRAO,
   type ProdutoImportado,
 } from '../../utils/batchEngine';
-import { carregarConfiguracoesLote, montarGuiasCameraDoStory, salvarConfiguracoesLote } from '../../utils/cartazPersistencia';
-import { salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
+import {
+  carregarConfiguracoesLote,
+  carregarImagemDeDataUrl,
+  carregarRascunhoLote,
+  limparRascunhoLote,
+  montarGuiasCameraDoStory,
+  salvarConfiguracoesLote,
+  salvarRascunhoLote,
+  type ResultadoSalvarRascunho,
+} from '../../utils/cartazPersistencia';
+import { compartilharOuBaixarVarios } from '../../utils/compartilharArquivo';
 import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazService';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
 
@@ -56,8 +65,10 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
   const inputPlanilhaRef = useRef<HTMLInputElement>(null);
   const inputManualRef = useRef<HTMLInputElement>(null);
   const trocaAlvoIdx = useRef<number | null>(null);
+  const ultimoAvisoRascunhoRef = useRef<ResultadoSalvarRascunho | null>(null);
 
   const [produtos, setProdutos] = useState<ProdutoImportado[]>([]);
+  const [prontoParaPersistir, setProntoParaPersistir] = useState(false);
   const [statusImportacao, setStatusImportacao] = useState(
     'A planilha precisa ter colunas com o nome do produto, preço normal, valor da promoção e EAN (código de barras).',
   );
@@ -75,6 +86,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
   const [ajusteIdx, setAjusteIdx] = useState<number | null>(null);
   const [buscandoTodas, setBuscandoTodas] = useState(false);
   const [gerandoZip, setGerandoZip] = useState(false);
+  const [itensGaleriaStories, setItensGaleriaStories] = useState<{ conteudo: string; nomeArquivo: string; mime: string; rotulo: string }[] | null>(null);
   const [toast, setToast] = useState('');
 
   const [arquivosSalvos, setArquivosSalvos] = useState<ArquivoImportadoMeta[]>([]);
@@ -118,6 +130,76 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     }, 400);
     return () => clearTimeout(timer);
   }, [corLogo, corTextoNome, corPreco]);
+
+  // Rascunho dos produtos em andamento — sem isso, um travamento/recarregamento
+  // no meio de um lote de fotos tiradas na hora (a planilha em si não traz
+  // foto nenhuma) perdia tudo sem chance de recuperar, diferente do Panfleto
+  // (que já tinha essa proteção).
+  useEffect(() => {
+    async function restaurarRascunhoSeConfirmado() {
+      const rascunho = carregarRascunhoLote();
+      if (!rascunho || rascunho.produtos.length === 0) return;
+
+      const quando = rascunho.savedAt ? new Date(rascunho.savedAt).toLocaleString('pt-BR') : '';
+      const mensagem = `Encontramos um rascunho não finalizado com ${rascunho.produtos.length} produto(s) importado(s)${quando ? ` (salvo em ${quando})` : ''}. Deseja continuar de onde parou?`;
+      if (!window.confirm(mensagem)) {
+        limparRascunhoLote();
+        return;
+      }
+
+      const restaurados: ProdutoImportado[] = [];
+      let semFotoCount = 0;
+      for (const p of rascunho.produtos) {
+        // `imgSrc` vazio = a foto não coube salvar no rascunho (localStorage
+        // cheio, comum com várias fotos de câmera) — mantém o produto (texto)
+        // marcado como "sem imagem" em vez de descartá-lo.
+        let imagem: HTMLImageElement | null = null;
+        if (p.imgSrc) {
+          try {
+            imagem = await carregarImagemDeDataUrl(p.imgSrc);
+          } catch {
+            /* foto do rascunho corrompida — segue sem ela */
+          }
+        }
+        if (!imagem) semFotoCount++;
+        restaurados.push({
+          descricao: p.descricao,
+          normal: p.normal,
+          promo: p.promo,
+          ean: p.ean,
+          imagem,
+          status: imagem ? p.status : 'pending',
+          transform: p.transform || TRANSFORM_PADRAO,
+        });
+      }
+      setProdutos(restaurados);
+      if (semFotoCount > 0) {
+        setToast(`${semFotoCount} produto(s) recuperado(s) sem a foto — toque em "Trocar" pra tirar de novo.`);
+      }
+    }
+    restaurarRascunhoSeConfirmado().finally(() => setProntoParaPersistir(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!prontoParaPersistir) return;
+    const timer = setTimeout(() => {
+      const resultado = salvarRascunhoLote(
+        produtos.map((p) => ({ descricao: p.descricao, normal: p.normal, promo: p.promo, ean: p.ean, imgSrc: p.imagem?.src || '', status: p.status, transform: p.transform })),
+      );
+      if (resultado !== 'completo' && ultimoAvisoRascunhoRef.current !== resultado) {
+        ultimoAvisoRascunhoRef.current = resultado;
+        setToast(
+          resultado === 'sem-fotos'
+            ? '⚠️ As fotos não couberam mais pra salvar automaticamente — gere os stories ou envie pro panfleto agora, pra não arriscar perder no meio do caminho.'
+            : '⚠️ Não foi possível salvar o rascunho automático — gere os stories ou envie pro panfleto agora, pra não arriscar perder no meio do caminho.',
+        );
+      } else if (resultado === 'completo') {
+        ultimoAvisoRascunhoRef.current = null;
+      }
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [prontoParaPersistir, produtos]);
 
   function atualizarProduto(idx: number, patch: Partial<ProdutoImportado>) {
     setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
@@ -306,60 +388,57 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     setToast(`${comImagem.length} produto(s) enviados pro panfleto!`);
   }
 
-  async function handleBaixarZipStories() {
+  /** Gera o story de cada produto com foto e abre a prévia em galeria antes de baixar/compartilhar — ver GaleriaStoriesModal. */
+  function handleGerarGaleriaStories() {
     const comImagem = produtos.filter((p) => p.imagem);
     if (comImagem.length === 0) {
       setToast('Nenhum produto tem imagem ainda. Busque ou envie fotos antes de gerar os stories.');
       return;
     }
+    const itens = comImagem.map((p, i) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = LARGURA_STORY;
+      canvas.height = ALTURA_STORY;
+      const ctx = canvas.getContext('2d')!;
+      pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, {
+        imagem: p.imagem,
+        transformImagem: p.transform,
+        nome: p.descricao,
+        de: p.normal !== null ? String(p.normal) : '',
+        por: p.promo !== null ? String(p.promo) : '',
+        emoji: '🤩😱',
+        corLogo,
+        corTextoNome,
+        corPreco,
+        nomeY: 130,
+        precoY: 320,
+        nomeOffsetX: 0,
+        precoOffsetX: 0,
+        tamanhoNome: 40,
+        tamanhoPreco: 62,
+        frases: '',
+        frasesY: 560,
+        frasesOffsetX: 0,
+        corFundoFrases: '#173C3A',
+        corTextoFrases: '#FFFFFF',
+        tamanhoFrases: 32,
+        margemNome: 60,
+        margemPreco: 60,
+        margemFrases: 60,
+      });
+      const nomeSeguro = p.descricao.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${i + 1}`;
+      return { conteudo: canvas.toDataURL('image/png'), nomeArquivo: `story-${String(i + 1).padStart(2, '0')}-${nomeSeguro}.png`, mime: 'image/png', rotulo: p.descricao };
+    });
+    setItensGaleriaStories(itens);
+  }
+
+  async function handleBaixarZipStories() {
+    if (!itensGaleriaStories) return;
     setGerandoZip(true);
     try {
-      const zip = new JSZip();
-      for (let i = 0; i < comImagem.length; i++) {
-        const p = comImagem[i];
-        const canvas = document.createElement('canvas');
-        canvas.width = LARGURA_STORY;
-        canvas.height = ALTURA_STORY;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) continue;
-        pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, {
-          imagem: p.imagem,
-          transformImagem: p.transform,
-          nome: p.descricao,
-          de: p.normal !== null ? String(p.normal) : '',
-          por: p.promo !== null ? String(p.promo) : '',
-          emoji: '🤩😱',
-          corLogo,
-          corTextoNome,
-          corPreco,
-          nomeY: 130,
-          precoY: 320,
-          nomeOffsetX: 0,
-          precoOffsetX: 0,
-          tamanhoNome: 40,
-          tamanhoPreco: 62,
-          frases: '',
-          frasesY: 560,
-          frasesOffsetX: 0,
-          corFundoFrases: '#173C3A',
-          corTextoFrases: '#FFFFFF',
-          tamanhoFrases: 32,
-          margemNome: 60,
-          margemPreco: 60,
-          margemFrases: 60,
-        });
-        // eslint-disable-next-line no-await-in-loop
-        const blob = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob falhou'))), 'image/png');
-        });
-        const nomeSeguro = p.descricao
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .slice(0, 40);
-        zip.file(`story-${i + 1}-${nomeSeguro}.png`, blob);
-      }
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      await salvarOuCompartilharArquivo(zipBlob, `stories-${Date.now()}.zip`, 'application/zip', `Stories de ofertas (${comImagem.length} produtos)`);
+      const tituloCompartilhamento = `${itensGaleriaStories.length} ${itensGaleriaStories.length === 1 ? 'story' : 'stories'} de ofertas`;
+      await compartilharOuBaixarVarios(itensGaleriaStories, `stories-${Date.now()}.zip`, tituloCompartilhamento);
+      setItensGaleriaStories(null);
     } catch {
       setToast('Não foi possível gerar o pacote de stories. Tente novamente.');
     } finally {
@@ -459,8 +538,8 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
               <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleCopiarTextoTodos}>
                 📋 Copiar texto pronto
               </button>
-              <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={handleBaixarZipStories} disabled={gerandoZip}>
-                {gerandoZip ? 'Gerando…' : '📦 Baixar todos os stories (.zip)'}
+              <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={handleGerarGaleriaStories}>
+                👁️ Ver todos os stories antes de baixar
               </button>
               <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleRemoverTodos}>
                 🗑️ Remover todos
@@ -558,6 +637,15 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
             if (ajusteIdx !== null) atualizarProduto(ajusteIdx, { transform: t });
             setAjusteIdx(null);
           }}
+        />
+      )}
+
+      {itensGaleriaStories && (
+        <GaleriaStoriesModal
+          itens={itensGaleriaStories.map((item) => ({ nomeArquivo: item.nomeArquivo, rotulo: item.rotulo, dataUrl: item.conteudo }))}
+          baixando={gerandoZip}
+          onBaixar={handleBaixarZipStories}
+          onFechar={() => setItensGaleriaStories(null)}
         />
       )}
     </>
