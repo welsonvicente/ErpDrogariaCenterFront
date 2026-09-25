@@ -6,6 +6,7 @@ import {
   calcularCaixasStory,
   montarTituloCompartilhamento,
   pintarStory,
+  sugerirPosicoesTexto,
   type CaixasStory,
   type CaixaStory,
   type ParametrosStory,
@@ -180,6 +181,15 @@ export function EditarStoryProdutoModal({
     }
   }
 
+  /** Mesma ideia do modo Story: analisa a foto (localmente) e sugere posições que evitam a parte mais "cheia" — ver `sugerirPosicoesTexto`. */
+  function handleSugerirPosicao() {
+    const sugestao = sugerirPosicoesTexto(produto.imagem, produto.transform);
+    if (!sugestao) return;
+    setGuiaNome({ y: sugestao.nomeY, offsetX: 0 });
+    setGuiaPreco({ y: sugestao.precoY, offsetX: 0 });
+    if (frasesAtivo) setGuiaFrases({ y: sugestao.frasesY, offsetX: 0 });
+  }
+
   function montarAjustes(): AjustesStoryProduto {
     return {
       corLogo,
@@ -242,6 +252,15 @@ export function EditarStoryProdutoModal({
         <p className="footnote" style={{ textAlign: 'left', margin: '0 0 14px' }}>
           Esses ajustes valem só pra este produto. Pra mudar o padrão usado em todos, feche aqui e use "Editar tamanho/posição padrão" na lista do panfleto.
         </p>
+        <button
+          type="button"
+          className="btn-ghost"
+          style={{ width: 'auto', margin: '0 0 14px', fontSize: 12, padding: '6px 10px' }}
+          onClick={handleSugerirPosicao}
+          title="Analisa a foto e sugere onde colocar nome/preço sem tapar o produto"
+        >
+          🪄 Sugerir posição
+        </button>
 
         <div className="cartaz-cols">
           <div>

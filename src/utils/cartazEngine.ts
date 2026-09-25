@@ -414,3 +414,90 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
     ctx.restore();
   }
 }
+
+export interface SugestaoPosicoesTexto {
+  nomeY: number;
+  precoY: number;
+  frasesY: number;
+}
+
+/**
+ * Sugere uma posição (Y) pra nome/preço/frases que evita a parte mais "cheia"
+ * da foto — divide a imagem (já recortada do mesmo jeito que sai no story
+ * final, ver `desenharImagemCover`) em faixas horizontais e mede o quão
+ * uniforme é a luminância de cada uma; uma faixa uniforme costuma ser fundo
+ * vazio, uma faixa com muita variação costuma ser onde está o produto.
+ *
+ * É uma heurística local (roda na hora, sem mandar a foto pra lugar nenhum)
+ * — não "entende" o que é o produto de verdade, só onde a imagem tem menos
+ * detalhe. Funciona bem pra fotos com fundo liso (o caso mais comum aqui);
+ * pode errar em fotos muito cheias/com padrão no fundo todo, por isso o
+ * resultado continua arrastável depois.
+ */
+export function sugerirPosicoesTexto(imagem: HTMLImageElement, transformImagem?: TransformImagem): SugestaoPosicoesTexto | null {
+  const LARGURA_AMOSTRA = 54;
+  const ALTURA_AMOSTRA = 96; // mesma proporção 9:16 do story (1080×1920), só que bem menor pra analisar rápido
+  const canvas = document.createElement('canvas');
+  canvas.width = LARGURA_AMOSTRA;
+  canvas.height = ALTURA_AMOSTRA;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+
+  let dados: ImageData;
+  try {
+    desenharImagemCover(ctx, imagem, 0, 0, LARGURA_AMOSTRA, ALTURA_AMOSTRA, transformImagem);
+    dados = ctx.getImageData(0, 0, LARGURA_AMOSTRA, ALTURA_AMOSTRA);
+  } catch {
+    return null; // foto de outra origem sem CORS liberado — não dá pra ler os pixels, segue sem sugestão
+  }
+
+  const variancaPorLinha: number[] = [];
+  for (let y = 0; y < ALTURA_AMOSTRA; y++) {
+    let soma = 0;
+    const luminancias: number[] = [];
+    for (let x = 0; x < LARGURA_AMOSTRA; x++) {
+      const i = (y * LARGURA_AMOSTRA + x) * 4;
+      const luminancia = 0.299 * dados.data[i] + 0.587 * dados.data[i + 1] + 0.114 * dados.data[i + 2];
+      luminancias.push(luminancia);
+      soma += luminancia;
+    }
+    const media = soma / luminancias.length;
+    const variancia = luminancias.reduce((acc, v) => acc + (v - media) ** 2, 0) / luminancias.length;
+    variancaPorLinha.push(variancia);
+  }
+
+  const NUM_FAIXAS = 16;
+  const linhasPorFaixa = ALTURA_AMOSTRA / NUM_FAIXAS;
+  const variancaPorFaixa: number[] = [];
+  for (let f = 0; f < NUM_FAIXAS; f++) {
+    const inicio = Math.floor(f * linhasPorFaixa);
+    const fim = Math.max(inicio + 1, Math.floor((f + 1) * linhasPorFaixa));
+    const fatia = variancaPorLinha.slice(inicio, fim);
+    variancaPorFaixa.push(fatia.reduce((acc, v) => acc + v, 0) / fatia.length);
+  }
+
+  function faixaMaisVaziaEntre(deFaixa: number, ateFaixa: number): number {
+    let melhor = deFaixa;
+    for (let f = deFaixa; f <= ateFaixa; f++) {
+      if (variancaPorFaixa[f] < variancaPorFaixa[melhor]) melhor = f;
+    }
+    return melhor;
+  }
+
+  function faixaParaYCentral(faixa: number): number {
+    return Math.round(((faixa + 0.5) / NUM_FAIXAS) * ALTURA_STORY);
+  }
+
+  // Zonas de busca mantêm a hierarquia visual de sempre (nome em cima, preço
+  // no meio, frases embaixo) — só a posição exata dentro de cada zona muda
+  // conforme a foto.
+  const faixaNome = faixaMaisVaziaEntre(0, Math.floor(NUM_FAIXAS * 0.35));
+  const faixaPreco = faixaMaisVaziaEntre(Math.floor(NUM_FAIXAS * 0.35), Math.floor(NUM_FAIXAS * 0.7));
+  const faixaFrases = faixaMaisVaziaEntre(Math.floor(NUM_FAIXAS * 0.72), NUM_FAIXAS - 1);
+
+  return {
+    nomeY: Math.max(30, faixaParaYCentral(faixaNome) - 60),
+    precoY: Math.max(180, faixaParaYCentral(faixaPreco) - 90),
+    frasesY: Math.min(ALTURA_STORY - 160, faixaParaYCentral(faixaFrases) - 40),
+  };
+}

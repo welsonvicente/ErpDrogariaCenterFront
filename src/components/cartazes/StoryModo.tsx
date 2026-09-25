@@ -10,6 +10,7 @@ import {
   fmtMoney,
   montarTituloCompartilhamento,
   pintarStory,
+  sugerirPosicoesTexto,
   type CaixasStory,
   type CaixaStory,
   type TransformImagem,
@@ -351,6 +352,28 @@ export function StoryModo() {
     }
   }
 
+  /**
+   * Analisa a foto (localmente, sem mandar pra lugar nenhum) procurando as
+   * áreas mais "vazias" pra sugerir onde colocar nome/preço/frases sem tapar
+   * o produto — ver `sugerirPosicoesTexto`. É só um ponto de partida: o
+   * resultado continua arrastável se não ficar do jeito que a pessoa quer.
+   */
+  function handleSugerirPosicao() {
+    if (!imagem) {
+      setToast('Escolha uma foto antes de pedir a sugestão de posição.');
+      return;
+    }
+    const sugestao = sugerirPosicoesTexto(imagem, transformImagem);
+    if (!sugestao) {
+      setToast('Não consegui analisar essa foto — ajuste a posição manualmente.');
+      return;
+    }
+    setGuiaNome({ y: sugestao.nomeY, offsetX: 0 });
+    setGuiaPreco({ y: sugestao.precoY, offsetX: 0 });
+    if (frasesAtivo) setGuiaFrases({ y: sugestao.frasesY, offsetX: 0 });
+    setToast('Posição sugerida! Arraste pra ajustar se quiser.');
+  }
+
   async function handleEscolherArquivo(event: ChangeEvent<HTMLInputElement>) {
     const arquivo = event.target.files?.[0];
     event.target.value = ''; // permite escolher o mesmo arquivo de novo depois
@@ -484,14 +507,25 @@ export function StoryModo() {
             />
           </div>
           {imagem && (
-            <button
-              type="button"
-              className="btn-ghost"
-              style={{ width: 'auto', margin: '0 0 14px', fontSize: 12, padding: '6px 10px' }}
-              onClick={() => setAjusteAberto(true)}
-            >
-              🖼️ Ajustar enquadramento da foto
-            </button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 14px' }}>
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: 'auto', margin: 0, fontSize: 12, padding: '6px 10px' }}
+                onClick={() => setAjusteAberto(true)}
+              >
+                🖼️ Ajustar enquadramento da foto
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: 'auto', margin: 0, fontSize: 12, padding: '6px 10px' }}
+                onClick={handleSugerirPosicao}
+                title="Analisa a foto e sugere onde colocar nome/preço sem tapar o produto"
+              >
+                🪄 Sugerir posição
+              </button>
+            </div>
           )}
           <div className="cartaz-imagem-extra">
             <div>

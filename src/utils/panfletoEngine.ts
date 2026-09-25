@@ -175,6 +175,8 @@ export interface ParametrosPaginaPanfleto {
 
   imagemFundo: FonteImagem | null;
   manterFaixaBranca: boolean;
+  /** Logomarca/selo (PNG com fundo transparente) desenhado no canto de CADA produto — mesmo PNG em todos os cards, diferente da imagem de fundo (que é uma só pra página inteira). */
+  imagemLogo: FonteImagem | null;
 }
 
 function desenharTextoAlinhado(ctx: CanvasRenderingContext2D, texto: string, y: number, align: AlinhamentoTexto, pad: number, larguraTotal: number) {
@@ -297,6 +299,12 @@ export function renderizarPaginaPanfleto(
 
     const photoPad = 14;
     desenharImagemContain(ctx, produto.imagem, x + photoPad, y + photoPad, cardW - photoPad * 2, photoH);
+
+    if (p.imagemLogo) {
+      const tamanhoLogo = Math.max(28, Math.round(cardW * 0.22));
+      const margemLogo = 6;
+      desenharImagemContain(ctx, p.imagemLogo, x + cardW - photoPad - tamanhoLogo - margemLogo, y + photoPad + margemLogo, tamanhoLogo, tamanhoLogo);
+    }
 
     let cursorY = y + photoPad + photoH + 24;
 

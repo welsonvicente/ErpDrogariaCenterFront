@@ -5,7 +5,7 @@ import { CameraModal, type GuiaCamera } from '../CameraModal';
 import { EditarStoryProdutoModal } from './EditarStoryProdutoModal';
 import { GaleriaStoriesModal } from './GaleriaStoriesModal';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
-import { ALTURA_STORY, fmtMoney, LARGURA_STORY, montarTextoPromocional, pintarStory, type TransformImagem } from '../../utils/cartazEngine';
+import { ALTURA_STORY, fmtMoney, LARGURA_STORY, montarTextoPromocional, pintarStory, sugerirPosicoesTexto, type TransformImagem } from '../../utils/cartazEngine';
 import {
   carregarConfiguracoes,
   carregarConfiguracoesPanfleto,
@@ -78,6 +78,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const inputPendenteRef = useRef<HTMLInputElement>(null);
   const inputTrocaRef = useRef<HTMLInputElement>(null);
   const inputFundoRef = useRef<HTMLInputElement>(null);
+  const inputLogoRef = useRef<HTMLInputElement>(null);
   const trocaAlvoIdx = useRef<number | null>(null);
   const ultimoAvisoRascunhoRef = useRef<ResultadoSalvarRascunho | null>(null);
 
@@ -117,6 +118,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   const [imagemFundo, setImagemFundo] = useState<HTMLImageElement | null>(null);
   const [manterFaixaBranca, setManterFaixaBranca] = useState(true);
+  const [imagemLogo, setImagemLogo] = useState<HTMLImageElement | null>(null);
 
   const [imagemQr, setImagemQr] = useState<HTMLImageElement | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
@@ -356,6 +358,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       tamanhoSelo,
       imagemFundo,
       manterFaixaBranca,
+      imagemLogo,
     };
 
     paginasCanvasRef.current = paginas.map((produtosDaPagina, i) => {
@@ -401,6 +404,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     tamanhoSelo,
     imagemFundo,
     manterFaixaBranca,
+    imagemLogo,
   ]);
 
   useEffect(() => {
@@ -435,6 +439,13 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     event.target.value = '';
     if (!arquivo) return;
     setImagemFundo(await carregarImagemDeArquivo(arquivo));
+  }
+
+  async function handleEscolherImagemLogo(event: ChangeEvent<HTMLInputElement>) {
+    const arquivo = event.target.files?.[0];
+    event.target.value = '';
+    if (!arquivo) return;
+    setImagemLogo(await carregarImagemDeArquivo(arquivo));
   }
 
   function handleUsarProdutoRecente(produto: ProdutoRecente) {
@@ -561,6 +572,42 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   /** Grava os ajustes feitos no editor de story individual (posição/tamanho/texto) de volta no produto. */
   function handleSalvarAjustesStory(idx: number, ajustesStory: AjustesStoryProduto, campos: { nome: string; de: string; por: string }) {
     setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...campos, ajustesStory } : p)));
+  }
+
+  /**
+   * Analisa a foto de CADA produto (localmente, sem servidor) e ajusta a
+   * posição de nome/preço/frases pra evitar a parte mais "cheia" da imagem —
+   * mesma heurística do botão "🪄 Sugerir posição" do editor individual (ver
+   * `sugerirPosicoesTexto`), só que pro lote inteiro de uma vez em vez de
+   * abrir produto por produto. Fica salvo no `ajustesStory` de cada um, então
+   * continua arrastável individualmente depois se algum não ficar bom.
+   */
+  function handleSugerirPosicaoTodos() {
+    if (produtos.length === 0) {
+      setToast('Adicione produtos ao panfleto antes de analisar as fotos.');
+      return;
+    }
+    let ajustados = 0;
+    const atualizados = produtos.map((produto) => {
+      const sugestao = sugerirPosicoesTexto(produto.imagem, produto.transform);
+      if (!sugestao) return produto;
+      ajustados++;
+      return {
+        ...produto,
+        ajustesStory: {
+          ...produto.ajustesStory,
+          guiaNome: { y: sugestao.nomeY, offsetX: 0 },
+          guiaPreco: { y: sugestao.precoY, offsetX: 0 },
+          guiaFrases: { y: sugestao.frasesY, offsetX: 0 },
+        },
+      };
+    });
+    setProdutos(atualizados);
+    setToast(
+      ajustados > 0
+        ? `Posição ajustada em ${ajustados} de ${produtos.length} produto(s). Ainda dá pra arrastar individualmente em "📱".`
+        : 'Não consegui analisar as fotos — ajuste a posição manualmente em cada produto.',
+    );
   }
 
   /**
@@ -698,6 +745,22 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
             >
               🖋️ Editar tamanho/posição padrão dos stories (vale pra todo produto sem ajuste próprio)
             </button>
+          )}
+          {produtos.length > 0 && (
+            <button
+              type="button"
+              className="btn-ghost"
+              style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
+              onClick={handleSugerirPosicaoTodos}
+              title="Analisa a foto de cada produto e ajusta nome/preço pra evitar tapar o produto"
+            >
+              🪄 Analisar e ajustar posição de todas as fotos
+            </button>
+          )}
+          {produtos.length > 0 && (
+            <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
+              Sugestão automática por produto — roda na hora, sem mandar as fotos pra lugar nenhum. Não é perfeita; dá pra ajustar um produto específico depois em "📱".
+            </p>
           )}
           {produtos.length > 0 && (
             <button
@@ -895,6 +958,24 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
               <input type="checkbox" checked={manterFaixaBranca} onChange={(e) => setManterFaixaBranca(e.target.checked)} /> Manter faixa
               branca atrás do cabeçalho e do rodapé (ajuda a ler o texto sobre a imagem de fundo)
             </label>
+          </div>
+
+          <div className="cartaz-imagem-extra">
+            <div>
+              <strong>Logomarca ou selo</strong>
+              <span>PNG com fundo transparente aparece no canto da foto de TODOS os produtos do panfleto.</span>
+            </div>
+            <div className="cartaz-imagem-extra-actions">
+              <button type="button" className="btn-ghost" onClick={() => inputLogoRef.current?.click()}>
+                {imagemLogo ? 'Trocar PNG' : '+ Adicionar PNG'}
+              </button>
+              {imagemLogo && (
+                <button type="button" className="btn-ghost" onClick={() => setImagemLogo(null)}>
+                  Remover
+                </button>
+              )}
+            </div>
+            <input ref={inputLogoRef} type="file" accept="image/png" style={{ display: 'none' }} onChange={handleEscolherImagemLogo} />
           </div>
 
           <div className="field">
