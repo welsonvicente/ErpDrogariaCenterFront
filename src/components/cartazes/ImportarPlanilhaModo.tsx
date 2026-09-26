@@ -22,6 +22,7 @@ import {
 } from '../../utils/batchEngine';
 import {
   carregarConfiguracoesLote,
+  EVENTO_PREFERENCIAS_SINCRONIZADAS,
   carregarImagemDeDataUrl,
   carregarProjetoAtivo,
   carregarRascunhoLote,
@@ -158,13 +159,19 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     recarregarArquivosSalvos();
   }, []);
 
+  // Reaplica quando as preferências chegam do servidor (ver `sincronizarPreferenciasCartaz`) — valem em qualquer navegador/aparelho.
   useEffect(() => {
-    const config = carregarConfiguracoesLote();
-    if (!config) return;
-    if (config.corLogo) setCorLogo(config.corLogo);
-    if (config.corTextoNome) setCorTextoNome(config.corTextoNome);
-    if (config.corPreco) setCorPreco(config.corPreco);
-    if (config.corFundoPreco) setCorFundoPreco(config.corFundoPreco);
+    function aplicarConfiguracoes() {
+      const config = carregarConfiguracoesLote();
+      if (!config) return;
+      if (config.corLogo) setCorLogo(config.corLogo);
+      if (config.corTextoNome) setCorTextoNome(config.corTextoNome);
+      if (config.corPreco) setCorPreco(config.corPreco);
+      if (config.corFundoPreco) setCorFundoPreco(config.corFundoPreco);
+    }
+    aplicarConfiguracoes();
+    window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
+    return () => window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
   }, []);
 
   useEffect(() => {

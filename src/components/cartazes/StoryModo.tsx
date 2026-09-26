@@ -22,6 +22,7 @@ import {
 } from '../../utils/cartazEngine';
 import {
   carregarConfiguracoes,
+  EVENTO_PREFERENCIAS_SINCRONIZADAS,
   carregarImagemDeDataUrl,
   carregarProdutosRecentes,
   carregarProjetoAtivo,
@@ -160,29 +161,35 @@ export function StoryModo() {
 
   // Configurações (preferências permanentes de estilo) continuam em
   // localStorage — são texto puro (cor/tamanho/posição), nunca pesam.
+  // Reaplica quando as preferências chegam do servidor (ver `sincronizarPreferenciasCartaz`) — valem em qualquer navegador/aparelho.
   useEffect(() => {
-    const config = carregarConfiguracoes();
-    if (!config) return;
-    if (config.corLogo) setCorLogo(config.corLogo);
-    if (config.corTextoNome) setCorTextoNome(config.corTextoNome);
-    if (config.corPreco) setCorPreco(config.corPreco);
-    if (config.tamanhoNome) setTamanhoNome(config.tamanhoNome);
-    if (config.tamanhoPreco) setTamanhoPreco(config.tamanhoPreco);
-    if (config.margemNome !== undefined) setMargemNome(config.margemNome);
-    if (config.margemPreco !== undefined) setMargemPreco(config.margemPreco);
-    if (config.frasesAtivo !== undefined) setFrasesAtivo(config.frasesAtivo);
-    if (config.frases !== undefined) setFrases(config.frases);
-    if (config.corFundoFrases) setCorFundoFrases(config.corFundoFrases);
-    if (config.corTextoFrases) setCorTextoFrases(config.corTextoFrases);
-    if (config.tamanhoFrases) setTamanhoFrases(config.tamanhoFrases);
-    if (config.margemFrases !== undefined) setMargemFrases(config.margemFrases);
-    if (config.guiaNome) setGuiaNome(config.guiaNome);
-    if (config.guiaPreco) setGuiaPreco(config.guiaPreco);
-    if (config.guiaFrases) setGuiaFrases(config.guiaFrases);
-    if (config.fonteNome) setFonteNome(config.fonteNome);
-    if (config.fontePreco) setFontePreco(config.fontePreco);
-    if (config.fonteFrases) setFonteFrases(config.fonteFrases);
-    if (config.corFundoPreco) setCorFundoPreco(config.corFundoPreco);
+    function aplicarConfiguracoes() {
+      const config = carregarConfiguracoes();
+      if (!config) return;
+      if (config.corLogo) setCorLogo(config.corLogo);
+      if (config.corTextoNome) setCorTextoNome(config.corTextoNome);
+      if (config.corPreco) setCorPreco(config.corPreco);
+      if (config.tamanhoNome) setTamanhoNome(config.tamanhoNome);
+      if (config.tamanhoPreco) setTamanhoPreco(config.tamanhoPreco);
+      if (config.margemNome !== undefined) setMargemNome(config.margemNome);
+      if (config.margemPreco !== undefined) setMargemPreco(config.margemPreco);
+      if (config.frasesAtivo !== undefined) setFrasesAtivo(config.frasesAtivo);
+      if (config.frases !== undefined) setFrases(config.frases);
+      if (config.corFundoFrases) setCorFundoFrases(config.corFundoFrases);
+      if (config.corTextoFrases) setCorTextoFrases(config.corTextoFrases);
+      if (config.tamanhoFrases) setTamanhoFrases(config.tamanhoFrases);
+      if (config.margemFrases !== undefined) setMargemFrases(config.margemFrases);
+      if (config.guiaNome) setGuiaNome(config.guiaNome);
+      if (config.guiaPreco) setGuiaPreco(config.guiaPreco);
+      if (config.guiaFrases) setGuiaFrases(config.guiaFrases);
+      if (config.fonteNome) setFonteNome(config.fonteNome);
+      if (config.fontePreco) setFontePreco(config.fontePreco);
+      if (config.fonteFrases) setFonteFrases(config.fonteFrases);
+      if (config.corFundoPreco) setCorFundoPreco(config.corFundoPreco);
+    }
+    aplicarConfiguracoes();
+    window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
+    return () => window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
   }, []);
 
   useEffect(() => {

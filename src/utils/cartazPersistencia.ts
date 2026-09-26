@@ -1,4 +1,5 @@
 import { arquivoCartazService } from '../services/arquivoCartazService';
+import { preferenciaCartazService, type ChavePreferenciaCartaz } from '../services/preferenciaCartazService';
 import type { StatusImagemProduto } from './batchEngine';
 import type { CaixaStory, TransformImagem } from './cartazEngine';
 import type { AjustesStoryProduto } from './panfletoEngine';
@@ -166,6 +167,7 @@ export function montarGuiasCameraDoStory() {
 export function salvarConfiguracoes(config: ConfiguracoesStory) {
   try {
     localStorage.setItem(CHAVE_CONFIGURACOES, JSON.stringify(config));
+    agendarEnvioPreferencia('story', JSON.stringify(config));
   } catch {
     /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
   }
@@ -206,6 +208,7 @@ export function salvarLogoPadraoStory(logo: LogoPadraoStory | null) {
   } catch {
     return; /* armazenamento indisponível — o Panfleto só não recebe a logo padrão */
   }
+  agendarEnvioPreferencia('logo_story', serializado ?? '{}');
   window.dispatchEvent(new Event(EVENTO_LOGO_PADRAO_STORY));
 }
 
@@ -291,6 +294,7 @@ export function carregarConfiguracoesPanfleto(): Partial<ConfiguracoesPanfleto> 
 export function salvarConfiguracoesPanfleto(config: ConfiguracoesPanfleto) {
   try {
     localStorage.setItem(CHAVE_CONFIGURACOES_PANFLETO, JSON.stringify(config));
+    agendarEnvioPreferencia('panfleto', JSON.stringify(config));
   } catch {
     /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
   }
@@ -403,6 +407,7 @@ export function carregarConfiguracoesLote(): Partial<ConfiguracoesLote> | null {
 export function salvarConfiguracoesLote(config: ConfiguracoesLote) {
   try {
     localStorage.setItem(CHAVE_CONFIGURACOES_LOTE, JSON.stringify(config));
+    agendarEnvioPreferencia('planilha', JSON.stringify(config));
   } catch {
     /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
   }
@@ -496,4 +501,100 @@ export function limparProjetoAtivo(tipo: TipoProjetoCartazPersistencia) {
   } catch {
     /* nada a limpar */
   }
+}
+
+// ---------------------------------------------------------------------------
+// Sincronização das preferências "padrão" com o servidor. Configurações do
+// Story, do Panfleto, da Planilha e a logo padrão ficavam SÓ no localStorage
+// — cada perfil do Chrome/aparelho tinha as suas, e mudar a cor num
+// computador não valia no outro. Agora a fonte da verdade é o backend (por
+// organização); o localStorage continua como cópia local, pra tela abrir
+// na hora com o último valor conhecido.
+//
+//  - `sincronizarPreferenciasCartaz` (chamada ao abrir Cartazes) baixa tudo
+//    do servidor, grava por cima da cópia local e avisa as telas
+//    (`EVENTO_PREFERENCIAS_SINCRONIZADAS`) pra reaplicarem. Chave que o
+//    servidor ainda não tem, mas este navegador tem, é enviada — é assim que
+//    as preferências de quem já usava sobem na primeira vez.
+//  - Os `salvar*` acima continuam gravando no localStorage e, depois da
+//    sincronização, mandam a mudança pro servidor (com um pequeno atraso,
+//    pra não mandar uma requisição por pixel ao arrastar). Antes dela, não
+//    mandam nada: senão os valores padrão que as telas gravam ao montar
+//    apagariam os do servidor.
+
+export const EVENTO_PREFERENCIAS_SINCRONIZADAS = 'cartazes:preferencias-sincronizadas';
+
+const CHAVE_LOCAL_DA_PREFERENCIA: Record<ChavePreferenciaCartaz, string> = {
+  story: CHAVE_CONFIGURACOES,
+  panfleto: CHAVE_CONFIGURACOES_PANFLETO,
+  planilha: CHAVE_CONFIGURACOES_LOTE,
+  logo_story: CHAVE_LOGO_PADRAO_STORY,
+};
+
+let preferenciasSincronizadas = false;
+let sincronizacaoEmAndamento: Promise<void> | null = null;
+/** Último valor (serializado) que se sabe estar no servidor, por chave — evita reenviar o que não mudou. */
+const ultimoValorNoServidor = new Map<ChavePreferenciaCartaz, string>();
+const envioAgendado = new Map<ChavePreferenciaCartaz, ReturnType<typeof setTimeout>>();
+
+function enviarPreferencia(chave: ChavePreferenciaCartaz, serializado: string) {
+  let valor: Record<string, unknown>;
+  try {
+    valor = JSON.parse(serializado) ?? {};
+  } catch {
+    return;
+  }
+  preferenciaCartazService
+    .salvar(chave, valor)
+    .then(() => ultimoValorNoServidor.set(chave, serializado))
+    .catch(() => {
+      /* sem conexão agora — fica salvo neste navegador e sobe na próxima mudança */
+    });
+}
+
+/** `serializado` = o JSON do valor; `'{}'` = removido (ex.: logo padrão tirada no Story). */
+function agendarEnvioPreferencia(chave: ChavePreferenciaCartaz, serializado: string) {
+  if (!preferenciasSincronizadas || ultimoValorNoServidor.get(chave) === serializado) return;
+  clearTimeout(envioAgendado.get(chave));
+  envioAgendado.set(
+    chave,
+    setTimeout(() => {
+      envioAgendado.delete(chave);
+      enviarPreferencia(chave, serializado);
+    }, 800),
+  );
+}
+
+export function sincronizarPreferenciasCartaz(): Promise<void> {
+  if (!sincronizacaoEmAndamento) {
+    sincronizacaoEmAndamento = preferenciaCartazService
+      .listar()
+      .then((doServidor) => {
+        (Object.keys(CHAVE_LOCAL_DA_PREFERENCIA) as ChavePreferenciaCartaz[]).forEach((chave) => {
+          const chaveLocal = CHAVE_LOCAL_DA_PREFERENCIA[chave];
+          const valorServidor = doServidor[chave];
+          try {
+            if (valorServidor !== undefined) {
+              const serializado = JSON.stringify(valorServidor);
+              ultimoValorNoServidor.set(chave, serializado);
+              if (Object.keys(valorServidor).length === 0) localStorage.removeItem(chaveLocal);
+              else localStorage.setItem(chaveLocal, serializado);
+            } else {
+              const local = localStorage.getItem(chaveLocal);
+              if (local && local !== 'null') enviarPreferencia(chave, local);
+            }
+          } catch {
+            /* localStorage indisponível — as telas só não terão a cópia local */
+          }
+        });
+        preferenciasSincronizadas = true;
+        window.dispatchEvent(new Event(EVENTO_PREFERENCIAS_SINCRONIZADAS));
+        window.dispatchEvent(new Event(EVENTO_LOGO_PADRAO_STORY));
+      })
+      .catch(() => {
+        // Sem conexão: segue com a cópia local e tenta de novo na próxima vez que Cartazes abrir.
+        sincronizacaoEmAndamento = null;
+      });
+  }
+  return sincronizacaoEmAndamento;
 }

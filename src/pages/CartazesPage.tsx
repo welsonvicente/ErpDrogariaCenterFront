@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ImportarPlanilhaModo } from '../components/cartazes/ImportarPlanilhaModo';
 import { PanfletoModo } from '../components/cartazes/PanfletoModo';
 import { StoryModo } from '../components/cartazes/StoryModo';
 import { FerramentaShell } from '../components/FerramentaShell';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { sincronizarPreferenciasCartaz } from '../utils/cartazPersistencia';
 import type { ProdutoPanfleto } from '../utils/panfletoEngine';
 
 type Modo = 'story' | 'panfleto' | 'planilha';
@@ -26,6 +27,12 @@ export function CartazesPage() {
   useDocumentTitle('Cartazes e panfletos');
   const [modo, setModo] = useState<Modo>('story');
   const [produtosParaPanfleto, setProdutosParaPanfleto] = useState<ProdutoPanfleto[] | null>(null);
+
+  // Cores, letras, tamanhos e posições padrão vêm do servidor (por organização), pra valerem em
+  // qualquer navegador — os três modos reaplicam quando chegam (ver cartazPersistencia.ts).
+  useEffect(() => {
+    sincronizarPreferenciasCartaz();
+  }, []);
 
   return (
     <FerramentaShell titulo="Cartazes e panfletos">

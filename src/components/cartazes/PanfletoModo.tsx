@@ -9,6 +9,7 @@ import { blobDeImagem, carregarImagemDeArquivo, carregarImagemEBlobDeArquivo } f
 import { ALTURA_STORY, carregarFontesCartaz, fmtMoney, LARGURA_STORY, montarTextoPromocional, pintarStory, sugerirPosicoesTexto, type TransformImagem } from '../../utils/cartazEngine';
 import {
   carregarConfiguracoes,
+  EVENTO_PREFERENCIAS_SINCRONIZADAS,
   carregarConfiguracoesPanfleto,
   carregarImagemDeDataUrl,
   carregarProdutosRecentes,
@@ -303,33 +304,39 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   // Configurações (preferências permanentes) continuam em localStorage — só
   // textos/cores/tamanhos, nunca imagem.
+  // Reaplica quando as preferências chegam do servidor (ver `sincronizarPreferenciasCartaz`) — valem em qualquer navegador/aparelho.
   useEffect(() => {
-    const config = carregarConfiguracoesPanfleto();
-    if (!config) return;
-    if (config.nomeLoja !== undefined) setNomeLoja(config.nomeLoja);
-    if (config.nomeLojaAlinhamento) setNomeLojaAlinhamento(config.nomeLojaAlinhamento);
-    if (config.titulo !== undefined) setTitulo(config.titulo);
-    if (config.tituloAlinhamento) setTituloAlinhamento(config.tituloAlinhamento);
-    if (config.mostrarTextosCabecalho !== undefined) setMostrarTextosCabecalho(config.mostrarTextosCabecalho);
-    if (config.mostrarTextosRodape !== undefined) setMostrarTextosRodape(config.mostrarTextosRodape);
-    if (config.textoRodape1 !== undefined) setTextoRodape1(config.textoRodape1);
-    if (config.textoRodape1Alinhamento) setTextoRodape1Alinhamento(config.textoRodape1Alinhamento);
-    if (config.textoRodape2 !== undefined) setTextoRodape2(config.textoRodape2);
-    if (config.textoRodape2Alinhamento) setTextoRodape2Alinhamento(config.textoRodape2Alinhamento);
-    if (config.qrAlinhamento) setQrAlinhamento(config.qrAlinhamento);
-    if (config.link !== undefined) setLink(config.link);
-    if (config.itensPorPagina) setItensPorPagina(config.itensPorPagina);
-    if (config.corLogo) setCorLogo(config.corLogo);
-    if (config.corDescricao) setCorDescricao(config.corDescricao);
-    if (config.corPreco) setCorPreco(config.corPreco);
-    if (config.corFundoCard) setCorFundoCard(config.corFundoCard);
-    if (config.tamanhoNome) setTamanhoNome(config.tamanhoNome);
-    if (config.tamanhoPreco) setTamanhoPreco(config.tamanhoPreco);
-    if (config.tamanhoBorda) setTamanhoBorda(config.tamanhoBorda);
-    if (config.tamanhoSelo) setTamanhoSelo(config.tamanhoSelo);
-    if (config.corFundoSelo) setCorFundoSelo(config.corFundoSelo);
-    if (config.corTextoSelo) setCorTextoSelo(config.corTextoSelo);
-    if (config.manterFaixaBranca !== undefined) setManterFaixaBranca(config.manterFaixaBranca);
+    function aplicarConfiguracoes() {
+      const config = carregarConfiguracoesPanfleto();
+      if (!config) return;
+      if (config.nomeLoja !== undefined) setNomeLoja(config.nomeLoja);
+      if (config.nomeLojaAlinhamento) setNomeLojaAlinhamento(config.nomeLojaAlinhamento);
+      if (config.titulo !== undefined) setTitulo(config.titulo);
+      if (config.tituloAlinhamento) setTituloAlinhamento(config.tituloAlinhamento);
+      if (config.mostrarTextosCabecalho !== undefined) setMostrarTextosCabecalho(config.mostrarTextosCabecalho);
+      if (config.mostrarTextosRodape !== undefined) setMostrarTextosRodape(config.mostrarTextosRodape);
+      if (config.textoRodape1 !== undefined) setTextoRodape1(config.textoRodape1);
+      if (config.textoRodape1Alinhamento) setTextoRodape1Alinhamento(config.textoRodape1Alinhamento);
+      if (config.textoRodape2 !== undefined) setTextoRodape2(config.textoRodape2);
+      if (config.textoRodape2Alinhamento) setTextoRodape2Alinhamento(config.textoRodape2Alinhamento);
+      if (config.qrAlinhamento) setQrAlinhamento(config.qrAlinhamento);
+      if (config.link !== undefined) setLink(config.link);
+      if (config.itensPorPagina) setItensPorPagina(config.itensPorPagina);
+      if (config.corLogo) setCorLogo(config.corLogo);
+      if (config.corDescricao) setCorDescricao(config.corDescricao);
+      if (config.corPreco) setCorPreco(config.corPreco);
+      if (config.corFundoCard) setCorFundoCard(config.corFundoCard);
+      if (config.tamanhoNome) setTamanhoNome(config.tamanhoNome);
+      if (config.tamanhoPreco) setTamanhoPreco(config.tamanhoPreco);
+      if (config.tamanhoBorda) setTamanhoBorda(config.tamanhoBorda);
+      if (config.tamanhoSelo) setTamanhoSelo(config.tamanhoSelo);
+      if (config.corFundoSelo) setCorFundoSelo(config.corFundoSelo);
+      if (config.corTextoSelo) setCorTextoSelo(config.corTextoSelo);
+      if (config.manterFaixaBranca !== undefined) setManterFaixaBranca(config.manterFaixaBranca);
+    }
+    aplicarConfiguracoes();
+    window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
+    return () => window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
   }, []);
 
   useEffect(() => {
