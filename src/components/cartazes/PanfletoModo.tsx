@@ -171,17 +171,22 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   }, [toast]);
 
   // Recebe produtos enviados pelo modo Importar planilha ("Usar no panfleto")
-  // — se já tiverem `arquivoId` (upload feito lá), reaproveita a mesma
-  // referência (sem reenviar); só sobe de novo se por algum motivo a foto
-  // ainda não tinha sido confirmada em lugar nenhum.
+  // — SEMPRE duplica a foto pro projeto do Panfleto (mesmo quando já tem
+  // `arquivoId`): esse arquivo pertence ao projeto de origem (a Planilha),
+  // e um arquivo só pertence a um projeto por vez, então reaproveitar a
+  // mesma referência faria a Planilha perder a foto assim que o Panfleto a
+  // vinculasse a si (ver `arquivoCartazService.duplicar`).
   useEffect(() => {
     if (!produtosRecebidos || produtosRecebidos.length === 0 || !projetoAtivo) return;
     const projetoId = projetoAtivo.id;
     async function incorporar() {
       const prontos = await Promise.all(
         produtosRecebidos!.map(async (produto) => {
-          if (produto.arquivoId) return produto;
           try {
+            if (produto.arquivoId) {
+              const copia = await arquivoCartazService.duplicar(produto.arquivoId, projetoId);
+              return { ...produto, arquivoId: copia.id };
+            }
             const blob = await blobDeImagem(produto.imagem, 'image/jpeg', 0.9);
             const arquivoId = await arquivoCartazService.enviarImagem(blob, 'image/jpeg', projetoId);
             return { ...produto, arquivoId };
@@ -190,7 +195,11 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
           }
         }),
       );
-      setProdutos((atual) => [...atual, ...prontos]);
+      setProdutos((atual) => {
+        const finalProdutos = [...atual, ...prontos];
+        persistirProdutos(finalProdutos);
+        return finalProdutos;
+      });
       aoReceberProdutos?.();
     }
     incorporar();
