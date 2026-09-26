@@ -31,6 +31,7 @@ import {
 import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
 
 const EMOJIS_DESTAQUE = ['🤩😱', '🔥🔥', '😍', '🎉', '💚', '⚡'];
@@ -316,26 +317,60 @@ export function StoryModo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Espelha o estado do editor numa ref a cada render — usado por
+  // `persistirEstadoImediato` pra montar o PATCH com os valores mais atuais
+  // mesmo quando chamado de dentro de um callback assíncrono (upload), onde
+  // o closure da função poderia estar com um valor antigo (stale).
+  const estadoEditorRef = useRef<EstadoEditorStory>({ nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa });
+  estadoEditorRef.current = { nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa };
+
+  const debounceAutosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [salvandoPendente, setSalvandoPendente] = useState(false);
+
+  /**
+   * Salva o estado do editor agora, sem esperar o debounce — usada logo após
+   * uma foto confirmar o upload (evento crítico: a janela entre confirmar e
+   * persistir é onde um fechar de aba muito rápido perderia a referência).
+   * `overrides` sobrepõe o valor mais recente conhecido, pra não depender de
+   * um re-render ter acontecido antes desta chamada.
+   */
+  function persistirEstadoImediato(overrides: Partial<EstadoEditorStory> = {}) {
+    if (!projetoAtivo) return;
+    if (debounceAutosaveRef.current) {
+      clearTimeout(debounceAutosaveRef.current);
+      debounceAutosaveRef.current = null;
+    }
+    const estadoEditor: EstadoEditorStory = { ...estadoEditorRef.current, ...overrides };
+    setSalvandoPendente(true);
+    projetoCartazService
+      .atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> })
+      .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+      .finally(() => setSalvandoPendente(false));
+  }
+
   // Autosave do estado do editor (nome/preço/enquadramento/fotos) no projeto —
-  // mesmo debounce (700ms) que o antigo rascunho em localStorage usava.
+  // mesmo debounce (700ms) que o antigo rascunho em localStorage usava. Some
+  // eventos críticos (foto confirmada) chamam `persistirEstadoImediato`
+  // direto, sem esperar esse debounce.
   useEffect(() => {
     if (!prontoParaPersistir || !projetoAtivo) return;
-    const timer = setTimeout(() => {
-      const estadoEditor: EstadoEditorStory = {
-        nome,
-        de,
-        por,
-        transform: transformImagem,
-        imagemArquivoId,
-        imagemExtraArquivoId,
-        imagemExtraCaixa,
-      };
-      projetoCartazService.atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> }).catch(() => {
-        setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.');
-      });
+    setSalvandoPendente(true);
+    debounceAutosaveRef.current = setTimeout(() => {
+      debounceAutosaveRef.current = null;
+      const estadoEditor: EstadoEditorStory = { nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa };
+      projetoCartazService
+        .atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> })
+        .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+        .finally(() => setSalvandoPendente(false));
     }, 700);
-    return () => clearTimeout(timer);
+    return () => {
+      if (debounceAutosaveRef.current) clearTimeout(debounceAutosaveRef.current);
+    };
   }, [prontoParaPersistir, projetoAtivo, nome, de, por, transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa]);
+
+  // Bloqueia fechar/recarregar a aba enquanto uma foto está subindo ou o
+  // autosave ainda não confirmou — ver useAvisoSairComPendencia.
+  useAvisoSairComPendencia(enviandoImagem || enviandoImagemExtra || salvandoPendente);
 
   useEffect(() => {
     setProdutosRecentes(carregarProdutosRecentes());
@@ -478,6 +513,7 @@ export function StoryModo() {
     try {
       const arquivoId = await arquivoCartazService.enviarImagem(blob, mimeType, projetoAtivo.id, setProgressoImagem);
       setImagemArquivoId(arquivoId);
+      persistirEstadoImediato({ imagemArquivoId: arquivoId });
     } catch {
       setErroEnvioImagem(true);
       setToast('Não foi possível enviar a foto. Tente de novo.');
@@ -527,6 +563,7 @@ export function StoryModo() {
     try {
       const arquivoId = await arquivoCartazService.enviarImagem(blob, mimeType, projetoAtivo.id);
       setImagemExtraArquivoId(arquivoId);
+      persistirEstadoImediato({ imagemExtraArquivoId: arquivoId });
     } catch {
       setToast('Não foi possível enviar essa logomarca/selo. Tente de novo.');
     } finally {
@@ -625,9 +662,12 @@ export function StoryModo() {
               <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
                 Dados do produto
               </h3>
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12 }} onClick={handleTrocarProjeto}>
-                📁 {projetoAtivo.nome}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {salvandoPendente && <span className="footnote" style={{ margin: 0 }}>Salvando…</span>}
+                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12 }} onClick={handleTrocarProjeto}>
+                  📁 {projetoAtivo.nome}
+                </button>
+              </div>
             </div>
 
             {produtosRecentes.length > 0 && (

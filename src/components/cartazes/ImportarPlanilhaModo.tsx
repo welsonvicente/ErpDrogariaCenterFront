@@ -34,6 +34,7 @@ import { compartilharOuBaixarVarios } from '../../utils/compartilharArquivo';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazService';
 import { projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { useFilaUploadImagens } from '../../hooks/useFilaUploadImagens';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
@@ -171,9 +172,25 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
   }
 
-  /** Enfileira o upload da foto de um produto (busca automática, manual ou câmera) — concorrência limitada, progresso e retry por item (ver `useFilaUploadImagens`). */
+  // Espelha `produtos` numa ref — usada por `persistirProdutos` quando
+  // chamada logo após um upload confirmar, sem depender de fechar sobre um
+  // valor desatualizado (stale closure) do callback assíncrono da fila.
+  const produtosRef = useRef<ProdutoImportado[]>(produtos);
+  produtosRef.current = produtos;
+
+  /** Enfileira o upload da foto de um produto (busca automática, manual ou câmera) — concorrência limitada, progresso e retry por item (ver `useFilaUploadImagens`). Salva o projeto imediatamente assim que confirma, sem esperar o debounce. */
   function enviarFotoDoProduto(idx: number, blob: Blob, mimeType: string) {
-    const [idLocal] = fila.adicionar([{ blob, mimeType, onSucesso: (arquivoId) => atualizarProduto(idx, { arquivoId }) }]);
+    const [idLocal] = fila.adicionar([
+      {
+        blob,
+        mimeType,
+        onSucesso: (arquivoId) => {
+          const atualizados = produtosRef.current.map((p, i) => (i === idx ? { ...p, arquivoId } : p));
+          setProdutos(atualizados);
+          persistirProdutos(atualizados);
+        },
+      },
+    ]);
     idxParaIdLocalRef.current.set(idx, idLocal);
   }
 
@@ -294,19 +311,47 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const debounceAutosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [salvandoPendente, setSalvandoPendente] = useState(false);
+
+  function montarEstadoEditor(produtosParaSalvar: ProdutoImportado[]): EstadoEditorLote {
+    return {
+      produtos: produtosParaSalvar.map((p) => ({ descricao: p.descricao, normal: p.normal, promo: p.promo, ean: p.ean, arquivoId: p.arquivoId, status: p.status, transform: p.transform })),
+    };
+  }
+
+  /** Salva a lista de produtos agora, sem esperar o debounce — usada logo após um upload confirmar. */
+  function persistirProdutos(produtosParaSalvar: ProdutoImportado[]) {
+    if (!projetoAtivo) return;
+    if (debounceAutosaveRef.current) {
+      clearTimeout(debounceAutosaveRef.current);
+      debounceAutosaveRef.current = null;
+    }
+    setSalvandoPendente(true);
+    projetoCartazService
+      .atualizar(projetoAtivo.id, { estadoEditor: montarEstadoEditor(produtosParaSalvar) as unknown as Record<string, unknown> })
+      .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+      .finally(() => setSalvandoPendente(false));
+  }
+
   // Autosave do estado do editor (produtos) no projeto.
   useEffect(() => {
     if (!prontoParaPersistir || !projetoAtivo) return;
-    const timer = setTimeout(() => {
-      const estadoEditor: EstadoEditorLote = {
-        produtos: produtos.map((p) => ({ descricao: p.descricao, normal: p.normal, promo: p.promo, ean: p.ean, arquivoId: p.arquivoId, status: p.status, transform: p.transform })),
-      };
-      projetoCartazService.atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> }).catch(() => {
-        setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.');
-      });
+    setSalvandoPendente(true);
+    debounceAutosaveRef.current = setTimeout(() => {
+      debounceAutosaveRef.current = null;
+      projetoCartazService
+        .atualizar(projetoAtivo.id, { estadoEditor: montarEstadoEditor(produtos) as unknown as Record<string, unknown> })
+        .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+        .finally(() => setSalvandoPendente(false));
     }, 700);
-    return () => clearTimeout(timer);
+    return () => {
+      if (debounceAutosaveRef.current) clearTimeout(debounceAutosaveRef.current);
+    };
   }, [prontoParaPersistir, projetoAtivo, produtos]);
+
+  // Bloqueia fechar/recarregar a aba enquanto algum upload está em andamento ou o autosave ainda não confirmou.
+  useAvisoSairComPendencia(fila.itens.some((item) => item.estado === 'enviando') || salvandoPendente);
 
   function handleTrocarProjeto() {
     setMostrarPainelProjetos(true);
@@ -580,9 +625,12 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
               <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
                 Importar planilha (.xls ou .xlsx)
               </h3>
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12 }} onClick={handleTrocarProjeto}>
-                📁 {projetoAtivo.nome}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {salvandoPendente && <span className="footnote" style={{ margin: 0 }}>Salvando…</span>}
+                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12 }} onClick={handleTrocarProjeto}>
+                  📁 {projetoAtivo.nome}
+                </button>
+              </div>
             </div>
             <label className="upload-box cartaz-upload-planilha" onClick={() => inputPlanilhaRef.current?.click()}>
               📊 Clique para escolher o arquivo da planilha

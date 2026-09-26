@@ -25,6 +25,7 @@ import {
 import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import {
   construirPaginasPanfleto,
   ESCALA_EXPORTACAO_PANFLETO,
@@ -389,19 +390,59 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Espelha `produtos` numa ref — usada por `persistirProdutos` quando
+  // chamada logo após uma troca de foto confirmar, sem depender de fechar
+  // sobre um valor desatualizado (stale closure) do callback assíncrono.
+  const produtosRef = useRef<ProdutoPanfleto[]>(produtos);
+  produtosRef.current = produtos;
+
+  const debounceAutosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [salvandoPendente, setSalvandoPendente] = useState(false);
+
+  function montarEstadoEditor(produtosParaSalvar: ProdutoPanfleto[]): EstadoEditorPanfleto {
+    return {
+      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
+    };
+  }
+
+  /**
+   * Salva a lista de produtos agora, sem esperar o debounce — usada logo
+   * após trocar a foto de um produto já adicionado confirmar o upload (a
+   * janela entre confirmar e persistir é onde fechar a aba rápido demais
+   * perderia a referência).
+   */
+  function persistirProdutos(produtosParaSalvar: ProdutoPanfleto[]) {
+    if (!projetoAtivo) return;
+    if (debounceAutosaveRef.current) {
+      clearTimeout(debounceAutosaveRef.current);
+      debounceAutosaveRef.current = null;
+    }
+    setSalvandoPendente(true);
+    projetoCartazService
+      .atualizar(projetoAtivo.id, { estadoEditor: montarEstadoEditor(produtosParaSalvar) as unknown as Record<string, unknown> })
+      .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+      .finally(() => setSalvandoPendente(false));
+  }
+
   // Autosave do estado do editor (produtos) no projeto.
   useEffect(() => {
     if (!prontoParaPersistir || !projetoAtivo) return;
-    const timer = setTimeout(() => {
-      const estadoEditor: EstadoEditorPanfleto = {
-        produtos: produtos.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
-      };
-      projetoCartazService.atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> }).catch(() => {
-        setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.');
-      });
+    setSalvandoPendente(true);
+    debounceAutosaveRef.current = setTimeout(() => {
+      debounceAutosaveRef.current = null;
+      projetoCartazService
+        .atualizar(projetoAtivo.id, { estadoEditor: montarEstadoEditor(produtos) as unknown as Record<string, unknown> })
+        .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+        .finally(() => setSalvandoPendente(false));
     }, 700);
-    return () => clearTimeout(timer);
+    return () => {
+      if (debounceAutosaveRef.current) clearTimeout(debounceAutosaveRef.current);
+    };
   }, [prontoParaPersistir, projetoAtivo, produtos]);
+
+  // Bloqueia fechar/recarregar a aba enquanto alguma foto está subindo ou o
+  // autosave ainda não confirmou.
+  useAvisoSairComPendencia(enviandoPendente || Object.values(statusUploadProdutos).some((s) => s.enviando) || salvandoPendente);
 
   useEffect(() => {
     setProdutosRecentes(carregarProdutosRecentes());
@@ -505,7 +546,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     setStatusUploadProdutos((atual) => ({ ...atual, [idx]: { enviando: true, erro: false } }));
     try {
       const arquivoId = await arquivoCartazService.enviarImagem(blob, mimeType, projetoAtivo.id);
-      setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, arquivoId } : p)));
+      const atualizados = produtosRef.current.map((p, i) => (i === idx ? { ...p, arquivoId } : p));
+      setProdutos(atualizados);
+      persistirProdutos(atualizados);
       setStatusUploadProdutos((atual) => ({ ...atual, [idx]: { enviando: false, erro: false } }));
     } catch {
       setStatusUploadProdutos((atual) => ({ ...atual, [idx]: { enviando: false, erro: true } }));
@@ -800,9 +843,12 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
               <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
                 Adicionar produto ao panfleto
               </h3>
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12 }} onClick={handleTrocarProjeto}>
-                📁 {projetoAtivo.nome}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {salvandoPendente && <span className="footnote" style={{ margin: 0 }}>Salvando…</span>}
+                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12 }} onClick={handleTrocarProjeto}>
+                  📁 {projetoAtivo.nome}
+                </button>
+              </div>
             </div>
 
             {produtosRecentes.length > 0 && (
