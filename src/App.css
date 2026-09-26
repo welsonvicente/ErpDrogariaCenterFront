@@ -1211,6 +1211,17 @@ table.data-table th {
   background: #fff;
 }
 .cartaz-canvas--panfleto { background: #fff; }
+/* Moldura com a proporção exata da página atual — a camada da logomarca
+   (ElementoStoryEditavel) se posiciona em % desta caixa, então ela tem que
+   coincidir com o canvas pintado, sem as sobras do `object-fit: contain`. */
+.panfleto-canvas-stage {
+  position: relative;
+  width: min(100%, calc((100vh - 224px) * var(--proporcao-pagina, 1)));
+  margin: 0 auto;
+  line-height: 0;
+}
+.panfleto-canvas-stage .cartaz-canvas,
+.cartaz-preview:has(.panfleto-paginacao) .panfleto-canvas-stage .cartaz-canvas { width: 100%; height: 100%; max-height: none; }
 
 .panfleto-paginacao {
   display: flex;
@@ -1418,6 +1429,7 @@ table.data-table th {
   .cartaz-canvas { max-height: none; }
   .cartaz-canvas-stage { width: 100%; }
   .cartaz-canvas-frame--panfleto { max-width: 720px; }
+  .panfleto-canvas-stage { width: 100%; }
 }
 
 @media (max-width: 640px) {

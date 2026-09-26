@@ -30,7 +30,7 @@ import {
 } from '../../utils/cartazPersistencia';
 import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
-import { projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
 
@@ -343,8 +343,8 @@ export function StoryModo() {
     const estadoEditor: EstadoEditorStory = { ...estadoEditorRef.current, ...overrides };
     setSalvandoPendente(true);
     projetoCartazService
-      .atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> })
-      .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+      .salvarEstadoEditor(projetoAtivo.id, estadoEditor as unknown as Record<string, unknown>)
+      .catch((erro) => setToast(mensagemFalhaAoSalvar(erro)))
       .finally(() => setSalvandoPendente(false));
   }
 
@@ -359,8 +359,8 @@ export function StoryModo() {
       debounceAutosaveRef.current = null;
       const estadoEditor: EstadoEditorStory = { nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa };
       projetoCartazService
-        .atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> })
-        .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+        .salvarEstadoEditor(projetoAtivo.id, estadoEditor as unknown as Record<string, unknown>)
+        .catch((erro) => setToast(mensagemFalhaAoSalvar(erro)))
         .finally(() => setSalvandoPendente(false));
     }, 700);
     return () => {

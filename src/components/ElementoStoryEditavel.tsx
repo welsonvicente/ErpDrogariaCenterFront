@@ -26,6 +26,8 @@ export function ElementoStoryEditavel({
   tamanhoMinimo,
   tamanhoMaximo,
   controlaTipografia = true,
+  larguraArte = LARGURA_STORY,
+  alturaArte = ALTURA_STORY,
   caixasVizinhas = [],
   onSelecionar,
   onAlterar,
@@ -39,6 +41,9 @@ export function ElementoStoryEditavel({
   tamanhoMinimo: number;
   tamanhoMaximo: number;
   controlaTipografia?: boolean;
+  /** Tamanho lógico da arte onde a caixa vive — padrão é o Story (1080×1920); o Panfleto passa o tamanho da página. */
+  larguraArte?: number;
+  alturaArte?: number;
   caixasVizinhas?: CaixaStory[];
   onSelecionar: () => void;
   onAlterar: (caixa: CaixaStory, tamanho?: number) => void;
@@ -79,8 +84,8 @@ export function ElementoStoryEditavel({
     const estado = inicio.current;
     const frame = frameRef.current;
     if (!estado || !frame) return;
-    const escalaX = frame.clientWidth / LARGURA_STORY;
-    const escalaY = frame.clientHeight / ALTURA_STORY;
+    const escalaX = frame.clientWidth / larguraArte;
+    const escalaY = frame.clientHeight / alturaArte;
     const dx = (e.clientX - estado.clientX) / escalaX;
     const dy = (e.clientY - estado.clientY) / escalaY;
     const minLargura = estado.caixa.larguraMinima;
@@ -88,19 +93,19 @@ export function ElementoStoryEditavel({
     if (estado.lado === 'move') {
       let proxima = {
         ...estado.caixa,
-        x: Math.max(0, Math.min(LARGURA_STORY - estado.caixa.largura, estado.caixa.x + dx)),
-        y: Math.max(0, Math.min(ALTURA_STORY - estado.caixa.altura, estado.caixa.y + dy)),
+        x: Math.max(0, Math.min(larguraArte - estado.caixa.largura, estado.caixa.x + dx)),
+        y: Math.max(0, Math.min(alturaArte - estado.caixa.altura, estado.caixa.y + dy)),
       };
-      const tolerancia = 28;
-      const centrosX = [LARGURA_STORY / 2, ...caixasVizinhas.map((vizinha) => vizinha.x + vizinha.largura / 2)];
-      const centrosY = [ALTURA_STORY / 2, ...caixasVizinhas.map((vizinha) => vizinha.y + vizinha.altura / 2)];
+      const tolerancia = 28 * (larguraArte / LARGURA_STORY); // 28px no Story, proporcional em artes menores
+      const centrosX = [larguraArte / 2, ...caixasVizinhas.map((vizinha) => vizinha.x + vizinha.largura / 2)];
+      const centrosY = [alturaArte / 2, ...caixasVizinhas.map((vizinha) => vizinha.y + vizinha.altura / 2)];
       const centroX = proxima.x + proxima.largura / 2;
       const centroY = proxima.y + proxima.altura / 2;
       const encaixeX = centrosX.find((centro) => Math.abs(centro - centroX) <= tolerancia);
       const encaixeY = centrosY.find((centro) => Math.abs(centro - centroY) <= tolerancia);
 
-      if (encaixeX !== undefined) proxima.x = Math.max(0, Math.min(LARGURA_STORY - proxima.largura, encaixeX - proxima.largura / 2));
-      if (encaixeY !== undefined) proxima.y = Math.max(0, Math.min(ALTURA_STORY - proxima.altura, encaixeY - proxima.altura / 2));
+      if (encaixeX !== undefined) proxima.x = Math.max(0, Math.min(larguraArte - proxima.largura, encaixeX - proxima.largura / 2));
+      if (encaixeY !== undefined) proxima.y = Math.max(0, Math.min(alturaArte - proxima.altura, encaixeY - proxima.altura / 2));
       onGuiasAlinhadas?.(encaixeX !== undefined || encaixeY !== undefined ? { vertical: encaixeX, horizontal: encaixeY } : null);
       onAlterar(proxima);
       return;
@@ -113,13 +118,13 @@ export function ElementoStoryEditavel({
     const minAltura = controlaTipografia ? estado.caixa.alturaMinima * (tamanhoMinimo / estado.tamanho) : estado.caixa.alturaMinima;
     let proxima: CaixaStory = { ...estado.caixa };
 
-    if (mexeDireita) proxima.largura = Math.max(minLargura, Math.min(LARGURA_STORY - estado.caixa.x, estado.caixa.largura + dx));
+    if (mexeDireita) proxima.largura = Math.max(minLargura, Math.min(larguraArte - estado.caixa.x, estado.caixa.largura + dx));
     if (mexeEsquerda) {
       const x = Math.max(0, Math.min(estado.caixa.x + estado.caixa.largura - minLargura, estado.caixa.x + dx));
       proxima.x = x;
       proxima.largura = estado.caixa.largura + estado.caixa.x - x;
     }
-    if (mexeBaixo) proxima.altura = Math.max(minAltura, Math.min(ALTURA_STORY - estado.caixa.y, estado.caixa.altura + dy));
+    if (mexeBaixo) proxima.altura = Math.max(minAltura, Math.min(alturaArte - estado.caixa.y, estado.caixa.altura + dy));
     if (mexeCima) {
       const y = Math.max(0, Math.min(estado.caixa.y + estado.caixa.altura - minAltura, estado.caixa.y + dy));
       proxima.y = y;
@@ -148,9 +153,9 @@ export function ElementoStoryEditavel({
     const passo = e.shiftKey ? 20 : 8;
     const movimentos: Record<string, Partial<CaixaStory>> = {
       ArrowLeft: { x: Math.max(0, caixaAtiva.x - passo) },
-      ArrowRight: { x: Math.min(LARGURA_STORY - caixaAtiva.largura, caixaAtiva.x + passo) },
+      ArrowRight: { x: Math.min(larguraArte - caixaAtiva.largura, caixaAtiva.x + passo) },
       ArrowUp: { y: Math.max(0, caixaAtiva.y - passo) },
-      ArrowDown: { y: Math.min(ALTURA_STORY - caixaAtiva.altura, caixaAtiva.y + passo) },
+      ArrowDown: { y: Math.min(alturaArte - caixaAtiva.altura, caixaAtiva.y + passo) },
     };
     if (movimentos[e.key]) {
       onSelecionar();
@@ -163,10 +168,10 @@ export function ElementoStoryEditavel({
     <div
       className={`story-elemento-editavel${selecionado ? ' is-selected' : ''}${arrastando ? ' is-dragging' : ''}`}
       style={{
-        top: `${(caixaAtiva.y / ALTURA_STORY) * 100}%`,
-        left: `${(caixaAtiva.x / LARGURA_STORY) * 100}%`,
-        width: `${(caixaAtiva.largura / LARGURA_STORY) * 100}%`,
-        height: `${(caixaAtiva.altura / ALTURA_STORY) * 100}%`,
+        top: `${(caixaAtiva.y / alturaArte) * 100}%`,
+        left: `${(caixaAtiva.x / larguraArte) * 100}%`,
+        width: `${(caixaAtiva.largura / larguraArte) * 100}%`,
+        height: `${(caixaAtiva.altura / alturaArte) * 100}%`,
       }}
       aria-label={`${descricao}. Arraste pelo centro para mover; arraste pelas bordas para redimensionar.`}
       role="button"

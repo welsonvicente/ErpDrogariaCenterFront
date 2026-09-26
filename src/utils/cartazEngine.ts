@@ -111,7 +111,7 @@ export function montarTextoPromocional(descricao: string, de: string, por: strin
  */
 export type FonteImagem = HTMLImageElement | HTMLVideoElement;
 
-function tamanhoOrigem(img: FonteImagem) {
+export function tamanhoOrigem(img: FonteImagem) {
   if (img instanceof HTMLVideoElement) {
     return { w: img.videoWidth, h: img.videoHeight };
   }

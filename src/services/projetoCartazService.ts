@@ -55,7 +55,38 @@ export const projetoCartazService = {
     return data;
   },
 
+  /**
+   * Autosave do `estadoEditor` — tenta de novo uma vez (após 1,5s) quando a
+   * falha é de rede ou do servidor (5xx), que costumam ser passageiras.
+   * Erros 4xx (projeto apagado, sessão vencida, dado recusado) não adianta
+   * repetir: sobem direto pra `mensagemFalhaAoSalvar` explicar o motivo.
+   */
+  async salvarEstadoEditor(id: string, estadoEditor: Record<string, unknown>): Promise<ProjetoCartazSalvo> {
+    try {
+      return await projetoCartazService.atualizar(id, { estadoEditor });
+    } catch (erro) {
+      const status = (erro as { response?: { status?: number } })?.response?.status;
+      if (status !== undefined && status < 500) throw erro;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return projetoCartazService.atualizar(id, { estadoEditor });
+    }
+  },
+
   async remover(id: string): Promise<void> {
     await api.delete(`/cartazes/projetos/${id}`);
   },
 };
+
+/**
+ * Mensagem do toast quando o autosave falha — diz o motivo real em vez de
+ * sempre culpar a conexão (antes um 404/401/422 aparecia como "verifique sua
+ * conexão", o que escondia a causa).
+ */
+export function mensagemFalhaAoSalvar(erro: unknown): string {
+  const resposta = (erro as { response?: { status?: number; data?: { message?: string } } })?.response;
+  if (!resposta) return 'Não foi possível salvar as últimas alterações — sem resposta do servidor. Verifique sua conexão.';
+  if (resposta.status === 401) return 'Sua sessão expirou — entre de novo pra continuar salvando.';
+  if (resposta.status === 404) return 'Este projeto não existe mais (foi apagado?) — abra ou crie outro em "Projetos".';
+  const detalhe = resposta.data?.message ? `: ${resposta.data.message}` : '';
+  return `Não foi possível salvar as últimas alterações (erro ${resposta.status}${detalhe}).`;
+}

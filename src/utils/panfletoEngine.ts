@@ -6,7 +6,7 @@
  * parâmetros, sem tocar no DOM da aplicação.
  */
 
-import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, type FonteImagem, type ParametrosStory, type TransformImagem } from './cartazEngine';
+import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, tamanhoOrigem, type FonteImagem, type ParametrosStory, type TransformImagem } from './cartazEngine';
 import type { ConfiguracoesStory } from './cartazPersistencia';
 
 export type AlinhamentoTexto = 'left' | 'center' | 'right';
@@ -181,8 +181,61 @@ export interface ParametrosPaginaPanfleto {
 
   imagemFundo: FonteImagem | null;
   manterFaixaBranca: boolean;
-  /** Logomarca/selo (PNG com fundo transparente) desenhado no canto de CADA produto — mesmo PNG em todos os cards, diferente da imagem de fundo (que é uma só pra página inteira). */
+  /** Logomarca/selo (PNG com fundo transparente) — uma só pro panfleto inteiro, desenhada em cada página na posição de `logoCaixa`. */
   imagemLogo: FonteImagem | null;
+  logoCaixa: CaixaLogoPanfleto | null;
+}
+
+/**
+ * Posição/tamanho da logomarca do panfleto, em proporção da página (não em
+ * px) — a página muda de tamanho conforme itens por página, borda, link do
+ * QR e quantidade de produtos na última página, e a logo tem que continuar
+ * no mesmo lugar relativo. `x`, `largura` e `altura` são frações da LARGURA
+ * da página (a largura não muda entre páginas, então a logo mantém o mesmo
+ * tamanho em todas); `y` é fração da ALTURA (quem está no rodapé continua no
+ * rodapé numa página mais curta).
+ */
+export interface CaixaLogoPanfleto {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+}
+
+export interface DimensaoPaginaPanfleto {
+  largura: number;
+  altura: number;
+}
+
+/** Converte a caixa relativa da logo pra coordenadas lógicas de uma página de tamanho `pagina`, sempre cabendo inteira dentro dela. */
+export function caixaLogoAbsoluta(caixa: CaixaLogoPanfleto, pagina: DimensaoPaginaPanfleto) {
+  const largura = Math.min(pagina.largura, caixa.largura * pagina.largura);
+  const altura = Math.min(pagina.altura, caixa.altura * pagina.largura);
+  return {
+    x: Math.max(0, Math.min(pagina.largura - largura, caixa.x * pagina.largura)),
+    y: Math.max(0, Math.min(pagina.altura - altura, caixa.y * pagina.altura)),
+    largura,
+    altura,
+  };
+}
+
+/** Inverso de `caixaLogoAbsoluta` — usado quando a pessoa arrasta/redimensiona a logo na prévia. */
+export function caixaLogoRelativa(caixa: { x: number; y: number; largura: number; altura: number }, pagina: DimensaoPaginaPanfleto): CaixaLogoPanfleto {
+  return {
+    x: caixa.x / pagina.largura,
+    y: caixa.y / pagina.altura,
+    largura: caixa.largura / pagina.largura,
+    altura: caixa.altura / pagina.largura,
+  };
+}
+
+/** Posição inicial de uma logo recém-escolhida: canto superior direito, na faixa do cabeçalho, respeitando a proporção do PNG. */
+export function caixaLogoPadrao(logo: FonteImagem, pagina: DimensaoPaginaPanfleto, borda: number): CaixaLogoPanfleto {
+  const { w, h } = tamanhoOrigem(logo);
+  const proporcao = h / w || 1;
+  const largura = Math.min(160, 90 / proporcao);
+  const altura = largura * proporcao;
+  return caixaLogoRelativa({ x: pagina.largura - borda - largura, y: 20, largura, altura }, pagina);
 }
 
 function desenharTextoAlinhado(ctx: CanvasRenderingContext2D, texto: string, y: number, align: AlinhamentoTexto, pad: number, larguraTotal: number) {
@@ -223,7 +276,7 @@ export function renderizarPaginaPanfleto(
   paginaNum: number,
   totalPaginas: number,
   p: ParametrosPaginaPanfleto,
-) {
+): DimensaoPaginaPanfleto {
   const cols = 3;
   const { cardW, cardH, photoH } = sizing;
   const gap = 24;
@@ -240,7 +293,7 @@ export function renderizarPaginaPanfleto(
   canvas.width = W * ESCALA_EXPORTACAO_PANFLETO;
   canvas.height = H * ESCALA_EXPORTACAO_PANFLETO;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!ctx) return { largura: W, altura: H };
   ctx.scale(ESCALA_EXPORTACAO_PANFLETO, ESCALA_EXPORTACAO_PANFLETO);
 
   const deFontSize = Math.max(10, p.tamanhoPreco - 5);
@@ -305,12 +358,6 @@ export function renderizarPaginaPanfleto(
 
     const photoPad = 14;
     desenharImagemContain(ctx, produto.imagem, x + photoPad, y + photoPad, cardW - photoPad * 2, photoH);
-
-    if (p.imagemLogo) {
-      const tamanhoLogo = Math.max(28, Math.round(cardW * 0.22));
-      const margemLogo = 6;
-      desenharImagemContain(ctx, p.imagemLogo, x + cardW - photoPad - tamanhoLogo - margemLogo, y + photoPad + margemLogo, tamanhoLogo, tamanhoLogo);
-    }
 
     let cursorY = y + photoPad + photoH + 24;
 
@@ -386,6 +433,14 @@ export function renderizarPaginaPanfleto(
     ctx.font = '400 13px Inter';
     if (p.textoRodape2) desenharTextoAlinhado(ctx, p.textoRodape2, footerY + 78, p.textoRodape2Alinhamento, pad, W);
   }
+
+  // Logomarca por último — fica por cima de tudo, onde a pessoa posicionou.
+  if (p.imagemLogo && p.logoCaixa) {
+    const caixa = caixaLogoAbsoluta(p.logoCaixa, { largura: W, altura: H });
+    desenharImagemContain(ctx, p.imagemLogo, caixa.x, caixa.y, caixa.largura, caixa.altura);
+  }
+
+  return { largura: W, altura: H };
 }
 
 /** Quebra a lista de produtos em páginas de `itensPorPagina` cada. */

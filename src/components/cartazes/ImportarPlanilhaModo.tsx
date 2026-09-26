@@ -33,7 +33,7 @@ import {
 import { compartilharOuBaixarVarios } from '../../utils/compartilharArquivo';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazService';
-import { projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { useFilaUploadImagens } from '../../hooks/useFilaUploadImagens';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
@@ -329,8 +329,8 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     }
     setSalvandoPendente(true);
     projetoCartazService
-      .atualizar(projetoAtivo.id, { estadoEditor: montarEstadoEditor(produtosParaSalvar) as unknown as Record<string, unknown> })
-      .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+      .salvarEstadoEditor(projetoAtivo.id, montarEstadoEditor(produtosParaSalvar) as unknown as Record<string, unknown>)
+      .catch((erro) => setToast(mensagemFalhaAoSalvar(erro)))
       .finally(() => setSalvandoPendente(false));
   }
 
@@ -341,8 +341,8 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     debounceAutosaveRef.current = setTimeout(() => {
       debounceAutosaveRef.current = null;
       projetoCartazService
-        .atualizar(projetoAtivo.id, { estadoEditor: montarEstadoEditor(produtos) as unknown as Record<string, unknown> })
-        .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+        .salvarEstadoEditor(projetoAtivo.id, montarEstadoEditor(produtos) as unknown as Record<string, unknown>)
+        .catch((erro) => setToast(mensagemFalhaAoSalvar(erro)))
         .finally(() => setSalvandoPendente(false));
     }, 700);
     return () => {

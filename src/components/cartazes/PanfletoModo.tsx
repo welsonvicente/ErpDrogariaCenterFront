@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties } from 'react';
 import JSZip from 'jszip';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal, type GuiaCamera } from '../CameraModal';
+import { ElementoStoryEditavel } from '../ElementoStoryEditavel';
 import { EditarStoryProdutoModal } from './EditarStoryProdutoModal';
 import { GaleriaStoriesModal } from './GaleriaStoriesModal';
 import { blobDeImagem, carregarImagemDeArquivo, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
@@ -24,9 +25,12 @@ import {
 } from '../../utils/cartazPersistencia';
 import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
-import { projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import {
+  caixaLogoAbsoluta,
+  caixaLogoPadrao,
+  caixaLogoRelativa,
   construirPaginasPanfleto,
   ESCALA_EXPORTACAO_PANFLETO,
   ITENS_POR_PAGINA_OPCOES,
@@ -35,6 +39,8 @@ import {
   renderizarPaginaPanfleto,
   TRANSFORM_PADRAO_PANFLETO,
   type AjustesStoryProduto,
+  type CaixaLogoPanfleto,
+  type DimensaoPaginaPanfleto,
   type AlinhamentoTexto,
   type ParametrosPaginaPanfleto,
   type ProdutoPanfleto,
@@ -59,6 +65,9 @@ interface ProdutoPanfletoSalvo {
 
 interface EstadoEditorPanfleto {
   produtos: ProdutoPanfletoSalvo[];
+  /** Logomarca do panfleto inteiro (uma só, posicionável) — ausente em projetos salvos antes dela existir. */
+  logoArquivoId?: string | null;
+  logoCaixa?: CaixaLogoPanfleto | null;
 }
 
 interface StatusUploadProduto {
@@ -150,6 +159,13 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [imagemFundo, setImagemFundo] = useState<HTMLImageElement | null>(null);
   const [manterFaixaBranca, setManterFaixaBranca] = useState(true);
   const [imagemLogo, setImagemLogo] = useState<HTMLImageElement | null>(null);
+  const [logoArquivoId, setLogoArquivoId] = useState<string | null>(null);
+  const [logoCaixa, setLogoCaixa] = useState<CaixaLogoPanfleto | null>(null);
+  const [logoSelecionada, setLogoSelecionada] = useState(false);
+  const [enviandoLogo, setEnviandoLogo] = useState(false);
+  const [dimensaoPaginaAtual, setDimensaoPaginaAtual] = useState<DimensaoPaginaPanfleto | null>(null);
+  const dimensoesPaginasRef = useRef<DimensaoPaginaPanfleto[]>([]);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const [imagemQr, setImagemQr] = useState<HTMLImageElement | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
@@ -325,6 +341,21 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       restaurados.push({ imagem, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, arquivoId: p.arquivoId });
     }
     setProdutos(restaurados);
+
+    let logo: HTMLImageElement | null = null;
+    const arquivoLogo = estado.logoArquivoId ? mapaArquivos.get(estado.logoArquivoId) : undefined;
+    if (arquivoLogo) {
+      try {
+        logo = await carregarImagemDeDataUrl(arquivoLogo.url);
+      } catch {
+        /* logo inacessível — o panfleto segue sem ela, dá pra escolher de novo */
+      }
+    }
+    setImagemLogo(logo);
+    setLogoArquivoId(logo ? estado.logoArquivoId ?? null : null);
+    setLogoCaixa(logo ? estado.logoCaixa ?? null : null);
+    setLogoSelecionada(false);
+
     if (semFotoCount > 0) {
       setToast(`${semFotoCount} produto(s) recuperado(s) sem a foto — toque em "🔄" pra escolher de novo.`);
     }
@@ -408,9 +439,17 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const debounceAutosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [salvandoPendente, setSalvandoPendente] = useState(false);
 
-  function montarEstadoEditor(produtosParaSalvar: ProdutoPanfleto[]): EstadoEditorPanfleto {
+  // Mesmo motivo de `produtosRef`: a logo pode confirmar o upload dentro de
+  // um callback assíncrono, e `montarEstadoEditor` precisa do valor atual.
+  const logoRef = useRef({ logoArquivoId, logoCaixa });
+  logoRef.current = { logoArquivoId, logoCaixa };
+
+  function montarEstadoEditor(produtosParaSalvar: ProdutoPanfleto[], logo: Partial<typeof logoRef.current> = {}): EstadoEditorPanfleto {
+    const { logoArquivoId: arquivoDaLogo, logoCaixa: caixaDaLogo } = { ...logoRef.current, ...logo };
     return {
       produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
+      logoArquivoId: arquivoDaLogo,
+      logoCaixa: caixaDaLogo,
     };
   }
 
@@ -420,7 +459,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
    * janela entre confirmar e persistir é onde fechar a aba rápido demais
    * perderia a referência).
    */
-  function persistirProdutos(produtosParaSalvar: ProdutoPanfleto[]) {
+  function persistirProdutos(produtosParaSalvar: ProdutoPanfleto[], logo: Partial<typeof logoRef.current> = {}) {
     if (!projetoAtivo) return;
     if (debounceAutosaveRef.current) {
       clearTimeout(debounceAutosaveRef.current);
@@ -428,30 +467,30 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     }
     setSalvandoPendente(true);
     projetoCartazService
-      .atualizar(projetoAtivo.id, { estadoEditor: montarEstadoEditor(produtosParaSalvar) as unknown as Record<string, unknown> })
-      .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+      .salvarEstadoEditor(projetoAtivo.id, montarEstadoEditor(produtosParaSalvar, logo) as unknown as Record<string, unknown>)
+      .catch((erro) => setToast(mensagemFalhaAoSalvar(erro)))
       .finally(() => setSalvandoPendente(false));
   }
 
-  // Autosave do estado do editor (produtos) no projeto.
+  // Autosave do estado do editor (produtos + posição da logo) no projeto.
   useEffect(() => {
     if (!prontoParaPersistir || !projetoAtivo) return;
     setSalvandoPendente(true);
     debounceAutosaveRef.current = setTimeout(() => {
       debounceAutosaveRef.current = null;
       projetoCartazService
-        .atualizar(projetoAtivo.id, { estadoEditor: montarEstadoEditor(produtos) as unknown as Record<string, unknown> })
-        .catch(() => setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.'))
+        .salvarEstadoEditor(projetoAtivo.id, montarEstadoEditor(produtos) as unknown as Record<string, unknown>)
+        .catch((erro) => setToast(mensagemFalhaAoSalvar(erro)))
         .finally(() => setSalvandoPendente(false));
     }, 700);
     return () => {
       if (debounceAutosaveRef.current) clearTimeout(debounceAutosaveRef.current);
     };
-  }, [prontoParaPersistir, projetoAtivo, produtos]);
+  }, [prontoParaPersistir, projetoAtivo, produtos, logoArquivoId, logoCaixa]);
 
   // Bloqueia fechar/recarregar a aba enquanto alguma foto está subindo ou o
   // autosave ainda não confirmou.
-  useAvisoSairComPendencia(enviandoPendente || Object.values(statusUploadProdutos).some((s) => s.enviando) || salvandoPendente);
+  useAvisoSairComPendencia(enviandoPendente || enviandoLogo || Object.values(statusUploadProdutos).some((s) => s.enviando) || salvandoPendente);
 
   useEffect(() => {
     setProdutosRecentes(carregarProdutosRecentes());
@@ -473,6 +512,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     visivel.width = atual.width;
     visivel.height = atual.height;
     visivel.getContext('2d')?.drawImage(atual, 0, 0);
+    setDimensaoPaginaAtual(dimensoesPaginasRef.current[indice] ?? null);
   }
 
   useEffect(() => {
@@ -503,13 +543,16 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       imagemFundo,
       manterFaixaBranca,
       imagemLogo,
+      logoCaixa,
     };
 
+    const dimensoes: DimensaoPaginaPanfleto[] = [];
     paginasCanvasRef.current = paginas.map((produtosDaPagina, i) => {
       const canvas = document.createElement('canvas');
-      renderizarPaginaPanfleto(canvas, produtosDaPagina, sizing, i + 1, paginas.length, parametros);
+      dimensoes.push(renderizarPaginaPanfleto(canvas, produtosDaPagina, sizing, i + 1, paginas.length, parametros));
       return canvas;
     });
+    dimensoesPaginasRef.current = dimensoes;
     setTotalPaginas(paginas.length);
 
     const indiceValido = Math.min(paginaAtual, paginas.length - 1);
@@ -523,7 +566,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     produtos, itensPorPagina, mostrarTextosCabecalho, nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento,
     mostrarTextosRodape, textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento,
     qrAlinhamento, link, imagemQr, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco,
-    tamanhoBorda, tamanhoSelo, imagemFundo, manterFaixaBranca, imagemLogo,
+    tamanhoBorda, tamanhoSelo, imagemFundo, manterFaixaBranca, imagemLogo, logoCaixa,
   ]);
 
   useEffect(() => {
@@ -627,7 +670,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     }
   }
 
-  /** Fundo/logo do panfleto — nunca persistidos (mesmo comportamento de antes), continuam usando o carregador simples em memória. */
+  /** Fundo do panfleto — nunca persistido (mesmo comportamento de antes), continua usando o carregador simples em memória. */
   async function handleEscolherImagemFundo(event: ChangeEvent<HTMLInputElement>) {
     const arquivo = event.target.files?.[0];
     event.target.value = '';
@@ -635,11 +678,47 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     setImagemFundo(await carregarImagemDeArquivo(arquivo));
   }
 
+  /**
+   * Logomarca do panfleto — uma só pra ele todo, posicionável na prévia
+   * (mesma edição por arrasto do Story). Sobe pro R2 e fica salva no
+   * projeto junto com a posição, igual ao PNG extra do Story.
+   */
   async function handleEscolherImagemLogo(event: ChangeEvent<HTMLInputElement>) {
     const arquivo = event.target.files?.[0];
     event.target.value = '';
-    if (!arquivo) return;
-    setImagemLogo(await carregarImagemDeArquivo(arquivo));
+    if (!arquivo || !projetoAtivo) return;
+    let carregada: Awaited<ReturnType<typeof carregarImagemEBlobDeArquivo>>;
+    try {
+      carregada = await carregarImagemEBlobDeArquivo(arquivo);
+    } catch {
+      setToast('Não foi possível ler esse PNG. Tente outro.');
+      return;
+    }
+    const { imagem: png, blob, mimeType } = carregada;
+    const pagina = dimensoesPaginasRef.current[paginaAtual] ?? dimensoesPaginasRef.current[0];
+    // Trocar o PNG mantém a posição escolhida; só a primeira logo ganha a posição padrão.
+    const caixa = logoCaixa ?? (pagina ? caixaLogoPadrao(png, pagina, tamanhoBorda) : null);
+    setImagemLogo(png);
+    setLogoCaixa(caixa);
+    setLogoSelecionada(true);
+
+    setEnviandoLogo(true);
+    try {
+      const arquivoId = await arquivoCartazService.enviarImagem(blob, mimeType, projetoAtivo.id);
+      setLogoArquivoId(arquivoId);
+      persistirProdutos(produtosRef.current, { logoArquivoId: arquivoId, logoCaixa: caixa });
+    } catch {
+      setToast('Não foi possível enviar essa logomarca. Tente de novo.');
+    } finally {
+      setEnviandoLogo(false);
+    }
+  }
+
+  function handleRemoverLogo() {
+    setImagemLogo(null);
+    setLogoArquivoId(null);
+    setLogoCaixa(null);
+    setLogoSelecionada(false);
   }
 
   async function handleUsarProdutoRecente(produto: ProdutoRecente) {
@@ -1189,14 +1268,14 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
             <div className="cartaz-imagem-extra">
               <div>
                 <strong>Logomarca ou selo</strong>
-                <span>PNG com fundo transparente aparece no canto da foto de TODOS os produtos do panfleto.</span>
+                <span>PNG com fundo transparente, uma vez só no panfleto. Clique nela na prévia pra arrastar e redimensionar.</span>
               </div>
               <div className="cartaz-imagem-extra-actions">
-                <button type="button" className="btn-ghost" onClick={() => inputLogoRef.current?.click()}>
-                  {imagemLogo ? 'Trocar PNG' : '+ Adicionar PNG'}
+                <button type="button" className="btn-ghost" disabled={enviandoLogo} onClick={() => inputLogoRef.current?.click()}>
+                  {enviandoLogo ? 'Enviando...' : imagemLogo ? 'Trocar PNG' : '+ Adicionar PNG'}
                 </button>
                 {imagemLogo && (
-                  <button type="button" className="btn-ghost" onClick={() => setImagemLogo(null)}>
+                  <button type="button" className="btn-ghost" onClick={handleRemoverLogo}>
                     Remover
                   </button>
                 )}
@@ -1232,10 +1311,42 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
           <div className="cartaz-preview">
             <div className="cartaz-preview-head">
               <strong>Prévia em tempo real</strong>
-              <span>O panfleto se atualiza conforme você edita.</span>
+              <span>{logoSelecionada ? 'Logomarca selecionada — arraste pra mover ou pelas bordas pra redimensionar.' : 'O panfleto se atualiza conforme você edita.'}</span>
             </div>
             <div className="cartaz-canvas-frame cartaz-canvas-frame--panfleto">
-              <canvas ref={canvasRef} className="cartaz-canvas cartaz-canvas--panfleto" />
+              <div
+                className="panfleto-canvas-stage"
+                ref={stageRef}
+                style={
+                  dimensaoPaginaAtual
+                    ? ({
+                        aspectRatio: `${dimensaoPaginaAtual.largura} / ${dimensaoPaginaAtual.altura}`,
+                        '--proporcao-pagina': dimensaoPaginaAtual.largura / dimensaoPaginaAtual.altura,
+                      } as CSSProperties)
+                    : undefined
+                }
+                onPointerDownCapture={(e) => {
+                  if (e.target === canvasRef.current) setLogoSelecionada(false);
+                }}
+              >
+                <canvas ref={canvasRef} className="cartaz-canvas cartaz-canvas--panfleto" />
+                {imagemLogo && logoCaixa && dimensaoPaginaAtual && (
+                  <ElementoStoryEditavel
+                    frameRef={stageRef}
+                    caixa={{ ...caixaLogoAbsoluta(logoCaixa, dimensaoPaginaAtual), larguraMinima: 24, alturaMinima: 24 }}
+                    selecionado={logoSelecionada}
+                    descricao="Logomarca do panfleto"
+                    tamanho={1}
+                    tamanhoMinimo={1}
+                    tamanhoMaximo={1}
+                    controlaTipografia={false}
+                    larguraArte={dimensaoPaginaAtual.largura}
+                    alturaArte={dimensaoPaginaAtual.altura}
+                    onSelecionar={() => setLogoSelecionada(true)}
+                    onAlterar={(caixa) => setLogoCaixa(caixaLogoRelativa(caixa, dimensaoPaginaAtual))}
+                  />
+                )}
+              </div>
             </div>
             {totalPaginas > 1 && (
               <div className="panfleto-paginacao">
