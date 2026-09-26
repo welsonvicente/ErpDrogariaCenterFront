@@ -190,36 +190,66 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     return () => clearTimeout(timer);
   }, [toast]);
 
+  /**
+   * Garante que a foto de um produto é um arquivo DESTE projeto — só esses
+   * voltam quando o projeto é reaberto (`GET /projetos/:id` lista os arquivos
+   * pelo projeto). Tenta copiar direto no R2 (`duplicar`); se não der, reenvia
+   * a foto que já está em memória como um arquivo novo. `null` = nenhum dos
+   * dois funcionou.
+   *
+   * Antes, uma falha no `duplicar` era engolida e o produto ficava com o
+   * `arquivoId` da Planilha: tudo parecia certo na tela, mas no F5 (ou em
+   * outro computador) o Panfleto não achava a foto entre os arquivos dele e
+   * todas as fotos vindas da Planilha "sumiam".
+   */
+  async function tornarFotoDoProjeto(produto: ProdutoPanfleto, projetoId: string): Promise<string | null> {
+    if (produto.arquivoId) {
+      try {
+        return (await arquivoCartazService.duplicar(produto.arquivoId, projetoId)).id;
+      } catch {
+        /* cai no reenvio abaixo */
+      }
+    }
+    try {
+      const blob = await blobDeImagem(produto.imagem, 'image/jpeg', 0.9);
+      return await arquivoCartazService.enviarImagem(blob, 'image/jpeg', projetoId);
+    } catch {
+      return null;
+    }
+  }
+
   // Recebe produtos enviados pelo modo Importar planilha ("Usar no panfleto")
-  // — SEMPRE duplica a foto pro projeto do Panfleto (mesmo quando já tem
-  // `arquivoId`): esse arquivo pertence ao projeto de origem (a Planilha),
-  // e um arquivo só pertence a um projeto por vez, então reaproveitar a
-  // mesma referência faria a Planilha perder a foto assim que o Panfleto a
-  // vinculasse a si (ver `arquivoCartazService.duplicar`).
+  // — a foto SEMPRE vira um arquivo novo do Panfleto (ver `tornarFotoDoProjeto`):
+  // o arquivo original pertence à Planilha, e um arquivo só pertence a um
+  // projeto por vez.
   useEffect(() => {
     if (!produtosRecebidos || produtosRecebidos.length === 0 || !projetoAtivo) return;
     const projetoId = projetoAtivo.id;
     async function incorporar() {
       const prontos = await Promise.all(
-        produtosRecebidos!.map(async (produto) => {
-          try {
-            if (produto.arquivoId) {
-              const copia = await arquivoCartazService.duplicar(produto.arquivoId, projetoId);
-              return { ...produto, arquivoId: copia.id };
-            }
-            const blob = await blobDeImagem(produto.imagem, 'image/jpeg', 0.9);
-            const arquivoId = await arquivoCartazService.enviarImagem(blob, 'image/jpeg', projetoId);
-            return { ...produto, arquivoId };
-          } catch {
-            return produto;
-          }
-        }),
+        produtosRecebidos!.map(async (produto) => ({ ...produto, arquivoId: await tornarFotoDoProjeto(produto, projetoId) })),
       );
-      setProdutos((atual) => {
-        const finalProdutos = [...atual, ...prontos];
-        persistirProdutos(finalProdutos);
-        return finalProdutos;
-      });
+      const inicio = produtosRef.current.length;
+      const finalProdutos = [...produtosRef.current, ...prontos];
+      setProdutos(finalProdutos);
+      persistirProdutos(finalProdutos);
+
+      // O que não deu pra salvar fica marcado com "Tentar de novo" no próprio
+      // produto (mesmo fluxo de trocar foto), em vez de sumir no próximo F5.
+      const falhas = prontos.map((p, i) => (p.arquivoId ? null : inicio + i)).filter((idx): idx is number => idx !== null);
+      if (falhas.length > 0) {
+        await Promise.all(
+          falhas.map(async (idx) => {
+            try {
+              ultimosUploadsProdutoRef.current.set(idx, { blob: await blobDeImagem(finalProdutos[idx].imagem, 'image/jpeg', 0.9), mimeType: 'image/jpeg' });
+            } catch {
+              /* sem blob não há retry automático — ainda dá pra trocar a foto manualmente */
+            }
+          }),
+        );
+        setStatusUploadProdutos((atual) => ({ ...atual, ...Object.fromEntries(falhas.map((idx) => [idx, { enviando: false, erro: true }])) }));
+        setToast(`${falhas.length} foto(s) não foram salvas no panfleto. Toque em "Tentar de novo" no produto.`);
+      }
       aoReceberProdutos?.();
     }
     incorporar();
@@ -324,15 +354,31 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     const mapaArquivos = new Map(projeto.arquivos.map((a) => [a.id, a] as const));
     const salvos = estado.produtos || [];
 
+    // Recuperação: produto que aponta pra um arquivo que NÃO é deste projeto
+    // (foto vinda da Planilha num momento em que a cópia falhava — ver
+    // `tornarFotoDoProjeto`). O arquivo original ainda existe no projeto de
+    // origem, então busca a URL dele direto e, mais abaixo, traz uma cópia
+    // pra este projeto, pra não depender mais do outro.
+    const idsDeFora = salvos.map((p) => p.arquivoId).filter((id): id is string => Boolean(id) && !mapaArquivos.has(id as string));
+    const urlsDeFora = new Map<string, string>();
+    if (idsDeFora.length > 0) {
+      try {
+        (await arquivoCartazService.obterUrls(idsDeFora)).forEach((r) => urlsDeFora.set(r.id, r.url));
+      } catch {
+        /* sem as URLs, esses produtos caem no aviso "sem foto" abaixo */
+      }
+    }
+
     const restaurados: ProdutoPanfleto[] = [];
+    const paraAdotar: ProdutoPanfleto[] = [];
     let semFotoCount = 0;
     for (const p of salvos) {
-      const arquivo = p.arquivoId ? mapaArquivos.get(p.arquivoId) : undefined;
+      const url = p.arquivoId ? mapaArquivos.get(p.arquivoId)?.url ?? urlsDeFora.get(p.arquivoId) : undefined;
       let imagem: HTMLImageElement | null = null;
-      if (arquivo) {
+      if (url) {
         try {
           // eslint-disable-next-line no-await-in-loop
-          imagem = await carregarImagemDeDataUrl(arquivo.url);
+          imagem = await carregarImagemDeDataUrl(url);
         } catch {
           /* foto corrompida/inacessível — mostra aviso no lugar */
         }
@@ -342,7 +388,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         // eslint-disable-next-line no-await-in-loop
         imagem = await criarImagemAvisoSemFoto();
       }
-      restaurados.push({ imagem, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, arquivoId: p.arquivoId });
+      const restaurado = { imagem, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, arquivoId: p.arquivoId };
+      restaurados.push(restaurado);
+      if (p.arquivoId && urlsDeFora.has(p.arquivoId) && url && imagem) paraAdotar.push(restaurado);
     }
     setProdutos(restaurados);
 
@@ -364,6 +412,22 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       setToast(`${semFotoCount} produto(s) recuperado(s) sem a foto — toque em "🔄" pra escolher de novo.`);
     }
     setProntoParaPersistir(true);
+
+    // Traz pra este projeto as fotos recuperadas de outro (ver `idsDeFora`).
+    // Troca pelo `arquivoId` antigo (não pelo índice), porque a pessoa pode
+    // já estar mexendo na lista; o autosave grava a troca. Se falhar, o
+    // produto segue com a referência antiga, que continua sendo recuperada
+    // por este mesmo caminho na próxima abertura.
+    if (paraAdotar.length > 0) {
+      const adotados = await Promise.all(
+        paraAdotar.map(async (produto) => ({ antigo: produto.arquivoId as string, novo: await tornarFotoDoProjeto(produto, projeto.id) })),
+      );
+      const trocas = new Map(adotados.filter((a) => a.novo).map((a) => [a.antigo, a.novo as string]));
+      if (trocas.size > 0) {
+        setProdutos((atual) => atual.map((p) => (p.arquivoId && trocas.has(p.arquivoId) ? { ...p, arquivoId: trocas.get(p.arquivoId) } : p)));
+        setToast(`${trocas.size} foto(s) que tinham sumido foram recuperadas e salvas neste panfleto.`);
+      }
+    }
   }
 
   async function migrarRascunhoAntigo(rascunho: NonNullable<ReturnType<typeof carregarRascunhoPanfleto>>) {
