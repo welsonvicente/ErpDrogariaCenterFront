@@ -13,6 +13,9 @@ export type AlinhamentoTexto = 'left' | 'center' | 'right';
 
 export const TRANSFORM_PADRAO_PANFLETO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
 
+export const COR_FUNDO_SELO_PADRAO = '#FCEFD8';
+export const COR_TEXTO_SELO_PADRAO = '#C98A1D';
+
 interface GuiaFaixa {
   y: number;
   offsetX: number;
@@ -192,6 +195,9 @@ export interface ParametrosPaginaPanfleto {
   tamanhoPreco: number;
   tamanhoBorda: number;
   tamanhoSelo: number;
+  /** Cores do selo de desconto (-X%) — ausentes = as de sempre. `transparent` no fundo = só o texto. */
+  corFundoSelo?: string;
+  corTextoSelo?: string;
 
   imagemFundo: FonteImagem | null;
   manterFaixaBranca: boolean;
@@ -409,10 +415,13 @@ export function renderizarPaginaPanfleto(
       ctx.font = `700 ${p.tamanhoSelo}px Inter`;
       const larguraSelo = ctx.measureText(textoSelo).width + 18;
       const alturaSelo = Math.round(p.tamanhoSelo * 1.85);
-      ctx.fillStyle = '#FCEFD8';
-      desenharRetanguloArredondado(ctx, x + photoPad, cursorY + 12, larguraSelo, alturaSelo, alturaSelo / 2);
-      ctx.fill();
-      ctx.fillStyle = '#C98A1D';
+      const corFundoSelo = p.corFundoSelo || COR_FUNDO_SELO_PADRAO;
+      if (corFundoSelo !== 'transparent') {
+        ctx.fillStyle = corFundoSelo;
+        desenharRetanguloArredondado(ctx, x + photoPad, cursorY + 12, larguraSelo, alturaSelo, alturaSelo / 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = p.corTextoSelo || COR_TEXTO_SELO_PADRAO;
       ctx.textBaseline = 'middle';
       ctx.fillText(textoSelo, x + photoPad + 9, cursorY + 12 + alturaSelo / 2);
       ctx.textBaseline = 'alphabetic';

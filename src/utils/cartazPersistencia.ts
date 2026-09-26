@@ -275,6 +275,8 @@ export interface ConfiguracoesPanfleto {
   tamanhoPreco: number;
   tamanhoBorda: number;
   tamanhoSelo: number;
+  corFundoSelo?: string;
+  corTextoSelo?: string;
   manterFaixaBranca: boolean;
 }
 

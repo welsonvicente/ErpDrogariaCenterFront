@@ -33,6 +33,8 @@ import {
   caixaLogoPadrao,
   caixaLogoRelativa,
   construirPaginasPanfleto,
+  COR_FUNDO_SELO_PADRAO,
+  COR_TEXTO_SELO_PADRAO,
   ESCALA_EXPORTACAO_PANFLETO,
   ITENS_POR_PAGINA_OPCOES,
   montarParametrosStoryProduto,
@@ -53,6 +55,26 @@ import { SeletorCor } from './SeletorCor';
 type DestinoCamera = 'pendente' | number | null;
 
 const TAMANHO_QR_LOGICO = 130;
+
+/** Campos de estilo do story individual — ver `handleAplicarEstiloPadraoEmTodos`. */
+const CAMPOS_ESTILO_STORY = [
+  'corLogo',
+  'corTextoNome',
+  'corPreco',
+  'corFundoPreco',
+  'corFundoFrases',
+  'corTextoFrases',
+  'tamanhoNome',
+  'tamanhoPreco',
+  'tamanhoFrases',
+  'fonteNome',
+  'fontePreco',
+  'fonteFrases',
+] as const satisfies readonly (keyof AjustesStoryProduto)[];
+
+function temEstiloProprio(produto: ProdutoPanfleto) {
+  return CAMPOS_ESTILO_STORY.some((campo) => produto.ajustesStory?.[campo] !== undefined);
+}
 const EMOJI_PADRAO_STORY = '🤩😱';
 
 /** Produto salvo no `estadoEditor` do projeto — mesmos campos de `ProdutoPanfleto`, sem o `HTMLImageElement` (a foto é só a referência ao R2). */
@@ -157,6 +179,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [tamanhoPreco, setTamanhoPreco] = useState(19);
   const [tamanhoBorda, setTamanhoBorda] = useState(40);
   const [tamanhoSelo, setTamanhoSelo] = useState(13);
+  const [corFundoSelo, setCorFundoSelo] = useState(COR_FUNDO_SELO_PADRAO);
+  const [corTextoSelo, setCorTextoSelo] = useState(COR_TEXTO_SELO_PADRAO);
 
   const [imagemFundo, setImagemFundo] = useState<HTMLImageElement | null>(null);
   const [manterFaixaBranca, setManterFaixaBranca] = useState(true);
@@ -303,6 +327,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     if (config.tamanhoPreco) setTamanhoPreco(config.tamanhoPreco);
     if (config.tamanhoBorda) setTamanhoBorda(config.tamanhoBorda);
     if (config.tamanhoSelo) setTamanhoSelo(config.tamanhoSelo);
+    if (config.corFundoSelo) setCorFundoSelo(config.corFundoSelo);
+    if (config.corTextoSelo) setCorTextoSelo(config.corTextoSelo);
     if (config.manterFaixaBranca !== undefined) setManterFaixaBranca(config.manterFaixaBranca);
   }, []);
 
@@ -330,6 +356,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         tamanhoPreco,
         tamanhoBorda,
         tamanhoSelo,
+        corFundoSelo,
+        corTextoSelo,
         manterFaixaBranca,
       });
     }, 400);
@@ -338,7 +366,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento, mostrarTextosCabecalho, mostrarTextosRodape,
     textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento, qrAlinhamento, link,
     itensPorPagina, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco, tamanhoBorda,
-    tamanhoSelo, manterFaixaBranca,
+    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -609,6 +637,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       tamanhoPreco,
       tamanhoBorda,
       tamanhoSelo,
+      corFundoSelo,
+      corTextoSelo,
       imagemFundo,
       manterFaixaBranca,
       imagemLogo,
@@ -635,7 +665,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     produtos, itensPorPagina, mostrarTextosCabecalho, nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento,
     mostrarTextosRodape, textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento,
     qrAlinhamento, link, imagemQr, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco,
-    tamanhoBorda, tamanhoSelo, imagemFundo, manterFaixaBranca, imagemLogo, logoCaixa,
+    tamanhoBorda, tamanhoSelo, corFundoSelo, corTextoSelo, imagemFundo, manterFaixaBranca, imagemLogo, logoCaixa,
   ]);
 
   useEffect(() => {
@@ -932,6 +962,26 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...campos, ajustesStory } : p)));
   }
 
+  /**
+   * Tira de todos os produtos os ajustes próprios de cor, letra e tamanho do
+   * story — eles voltam a seguir o padrão do Story. Posições (inclusive as
+   * do "Analisar e ajustar posição") ficam como estão. Conserta produtos que
+   * "congelaram" o estilo por terem sido salvos/baixados pelo 📱 antes de o
+   * editor gravar só o que foi mudado.
+   */
+  function handleAplicarEstiloPadraoEmTodos() {
+    let afetados = 0;
+    const atualizados = produtos.map((produto) => {
+      if (!produto.ajustesStory || !temEstiloProprio(produto)) return produto;
+      afetados++;
+      const restante = { ...produto.ajustesStory };
+      CAMPOS_ESTILO_STORY.forEach((campo) => delete restante[campo]);
+      return { ...produto, ajustesStory: Object.keys(restante).length > 0 ? restante : undefined };
+    });
+    setProdutos(atualizados);
+    setToast(`Cores, letras e tamanhos do Story aplicados em ${afetados} produto(s).`);
+  }
+
   function handleSugerirPosicaoTodos() {
     if (produtos.length === 0) {
       setToast('Adicione produtos ao panfleto antes de analisar as fotos.');
@@ -1124,6 +1174,17 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                 🖋️ Editar tamanho/posição padrão dos stories (vale pra todo produto sem ajuste próprio)
               </button>
             )}
+            {produtos.some(temEstiloProprio) && (
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
+                onClick={handleAplicarEstiloPadraoEmTodos}
+                title="Alguns produtos têm cor, letra ou tamanho próprios no story e não seguem o padrão do Story"
+              >
+                🎨 Aplicar cores, letras e tamanhos do Story em todos ({produtos.filter(temEstiloProprio).length} com estilo próprio)
+              </button>
+            )}
             {produtos.length > 0 && (
               <button
                 type="button"
@@ -1309,6 +1370,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                 <label>Tamanho da letra do selo de desconto {tamanhoSelo}px</label>
                 <input type="range" min={9} max={22} value={tamanhoSelo} onChange={(e) => setTamanhoSelo(Number(e.target.value))} />
               </div>
+            </div>
+            <div className="field-row">
+              <SeletorCor rotulo="Fundo do selo de desconto" valor={corFundoSelo} onAlterar={setCorFundoSelo} canvasArte={canvasRef} permitirSemFundo />
+              <SeletorCor rotulo="Letra do selo de desconto" valor={corTextoSelo} onAlterar={setCorTextoSelo} canvasArte={canvasRef} />
             </div>
 
             <div className="field">

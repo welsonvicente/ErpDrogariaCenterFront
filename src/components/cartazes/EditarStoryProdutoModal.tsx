@@ -37,6 +37,30 @@ const GUIA_PADRAO_NOME: Guia = { y: 130, offsetX: 0 };
 const GUIA_PADRAO_PRECO: Guia = { y: 320, offsetX: 0 };
 const GUIA_PADRAO_FRASES: Guia = { y: 560, offsetX: 0 };
 
+/** O que vale quando nem o produto nem o padrão do Story definem o campo — mesmos valores de `montarParametrosStoryProduto`. */
+const PADROES_EMBUTIDOS = {
+  corLogo: '#436000',
+  corTextoNome: '#FFFFFF',
+  corPreco: '#E30613',
+  tamanhoNome: 40,
+  tamanhoPreco: 62,
+  margemNome: 60,
+  margemPreco: 60,
+  frasesAtivo: true,
+  frases: '',
+  corFundoFrases: '#173C3A',
+  corTextoFrases: '#FFFFFF',
+  tamanhoFrases: 32,
+  margemFrases: 60,
+  guiaNome: GUIA_PADRAO_NOME,
+  guiaPreco: GUIA_PADRAO_PRECO,
+  guiaFrases: GUIA_PADRAO_FRASES,
+  fonteNome: FONTE_PADRAO_NOME,
+  fontePreco: FONTE_PADRAO_PRECO,
+  fonteFrases: FONTE_PADRAO_FRASES,
+  corFundoPreco: COR_FUNDO_PRECO_PADRAO,
+} as const;
+
 /** `campo` já resolvido (ajuste do produto, senão o padrão do Story, senão a constante embutida). */
 function resolver<T>(doProduto: T | undefined, doPadrao: T | undefined, embutido: T): T {
   return doProduto ?? doPadrao ?? embutido;
@@ -107,6 +131,34 @@ export function EditarStoryProdutoModal({
 
   // `undefined` = segue a posição do Story; só vira ajuste do produto depois que a pessoa arrasta a logo aqui.
   const [imagemExtraCaixaProduto, setImagemExtraCaixaProduto] = useState<CaixaStory | undefined>(ajustes?.imagemExtraCaixa);
+  const [descartouAjustes, setDescartouAjustes] = useState(false);
+  function valoresAtuais() {
+    return {
+      corLogo,
+      corTextoNome,
+      corPreco,
+      tamanhoNome,
+      tamanhoPreco,
+      margemNome,
+      margemPreco,
+      frasesAtivo,
+      frases,
+      corFundoFrases,
+      corTextoFrases,
+      tamanhoFrases,
+      margemFrases,
+      guiaNome,
+      guiaPreco,
+      guiaFrases,
+      fonteNome,
+      fontePreco,
+      fonteFrases,
+      corFundoPreco,
+    };
+  }
+
+  // Como o editor abriu — pra saber, ao salvar, o que a pessoa mudou aqui (ver `montarAjustes`).
+  const [valoresIniciais] = useState(() => valoresAtuais());
   const imagemExtraCaixa = logoPadrao ? imagemExtraCaixaProduto ?? logoPadrao.caixa : null;
 
   const [caixasPreview, setCaixasPreview] = useState<CaixasStory>({ nome: null, preco: null, frases: null, imagemExtra: null });
@@ -232,31 +284,59 @@ export function EditarStoryProdutoModal({
     if (frasesAtivo) setGuiaFrases({ y: sugestao.frasesY, offsetX: 0 });
   }
 
+  /**
+   * Grava no produto SÓ o que é diferente do padrão do Story — antes gravava
+   * tudo (inclusive o que a pessoa nem tocou), e bastava abrir este editor e
+   * baixar o story uma vez pro produto "congelar" as cores/letras daquele
+   * momento e parar de seguir o padrão quando ele mudasse depois.
+   *
+   * Por campo: mudou aqui agora → grava (a menos que tenha voltado a ser
+   * igual ao padrão); não mexeu → mantém o ajuste que o produto já tinha, se
+   * ele ainda for diferente do padrão; senão fica de fora e segue o Story.
+   */
   function montarAjustes(): AjustesStoryProduto {
-    return {
-      corLogo,
-      corTextoNome,
-      corPreco,
-      tamanhoNome,
-      tamanhoPreco,
-      margemNome,
-      margemPreco,
-      frasesAtivo,
-      frases,
-      corFundoFrases,
-      corTextoFrases,
-      tamanhoFrases,
-      margemFrases,
-      guiaNome,
-      guiaPreco,
-      guiaFrases,
-      fonteNome,
-      fontePreco,
-      fonteFrases,
-      corFundoPreco,
-      ...(imagemExtraCaixaProduto ? { imagemExtraCaixa: imagemExtraCaixaProduto } : {}),
-    };
+    const atuais = valoresAtuais();
+    const iniciais = valoresIniciais;
+    const igual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    const resultado: Record<string, unknown> = {};
+    (Object.keys(atuais) as (keyof typeof atuais)[]).forEach((campo) => {
+      const padrao = configPadrao[campo] ?? PADROES_EMBUTIDOS[campo];
+      const anterior = descartouAjustes ? undefined : ajustes?.[campo];
+      if (!igual(atuais[campo], iniciais[campo])) {
+        if (!igual(atuais[campo], padrao)) resultado[campo] = atuais[campo];
+      } else if (anterior !== undefined && !igual(anterior, padrao)) {
+        resultado[campo] = anterior;
+      }
+    });
+    if (imagemExtraCaixaProduto) resultado.imagemExtraCaixa = imagemExtraCaixaProduto;
+    return resultado as AjustesStoryProduto;
   }
+
+  /** Descarta os ajustes próprios deste produto — tudo volta a seguir o padrão do Story (cores, letras, tamanhos, posições, logo). */
+  function handleUsarPadraoEmTudo() {
+    const p = (campo: keyof typeof PADROES_EMBUTIDOS) => configPadrao[campo] ?? PADROES_EMBUTIDOS[campo];
+    setCorLogo(p('corLogo') as string);
+    setCorTextoNome(p('corTextoNome') as string);
+    setCorPreco(p('corPreco') as string);
+    setCorFundoPreco(p('corFundoPreco') as string);
+    setTamanhoNome(p('tamanhoNome') as number);
+    setTamanhoPreco(p('tamanhoPreco') as number);
+    setFrasesAtivo(p('frasesAtivo') as boolean);
+    setFrases(p('frases') as string);
+    setCorFundoFrases(p('corFundoFrases') as string);
+    setCorTextoFrases(p('corTextoFrases') as string);
+    setTamanhoFrases(p('tamanhoFrases') as number);
+    setGuiaNome(p('guiaNome') as Guia);
+    setGuiaPreco(p('guiaPreco') as Guia);
+    setGuiaFrases(p('guiaFrases') as Guia);
+    setFonteNome(p('fonteNome') as string);
+    setFontePreco(p('fontePreco') as string);
+    setFonteFrases(p('fonteFrases') as string);
+    setImagemExtraCaixaProduto(undefined);
+    // Também esquece os ajustes antigos que o produto já tinha (ver `montarAjustes`).
+    setDescartouAjustes(true);
+  }
+
 
   function handleSalvar() {
     onSalvar(montarAjustes(), { nome: nome.trim(), de, por });
@@ -297,7 +377,7 @@ export function EditarStoryProdutoModal({
           </button>
         </div>
         <p className="footnote" style={{ textAlign: 'left', margin: '0 0 14px' }}>
-          Esses ajustes valem só pra este produto. Pra mudar o padrão usado em todos, feche aqui e use "Editar tamanho/posição padrão" na lista do panfleto.
+          O que você mudar aqui vale só pra este produto — o resto continua seguindo o padrão do Story. Pra mudar o padrão de todos, feche aqui e use "Editar tamanho/posição padrão" na lista do panfleto.
         </p>
         <button
           type="button"
@@ -307,6 +387,16 @@ export function EditarStoryProdutoModal({
           title="Analisa a foto e sugere onde colocar nome/preço sem tapar o produto"
         >
           🪄 Sugerir posição
+        </button>
+        <button
+          type="button"
+          className="btn-ghost"
+          style={{ width: 'auto', margin: '0 0 14px 8px', fontSize: 12, padding: '6px 10px' }}
+          onClick={handleUsarPadraoEmTudo}
+          disabled={descartouAjustes}
+          title="Descarta os ajustes próprios deste produto: cores, letras, tamanhos e posições voltam a seguir o Story"
+        >
+          {descartouAjustes ? '✓ Seguindo o padrão do Story (salve pra aplicar)' : '↺ Usar o padrão do Story em tudo'}
         </button>
 
         <div className="cartaz-cols">
