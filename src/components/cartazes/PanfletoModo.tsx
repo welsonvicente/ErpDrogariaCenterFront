@@ -27,6 +27,7 @@ import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharAr
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
+import { useLogoPadraoStory } from '../../hooks/useLogoPadraoStory';
 import {
   caixaLogoAbsoluta,
   caixaLogoPadrao,
@@ -176,6 +177,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [baixandoStories, setBaixandoStories] = useState(false);
   const [itensGaleriaStories, setItensGaleriaStories] = useState<{ conteudo: string; nomeArquivo: string; mime: string; rotulo: string }[] | null>(null);
   const [toast, setToast] = useState('');
+
+  // PNG + posição definidos no Story produto único — padrão da logo nos stories de cada produto.
+  const logoPadraoStory = useLogoPadraoStory();
 
   const [ajusteIdx, setAjusteIdx] = useState<number | null>(null);
   const [editarStoryIdx, setEditarStoryIdx] = useState<number | null>(null);
@@ -902,7 +906,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       canvas.width = LARGURA_STORY;
       canvas.height = ALTURA_STORY;
       const ctx = canvas.getContext('2d')!;
-      pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY));
+      pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY, logoPadraoStory));
       const nomeSeguro = produto.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${i + 1}`;
       return { conteudo: canvas.toDataURL('image/png'), nomeArquivo: `story-${String(i + 1).padStart(2, '0')}-${nomeSeguro}.png`, mime: 'image/png', rotulo: produto.nome };
     });
@@ -1410,6 +1414,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         <EditarStoryProdutoModal
           key={editarStoryIdx}
           produto={produtos[editarStoryIdx]}
+          logoPadrao={logoPadraoStory}
           onFechar={() => setEditarStoryIdx(null)}
           onSalvar={(ajustesStory, campos) => handleSalvarAjustesStory(editarStoryIdx, ajustesStory, campos)}
         />

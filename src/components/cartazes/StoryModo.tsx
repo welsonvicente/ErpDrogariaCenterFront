@@ -24,6 +24,7 @@ import {
   limparProjetoAtivo,
   limparRascunho,
   salvarConfiguracoes,
+  salvarLogoPadraoStory,
   salvarProdutoRecente,
   salvarProjetoAtivo,
   type ProdutoRecente,
@@ -367,6 +368,14 @@ export function StoryModo() {
       if (debounceAutosaveRef.current) clearTimeout(debounceAutosaveRef.current);
     };
   }, [prontoParaPersistir, projetoAtivo, nome, de, por, transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa]);
+
+  // A logomarca (já no R2) + posição do Story viram o padrão dos stories de
+  // cada produto do Panfleto. Só grava quando existe logo: abrir um projeto
+  // sem logo não apaga o padrão — só o botão "Remover" apaga.
+  useEffect(() => {
+    if (!prontoParaPersistir || !imagemExtraArquivoId || !imagemExtraCaixa) return;
+    salvarLogoPadraoStory({ arquivoId: imagemExtraArquivoId, caixa: imagemExtraCaixa });
+  }, [prontoParaPersistir, imagemExtraArquivoId, imagemExtraCaixa]);
 
   // Bloqueia fechar/recarregar a aba enquanto uma foto está subindo ou o
   // autosave ainda não confirmou — ver useAvisoSairComPendencia.
@@ -772,7 +781,7 @@ export function StoryModo() {
             <div className="cartaz-imagem-extra">
               <div>
                 <strong>Logomarca ou selo</strong>
-                <span>PNG com fundo transparente vira um item livre na arte.</span>
+                <span>PNG com fundo transparente vira um item livre na arte — e entra na mesma posição nos stories dos produtos do Panfleto.</span>
               </div>
               <div className="cartaz-imagem-extra-actions">
                 <button type="button" className="btn-ghost" disabled={enviandoImagemExtra} onClick={() => inputImagemExtraRef.current?.click()}>
@@ -786,6 +795,7 @@ export function StoryModo() {
                       setImagemExtra(null);
                       setImagemExtraArquivoId(null);
                       setImagemExtraCaixa(null);
+                      salvarLogoPadraoStory(null);
                       if (elementoSelecionado === 'imagemExtra') setElementoSelecionado(null);
                     }}
                   >

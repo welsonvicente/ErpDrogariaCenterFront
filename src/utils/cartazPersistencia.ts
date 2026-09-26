@@ -1,6 +1,6 @@
 import { arquivoCartazService } from '../services/arquivoCartazService';
 import type { StatusImagemProduto } from './batchEngine';
-import type { TransformImagem } from './cartazEngine';
+import type { CaixaStory, TransformImagem } from './cartazEngine';
 import type { AjustesStoryProduto } from './panfletoEngine';
 
 /**
@@ -165,6 +165,44 @@ export function salvarConfiguracoes(config: ConfiguracoesStory) {
   } catch {
     /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
   }
+}
+
+// ---------------------------------------------------------------------------
+// Logomarca padrão dos stories — o PNG ("Logomarca ou selo") e a posição
+// escolhidos no Story produto único viram o padrão dos stories individuais
+// de cada produto do Panfleto. Guarda só a referência ao R2 (`arquivoId`,
+// o mesmo arquivo do projeto de Story) + a caixa; quem usa busca uma URL
+// fresca com `arquivoCartazService.obterUrls` (ver useLogoPadraoStory).
+
+const CHAVE_LOGO_PADRAO_STORY = 'cartazes_story_logo_padrao_v1';
+
+/** Disparado na própria aba quando o padrão muda — Story e Panfleto ficam montados ao mesmo tempo (abas só escondem), então o Panfleto precisa ser avisado. */
+export const EVENTO_LOGO_PADRAO_STORY = 'cartazes:logo-padrao-story';
+
+export interface LogoPadraoStory {
+  arquivoId: string;
+  caixa: CaixaStory;
+}
+
+export function carregarLogoPadraoStory(): LogoPadraoStory | null {
+  try {
+    return JSON.parse(localStorage.getItem(CHAVE_LOGO_PADRAO_STORY) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+/** `null` = a pessoa removeu a logo no Story — os stories do Panfleto deixam de ter logo padrão. */
+export function salvarLogoPadraoStory(logo: LogoPadraoStory | null) {
+  const serializado = logo ? JSON.stringify(logo) : null;
+  try {
+    if (localStorage.getItem(CHAVE_LOGO_PADRAO_STORY) === serializado) return;
+    if (serializado) localStorage.setItem(CHAVE_LOGO_PADRAO_STORY, serializado);
+    else localStorage.removeItem(CHAVE_LOGO_PADRAO_STORY);
+  } catch {
+    return; /* armazenamento indisponível — o Panfleto só não recebe a logo padrão */
+  }
+  window.dispatchEvent(new Event(EVENTO_LOGO_PADRAO_STORY));
 }
 
 // ---------------------------------------------------------------------------

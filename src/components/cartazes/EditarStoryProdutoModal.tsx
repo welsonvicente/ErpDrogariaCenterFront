@@ -14,10 +14,11 @@ import {
 import { carregarConfiguracoes, type ConfiguracoesStory } from '../../utils/cartazPersistencia';
 import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import type { AjustesStoryProduto, ProdutoPanfleto } from '../../utils/panfletoEngine';
+import type { LogoStoryCarregada } from '../../hooks/useLogoPadraoStory';
 
 const EMOJI_PADRAO = '🤩😱';
 
-type ElementoStory = 'nome' | 'preco' | 'frases';
+type ElementoStory = 'nome' | 'preco' | 'frases' | 'imagemExtra';
 
 interface Guia {
   y: number;
@@ -45,10 +46,13 @@ function resolver<T>(doProduto: T | undefined, doPadrao: T | undefined, embutido
  */
 export function EditarStoryProdutoModal({
   produto,
+  logoPadrao = null,
   onFechar,
   onSalvar,
 }: {
   produto: ProdutoPanfleto;
+  /** Logomarca definida no Story produto único — entra na mesma posição, e aqui dá pra mudar só pra este produto. */
+  logoPadrao?: LogoStoryCarregada | null;
   onFechar: () => void;
   onSalvar: (ajustes: AjustesStoryProduto, campos: { nome: string; de: string; por: string }) => void;
 }) {
@@ -80,6 +84,10 @@ export function EditarStoryProdutoModal({
   const [guiaNome, setGuiaNome] = useState<Guia>(() => resolver(ajustes?.guiaNome, configPadrao.guiaNome, GUIA_PADRAO_NOME));
   const [guiaPreco, setGuiaPreco] = useState<Guia>(() => resolver(ajustes?.guiaPreco, configPadrao.guiaPreco, GUIA_PADRAO_PRECO));
   const [guiaFrases, setGuiaFrases] = useState<Guia>(() => resolver(ajustes?.guiaFrases, configPadrao.guiaFrases, GUIA_PADRAO_FRASES));
+
+  // `undefined` = segue a posição do Story; só vira ajuste do produto depois que a pessoa arrasta a logo aqui.
+  const [imagemExtraCaixaProduto, setImagemExtraCaixaProduto] = useState<CaixaStory | undefined>(ajustes?.imagemExtraCaixa);
+  const imagemExtraCaixa = logoPadrao ? imagemExtraCaixaProduto ?? logoPadrao.caixa : null;
 
   const [caixasPreview, setCaixasPreview] = useState<CaixasStory>({ nome: null, preco: null, frases: null, imagemExtra: null });
   const [elementoSelecionado, setElementoSelecionado] = useState<ElementoStory | null>(null);
@@ -134,6 +142,8 @@ export function EditarStoryProdutoModal({
       margemNome,
       margemPreco,
       margemFrases,
+      imagemExtra: logoPadrao?.imagem ?? null,
+      imagemExtraCaixa,
     };
     pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, parametros);
     const proximasCaixas = calcularCaixasStory(ctx, LARGURA_STORY, parametros);
@@ -160,6 +170,8 @@ export function EditarStoryProdutoModal({
     margemNome,
     margemPreco,
     margemFrases,
+    logoPadrao,
+    imagemExtraCaixa,
   ]);
 
   function atualizarGuia(setGuia: (atualizar: (atual: Guia) => Guia) => void, caixa: CaixaStory) {
@@ -179,6 +191,7 @@ export function EditarStoryProdutoModal({
       setGuiaFrases(GUIA_PADRAO_FRASES);
       setTamanhoFrases(32);
     }
+    if (elementoSelecionado === 'imagemExtra') setImagemExtraCaixaProduto(undefined);
   }
 
   /** Mesma ideia do modo Story: analisa a foto (localmente) e sugere posições que evitam a parte mais "cheia" — ver `sugerirPosicoesTexto`. */
@@ -208,6 +221,7 @@ export function EditarStoryProdutoModal({
       guiaNome,
       guiaPreco,
       guiaFrases,
+      ...(imagemExtraCaixaProduto ? { imagemExtraCaixa: imagemExtraCaixaProduto } : {}),
     };
   }
 
@@ -285,7 +299,23 @@ export function EditarStoryProdutoModal({
               <textarea rows={2} value={frases} onFocus={() => setElementoSelecionado('frases')} onChange={(e) => setFrases(e.target.value)} placeholder={'Chama! Entrega grátis\n(81) 99913-7573'} />
             </div>
 
-            {elementoSelecionado && (
+            {elementoSelecionado === 'imagemExtra' && (
+              <section className="cartaz-ajuste-contextual" aria-live="polite">
+                <div className="cartaz-ajuste-contextual-head">
+                  <div>
+                    <span>Ajustando na prévia</span>
+                    <strong>Logomarca ou selo</strong>
+                  </div>
+                  <button type="button" className="btn-ghost" onClick={resetarElementoSelecionado}>Voltar pra posição do Story</button>
+                </div>
+                <p>
+                  Arraste o centro para mover. Use as bordas ou os pontos para redimensionar.{' '}
+                  {imagemExtraCaixaProduto ? 'Posição própria deste produto.' : 'Usando a mesma posição definida no Story produto único.'}
+                </p>
+              </section>
+            )}
+
+            {elementoSelecionado && elementoSelecionado !== 'imagemExtra' && (
               <section className="cartaz-ajuste-contextual" aria-live="polite">
                 <div className="cartaz-ajuste-contextual-head">
                   <div>
@@ -429,6 +459,20 @@ export function EditarStoryProdutoModal({
                       atualizarGuia(setGuiaFrases, caixa);
                       if (tamanho !== undefined) setTamanhoFrases(tamanho);
                     }}
+                  />
+                  <ElementoStoryEditavel
+                    frameRef={frameRef}
+                    caixa={caixasPreview.imagemExtra}
+                    selecionado={elementoSelecionado === 'imagemExtra'}
+                    descricao="Logomarca ou selo"
+                    tamanho={1}
+                    tamanhoMinimo={1}
+                    tamanhoMaximo={1}
+                    controlaTipografia={false}
+                    caixasVizinhas={[caixasPreview.nome, caixasPreview.preco, caixasPreview.frases].filter((c): c is CaixaStory => c !== null)}
+                    onSelecionar={() => setElementoSelecionado('imagemExtra')}
+                    onGuiasAlinhadas={setGuiasAlinhamento}
+                    onAlterar={(caixa) => setImagemExtraCaixaProduto(caixa)}
                   />
                 </div>
               </div>

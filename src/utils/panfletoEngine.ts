@@ -6,7 +6,7 @@
  * parâmetros, sem tocar no DOM da aplicação.
  */
 
-import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, tamanhoOrigem, type FonteImagem, type ParametrosStory, type TransformImagem } from './cartazEngine';
+import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, tamanhoOrigem, type CaixaStory, type FonteImagem, type ParametrosStory, type TransformImagem } from './cartazEngine';
 import type { ConfiguracoesStory } from './cartazPersistencia';
 
 export type AlinhamentoTexto = 'left' | 'center' | 'right';
@@ -44,6 +44,8 @@ export interface AjustesStoryProduto {
   guiaNome?: GuiaFaixa;
   guiaPreco?: GuiaFaixa;
   guiaFrases?: GuiaFaixa;
+  /** Posição da logomarca padrão (a do Story produto único) só neste produto — ausente = mesma posição definida no Story. */
+  imagemExtraCaixa?: CaixaStory;
 }
 
 export interface ProdutoPanfleto {
@@ -83,6 +85,8 @@ export function montarParametrosStoryProduto(
   produto: ProdutoPanfleto,
   padrao: Partial<ConfiguracoesStory>,
   emoji: string,
+  /** Logomarca padrão do Story (PNG + posição) — ver `useLogoPadraoStory`. */
+  logoPadrao: { imagem: HTMLImageElement; caixa: CaixaStory } | null = null,
 ): ParametrosStory {
   const a = produto.ajustesStory;
   function r<T>(doProduto: T | undefined, doPadrao: T | undefined, embutido: T): T {
@@ -124,6 +128,8 @@ export function montarParametrosStoryProduto(
     margemNome: r(a?.margemNome, padrao.margemNome, 60),
     margemPreco: r(a?.margemPreco, padrao.margemPreco, 60),
     margemFrases: r(a?.margemFrases, padrao.margemFrases, 60),
+    imagemExtra: logoPadrao?.imagem ?? null,
+    imagemExtraCaixa: logoPadrao ? a?.imagemExtraCaixa ?? logoPadrao.caixa : null,
   };
 }
 
