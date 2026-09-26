@@ -34,6 +34,7 @@ export function ProjetosCartazPainel({
   const [projetos, setProjetos] = useState<ProjetoCartazResumo[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
+  const [mostrarFormularioNovo, setMostrarFormularioNovo] = useState(false);
   const [nomeNovo, setNomeNovo] = useState(nomeSugerido(tipo));
   const [criando, setCriando] = useState(false);
   const [abrindoId, setAbrindoId] = useState<string | null>(null);
@@ -45,7 +46,11 @@ export function ProjetosCartazPainel({
     setCarregando(true);
     setErro('');
     try {
-      setProjetos(await projetoCartazService.listar(tipo));
+      const lista = await projetoCartazService.listar(tipo);
+      setProjetos(lista);
+      // Sem nenhum projeto ainda, criar é a única ação possível — abre o
+      // formulário direto em vez de obrigar a pessoa a clicar em "+ Novo".
+      if (lista.length === 0) setMostrarFormularioNovo(true);
     } catch {
       setErro('Não foi possível carregar seus projetos. Verifique a conexão e tente de novo.');
     } finally {
@@ -137,74 +142,95 @@ export function ProjetosCartazPainel({
           </p>
         )}
 
-        <div className="field-row" style={{ marginBottom: 18 }}>
-          <div className="field" style={{ flex: 2 }}>
-            <label>Novo projeto</label>
-            <input value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} placeholder="Ex: Ofertas de sexta" />
-          </div>
-          <div className="field" style={{ alignSelf: 'flex-end' }}>
-            <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={handleCriar} disabled={criando}>
-              {criando ? 'Criando…' : '+ Criar projeto'}
-            </button>
-          </div>
-        </div>
-
-        <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '0 0 16px' }} />
-
         {carregando && <p className="footnote">Carregando projetos…</p>}
-        {!carregando && projetos.length === 0 && <p className="footnote">Nenhum projeto ainda — crie o primeiro acima.</p>}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {projetos.map((projeto) => (
-            <div key={projeto.id} className="batch-row" style={{ padding: '10px 12px' }}>
-              <div className="binfo">
-                {renomeandoId === projeto.id ? (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input
-                      autoFocus
-                      value={nomeRenomear}
-                      onChange={(e) => setNomeRenomear(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleRenomear(projeto.id)}
-                    />
-                    <button type="button" className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={() => handleRenomear(projeto.id)}>
-                      Salvar
-                    </button>
-                    <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={() => setRenomeandoId(null)}>
+        {!carregando && (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: mostrarFormularioNovo ? 16 : 0 }}>
+              {projetos.map((projeto) => (
+                <div key={projeto.id} className="batch-row" style={{ padding: '10px 12px' }}>
+                  <div className="binfo">
+                    {renomeandoId === projeto.id ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          autoFocus
+                          value={nomeRenomear}
+                          onChange={(e) => setNomeRenomear(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleRenomear(projeto.id)}
+                        />
+                        <button type="button" className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={() => handleRenomear(projeto.id)}>
+                          Salvar
+                        </button>
+                        <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={() => setRenomeandoId(null)}>
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="bname">{projeto.nome}</div>
+                        <div className="bprice">
+                          Atualizado em {new Date(projeto.atualizadoEm).toLocaleString('pt-BR')}
+                          {projeto.criadoPor ? ` · por ${projeto.criadoPor.nome}` : ''}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {renomeandoId !== projeto.id && (
+                    <div className="bactions">
+                      <button type="button" onClick={() => handleAbrir(projeto.id)} disabled={abrindoId !== null}>
+                        {abrindoId === projeto.id ? 'Abrindo…' : '📂 Abrir'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRenomeandoId(projeto.id);
+                          setNomeRenomear(projeto.nome);
+                        }}
+                      >
+                        ✏️ Renomear
+                      </button>
+                      <button type="button" className="del" onClick={() => handleRemover(projeto)} disabled={removendoId === projeto.id}>
+                        {removendoId === projeto.id ? 'Excluindo…' : 'Excluir'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {projetos.length === 0 && !mostrarFormularioNovo && <p className="footnote">Nenhum projeto ainda.</p>}
+            </div>
+
+            {!mostrarFormularioNovo ? (
+              <button type="button" className="btn-ghost" style={{ width: '100%' }} onClick={() => setMostrarFormularioNovo(true)}>
+                + Novo projeto
+              </button>
+            ) : (
+              <div className="field-row" style={{ margin: 0, alignItems: 'flex-end' }}>
+                <div className="field" style={{ flex: 2, margin: 0 }}>
+                  <label>Nome do novo projeto</label>
+                  <input
+                    autoFocus
+                    value={nomeNovo}
+                    onChange={(e) => setNomeNovo(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleCriar()}
+                    placeholder="Ex: Ofertas de sexta"
+                  />
+                </div>
+                <div className="field" style={{ margin: 0 }}>
+                  <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={handleCriar} disabled={criando}>
+                    {criando ? 'Criando…' : '+ Criar'}
+                  </button>
+                </div>
+                {projetos.length > 0 && (
+                  <div className="field" style={{ margin: 0 }}>
+                    <button type="button" className="btn-ghost" style={{ width: 'auto' }} onClick={() => setMostrarFormularioNovo(false)}>
                       Cancelar
                     </button>
                   </div>
-                ) : (
-                  <>
-                    <div className="bname">{projeto.nome}</div>
-                    <div className="bprice">
-                      Atualizado em {new Date(projeto.atualizadoEm).toLocaleString('pt-BR')}
-                      {projeto.criadoPor ? ` · por ${projeto.criadoPor.nome}` : ''}
-                    </div>
-                  </>
                 )}
               </div>
-              {renomeandoId !== projeto.id && (
-                <div className="bactions">
-                  <button type="button" onClick={() => handleAbrir(projeto.id)} disabled={abrindoId !== null}>
-                    {abrindoId === projeto.id ? 'Abrindo…' : '📂 Abrir'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRenomeandoId(projeto.id);
-                      setNomeRenomear(projeto.nome);
-                    }}
-                  >
-                    ✏️ Renomear
-                  </button>
-                  <button type="button" className="del" onClick={() => handleRemover(projeto)} disabled={removendoId === projeto.id}>
-                    {removendoId === projeto.id ? 'Excluindo…' : 'Excluir'}
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
