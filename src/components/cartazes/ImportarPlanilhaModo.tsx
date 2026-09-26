@@ -5,6 +5,7 @@ import { GaleriaStoriesModal } from './GaleriaStoriesModal';
 import { blobDeImagem, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
 import {
   ALTURA_STORY,
+  COR_FUNDO_PRECO_PADRAO,
   LARGURA_STORY,
   fmtMoney,
   montarTextoPromocional,
@@ -38,6 +39,7 @@ import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { useFilaUploadImagens } from '../../hooks/useFilaUploadImagens';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
+import { SeletorCor } from './SeletorCor';
 
 function formatarTamanho(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -107,6 +109,8 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
   const idxParaIdLocalRef = useRef<Map<number, string>>(new Map());
 
   const [produtos, setProdutos] = useState<ProdutoImportado[]>([]);
+  // Paleta do seletor de cor: a primeira foto já escolhida (aqui não há prévia única de arte pra usar).
+  const fotoParaPaleta = produtos.find((p) => p.imagem)?.imagem ?? null;
   const [statusImportacao, setStatusImportacao] = useState(
     'A planilha precisa ter colunas com o nome do produto, preço normal, valor da promoção e EAN (código de barras).',
   );
@@ -119,6 +123,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
   const [corLogo, setCorLogo] = useState('#436000');
   const [corTextoNome, setCorTextoNome] = useState('#FFFFFF');
   const [corPreco, setCorPreco] = useState('#E30613');
+  const [corFundoPreco, setCorFundoPreco] = useState(COR_FUNDO_PRECO_PADRAO);
 
   const [cameraDestino, setCameraDestino] = useState<number | null>(null);
   const [ajusteIdx, setAjusteIdx] = useState<number | null>(null);
@@ -159,14 +164,15 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     if (config.corLogo) setCorLogo(config.corLogo);
     if (config.corTextoNome) setCorTextoNome(config.corTextoNome);
     if (config.corPreco) setCorPreco(config.corPreco);
+    if (config.corFundoPreco) setCorFundoPreco(config.corFundoPreco);
   }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      salvarConfiguracoesLote({ corLogo, corTextoNome, corPreco });
+      salvarConfiguracoesLote({ corLogo, corTextoNome, corPreco, corFundoPreco });
     }, 400);
     return () => clearTimeout(timer);
-  }, [corLogo, corTextoNome, corPreco]);
+  }, [corLogo, corTextoNome, corPreco, corFundoPreco]);
 
   function atualizarProduto(idx: number, patch: Partial<ProdutoImportado>) {
     setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
@@ -570,6 +576,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
         corLogo,
         corTextoNome,
         corPreco,
+        corFundoPreco,
         nomeY: 130,
         precoY: 320,
         nomeOffsetX: 0,
@@ -731,18 +738,12 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
                 falhar, use "Trocar" pra enviar a foto manualmente.
               </p>
               <div className="field-row">
-                <div className="field">
-                  <label>Cor do logo/nome (stories gerados)</label>
-                  <input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>Cor do texto do nome</label>
-                  <input type="color" value={corTextoNome} onChange={(e) => setCorTextoNome(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>Cor do preço</label>
-                  <input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} />
-                </div>
+                <SeletorCor rotulo="Fundo do nome (stories gerados)" valor={corLogo} onAlterar={setCorLogo} fontePaleta={fotoParaPaleta} permitirSemFundo />
+                <SeletorCor rotulo="Cor do texto do nome" valor={corTextoNome} onAlterar={setCorTextoNome} fontePaleta={fotoParaPaleta} />
+              </div>
+              <div className="field-row">
+                <SeletorCor rotulo="Fundo do preço" valor={corFundoPreco} onAlterar={setCorFundoPreco} fontePaleta={fotoParaPaleta} permitirSemFundo />
+                <SeletorCor rotulo="Cor do preço" valor={corPreco} onAlterar={setCorPreco} fontePaleta={fotoParaPaleta} />
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

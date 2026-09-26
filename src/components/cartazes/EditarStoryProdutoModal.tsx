@@ -4,6 +4,11 @@ import {
   ALTURA_STORY,
   LARGURA_STORY,
   calcularCaixasStory,
+  carregarFontesCartaz,
+  COR_FUNDO_PRECO_PADRAO,
+  FONTE_PADRAO_FRASES,
+  FONTE_PADRAO_NOME,
+  FONTE_PADRAO_PRECO,
   montarTituloCompartilhamento,
   pintarStory,
   sugerirPosicoesTexto,
@@ -15,6 +20,7 @@ import { carregarConfiguracoes, type ConfiguracoesStory } from '../../utils/cart
 import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import type { AjustesStoryProduto, ProdutoPanfleto } from '../../utils/panfletoEngine';
 import type { LogoStoryCarregada } from '../../hooks/useLogoPadraoStory';
+import { AjustesCaixaTexto } from './AjustesCaixaTexto';
 
 const EMOJI_PADRAO = '🤩😱';
 
@@ -80,6 +86,20 @@ export function EditarStoryProdutoModal({
   const [corTextoFrases, setCorTextoFrases] = useState(() => resolver(ajustes?.corTextoFrases, configPadrao.corTextoFrases, '#FFFFFF'));
   const [tamanhoFrases, setTamanhoFrases] = useState(() => resolver(ajustes?.tamanhoFrases, configPadrao.tamanhoFrases, 32));
   const [margemFrases] = useState(() => resolver(ajustes?.margemFrases, configPadrao.margemFrases, 60));
+  const [fonteNome, setFonteNome] = useState(() => resolver(ajustes?.fonteNome, configPadrao.fonteNome, FONTE_PADRAO_NOME));
+  const [fontePreco, setFontePreco] = useState(() => resolver(ajustes?.fontePreco, configPadrao.fontePreco, FONTE_PADRAO_PRECO));
+  const [fonteFrases, setFonteFrases] = useState(() => resolver(ajustes?.fonteFrases, configPadrao.fonteFrases, FONTE_PADRAO_FRASES));
+  const [corFundoPreco, setCorFundoPreco] = useState(() => resolver(ajustes?.corFundoPreco, configPadrao.corFundoPreco, COR_FUNDO_PRECO_PADRAO));
+  const [versaoFontes, setVersaoFontes] = useState(0);
+  useEffect(() => {
+    let cancelado = false;
+    carregarFontesCartaz([fonteNome, fontePreco, fonteFrases]).then(() => {
+      if (!cancelado) setVersaoFontes((v) => v + 1);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [fonteNome, fontePreco, fonteFrases]);
 
   const [guiaNome, setGuiaNome] = useState<Guia>(() => resolver(ajustes?.guiaNome, configPadrao.guiaNome, GUIA_PADRAO_NOME));
   const [guiaPreco, setGuiaPreco] = useState<Guia>(() => resolver(ajustes?.guiaPreco, configPadrao.guiaPreco, GUIA_PADRAO_PRECO));
@@ -144,6 +164,10 @@ export function EditarStoryProdutoModal({
       margemFrases,
       imagemExtra: logoPadrao?.imagem ?? null,
       imagemExtraCaixa,
+      fonteNome,
+      fontePreco,
+      fonteFrases,
+      corFundoPreco,
     };
     pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, parametros);
     const proximasCaixas = calcularCaixasStory(ctx, LARGURA_STORY, parametros);
@@ -172,6 +196,11 @@ export function EditarStoryProdutoModal({
     margemFrases,
     logoPadrao,
     imagemExtraCaixa,
+    fonteNome,
+    fontePreco,
+    fonteFrases,
+    corFundoPreco,
+    versaoFontes,
   ]);
 
   function atualizarGuia(setGuia: (atualizar: (atual: Guia) => Guia) => void, caixa: CaixaStory) {
@@ -221,6 +250,10 @@ export function EditarStoryProdutoModal({
       guiaNome,
       guiaPreco,
       guiaFrases,
+      fonteNome,
+      fontePreco,
+      fonteFrases,
+      corFundoPreco,
       ...(imagemExtraCaixaProduto ? { imagemExtraCaixa: imagemExtraCaixaProduto } : {}),
     };
   }
@@ -325,32 +358,33 @@ export function EditarStoryProdutoModal({
                   <button type="button" className="btn-ghost" onClick={resetarElementoSelecionado}>Redefinir pro padrão</button>
                 </div>
                 <p>Arraste o centro para mover. Use as bordas ou os pontos para redimensionar.</p>
-                <div className="field-row">
-                  <div className="field">
-                    <label>Tamanho {elementoSelecionado === 'nome' ? tamanhoNome : elementoSelecionado === 'preco' ? tamanhoPreco : tamanhoFrases}px</label>
-                    <input
-                      type="range"
-                      min={elementoSelecionado === 'nome' ? 24 : elementoSelecionado === 'preco' ? 34 : 18}
-                      max={elementoSelecionado === 'nome' ? 70 : elementoSelecionado === 'preco' ? 90 : 50}
-                      value={elementoSelecionado === 'nome' ? tamanhoNome : elementoSelecionado === 'preco' ? tamanhoPreco : tamanhoFrases}
-                      onChange={(e) => {
-                        const valor = Number(e.target.value);
-                        if (elementoSelecionado === 'nome') setTamanhoNome(valor);
-                        if (elementoSelecionado === 'preco') setTamanhoPreco(valor);
-                        if (elementoSelecionado === 'frases') setTamanhoFrases(valor);
-                      }}
-                    />
-                  </div>
-                  {elementoSelecionado === 'nome' && <>
-                    <div className="field"><label>Fundo</label><input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} /></div>
-                    <div className="field"><label>Texto</label><input type="color" value={corTextoNome} onChange={(e) => setCorTextoNome(e.target.value)} /></div>
-                  </>}
-                  {elementoSelecionado === 'preco' && <div className="field"><label>Texto</label><input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} /></div>}
-                  {elementoSelecionado === 'frases' && <>
-                    <div className="field"><label>Fundo</label><input type="color" value={corFundoFrases} onChange={(e) => setCorFundoFrases(e.target.value)} /></div>
-                    <div className="field"><label>Texto</label><input type="color" value={corTextoFrases} onChange={(e) => setCorTextoFrases(e.target.value)} /></div>
-                  </>}
-                </div>
+                {elementoSelecionado === 'nome' && (
+                  <AjustesCaixaTexto
+                    tamanho={tamanhoNome} tamanhoMinimo={24} tamanhoMaximo={70} onTamanho={setTamanhoNome}
+                    fonte={fonteNome} onFonte={setFonteNome}
+                    corFundo={corLogo} onCorFundo={setCorLogo}
+                    corTexto={corTextoNome} onCorTexto={setCorTextoNome}
+                    canvasArte={canvasRef} fontePaleta={produto.imagem}
+                  />
+                )}
+                {elementoSelecionado === 'preco' && (
+                  <AjustesCaixaTexto
+                    tamanho={tamanhoPreco} tamanhoMinimo={34} tamanhoMaximo={90} onTamanho={setTamanhoPreco}
+                    fonte={fontePreco} onFonte={setFontePreco}
+                    corFundo={corFundoPreco} onCorFundo={setCorFundoPreco}
+                    corTexto={corPreco} onCorTexto={setCorPreco}
+                    canvasArte={canvasRef} fontePaleta={produto.imagem}
+                  />
+                )}
+                {elementoSelecionado === 'frases' && (
+                  <AjustesCaixaTexto
+                    tamanho={tamanhoFrases} tamanhoMinimo={18} tamanhoMaximo={50} onTamanho={setTamanhoFrases}
+                    fonte={fonteFrases} onFonte={setFonteFrases}
+                    corFundo={corFundoFrases} onCorFundo={setCorFundoFrases}
+                    corTexto={corTextoFrases} onCorTexto={setCorTextoFrases}
+                    canvasArte={canvasRef} fontePaleta={produto.imagem}
+                  />
+                )}
               </section>
             )}
 

@@ -48,6 +48,51 @@ export interface ParametrosStory {
   frasesLargura?: number;
   imagemExtra?: HTMLImageElement | null;
   imagemExtraCaixa?: CaixaStory | null;
+  /** Família da fonte de cada caixa (valor CSS, ver `FONTES_CARTAZ`) — ausente = a de sempre (Fredoka no nome/preço, Inter nas frases). */
+  fonteNome?: string;
+  fontePreco?: string;
+  fonteFrases?: string;
+  /** Fundo da faixa de preço (antes fixo em rosa). `transparent` em qualquer fundo = sem quadrante, só a letra. */
+  corFundoPreco?: string;
+}
+
+export const FONTE_PADRAO_NOME = 'Fredoka';
+export const FONTE_PADRAO_PRECO = 'Fredoka';
+export const FONTE_PADRAO_FRASES = 'Inter';
+export const COR_FUNDO_PRECO_PADRAO = '#FBD6E4';
+
+/**
+ * Fontes oferecidas nas caixas de texto dos stories — todas carregadas do
+ * Google Fonts em `index.html`. `familia` é o valor CSS usado no `ctx.font`
+ * (com aspas quando o nome tem espaço).
+ */
+export const FONTES_CARTAZ: { familia: string; rotulo: string }[] = [
+  { familia: 'Fredoka', rotulo: 'Fredoka (padrão)' },
+  { familia: 'Inter', rotulo: 'Inter' },
+  { familia: '"Space Grotesk"', rotulo: 'Space Grotesk' },
+  { familia: 'Poppins', rotulo: 'Poppins' },
+  { familia: 'Montserrat', rotulo: 'Montserrat' },
+  { familia: 'Oswald', rotulo: 'Oswald' },
+  { familia: '"Bebas Neue"', rotulo: 'Bebas Neue' },
+  { familia: 'Anton', rotulo: 'Anton' },
+  { familia: '"Roboto Slab"', rotulo: 'Roboto Slab' },
+  { familia: 'Lobster', rotulo: 'Lobster' },
+  { familia: 'Pacifico', rotulo: 'Pacifico' },
+];
+
+/**
+ * Garante que as fontes estão baixadas antes de pintar — o canvas não espera
+ * a fonte carregar: se pintar antes, sai na fonte reserva do sistema.
+ */
+export function carregarFontesCartaz(familias: (string | undefined)[]): Promise<void> {
+  const unicas = Array.from(new Set(familias.filter((f): f is string => Boolean(f))));
+  return Promise.all(unicas.flatMap((f) => [document.fonts.load(`600 40px ${f}`), document.fonts.load(`700 40px ${f}`)]))
+    .then(() => undefined)
+    .catch(() => undefined);
+}
+
+function semFundo(cor: string | undefined) {
+  return cor === 'transparent';
 }
 
 export interface CaixaStory {
@@ -230,7 +275,7 @@ export function calcularCaixasStory(ctx: CanvasRenderingContext2D, largura: numb
 
   ctx.save();
   if (p.nome) {
-    ctx.font = `600 ${p.tamanhoNome}px Fredoka`;
+    ctx.font = `600 ${p.tamanhoNome}px ${p.fonteNome || FONTE_PADRAO_NOME}`;
     const maiorPalavra = Math.max(...p.nome.toUpperCase().split(/\s+/).map((palavra) => ctx.measureText(palavra).width));
     const larguraMinima = Math.min(largura, maiorPalavra + 60);
     const caixa = caixaLivre(largura, p.margemNome, p.nomeOffsetX, p.nomeX, p.nomeLargura, larguraMinima);
@@ -249,9 +294,9 @@ export function calcularCaixasStory(ctx: CanvasRenderingContext2D, largura: numb
   if (p.de || p.por) {
     const textoDe = p.de ? `De: R$${fmtMoney(p.de)}` : '';
     const textoPor = p.por ? `Por: R$${fmtMoney(p.por)} ${p.emoji || ''}` : '';
-    ctx.font = `700 ${Math.max(24, p.tamanhoPreco - 8)}px Fredoka`;
+    ctx.font = `700 ${Math.max(24, p.tamanhoPreco - 8)}px ${p.fontePreco || FONTE_PADRAO_PRECO}`;
     const larguraDe = textoDe ? ctx.measureText(textoDe).width : 0;
-    ctx.font = `700 ${p.tamanhoPreco}px Fredoka`;
+    ctx.font = `700 ${p.tamanhoPreco}px ${p.fontePreco || FONTE_PADRAO_PRECO}`;
     const larguraPor = textoPor ? ctx.measureText(textoPor).width : 0;
     const larguraMinima = Math.min(largura, Math.max(larguraDe, larguraPor) + 72);
     const caixa = caixaLivre(largura, p.margemPreco, p.precoOffsetX, p.precoX, p.precoLargura, larguraMinima);
@@ -274,7 +319,7 @@ export function calcularCaixasStory(ctx: CanvasRenderingContext2D, largura: numb
     const tamanho = p.tamanhoFrases || 32;
     const alturaLinha = Math.round(tamanho * 1.375);
     const padVertical = Math.round(tamanho * 0.625);
-    ctx.font = `600 ${tamanho}px Inter`;
+    ctx.font = `600 ${tamanho}px ${p.fonteFrases || FONTE_PADRAO_FRASES}`;
     const larguraMinima = Math.min(largura, Math.max(...linhasFrases.map((linha) => ctx.measureText(linha).width)) + 60);
     const caixa = caixaLivre(largura, p.margemFrases, p.frasesOffsetX, p.frasesX, p.frasesLargura, larguraMinima);
     frases = {
@@ -313,15 +358,17 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
     const caixa = caixas.nome!;
     const larguraFaixa = caixa.largura;
     const xFaixa = caixa.x;
-    ctx.font = `600 ${p.tamanhoNome}px Fredoka`;
+    ctx.font = `600 ${p.tamanhoNome}px ${p.fonteNome || FONTE_PADRAO_NOME}`;
     const linhas = quebrarLinhas(ctx, p.nome.toUpperCase(), larguraFaixa - 60);
     const alturaLinha = Math.round(p.tamanhoNome * 1.3);
     const padVertical = Math.round(p.tamanhoNome * 0.6);
     const alturaFaixa = caixa.altura;
 
-    ctx.fillStyle = p.corLogo;
-    desenharRetanguloArredondado(ctx, xFaixa, p.nomeY, larguraFaixa, alturaFaixa, 28);
-    ctx.fill();
+    if (!semFundo(p.corLogo)) {
+      ctx.fillStyle = p.corLogo;
+      desenharRetanguloArredondado(ctx, xFaixa, p.nomeY, larguraFaixa, alturaFaixa, 28);
+      ctx.fill();
+    }
 
     ctx.fillStyle = p.corTextoNome;
     ctx.textAlign = 'center';
@@ -346,16 +393,19 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
     const alturaFaixa = caixa.altura;
     const yFaixa = p.precoY;
 
-    ctx.fillStyle = '#FBD6E4';
-    desenharRetanguloArredondado(ctx, xFaixa, yFaixa, larguraFaixa, alturaFaixa, 34);
-    ctx.fill();
+    const corFundoPreco = p.corFundoPreco || COR_FUNDO_PRECO_PADRAO;
+    if (!semFundo(corFundoPreco)) {
+      ctx.fillStyle = corFundoPreco;
+      desenharRetanguloArredondado(ctx, xFaixa, yFaixa, larguraFaixa, alturaFaixa, 34);
+      ctx.fill();
+    }
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     let y = yFaixa + padVertical + alturaLinha / 2;
 
     if (textoDe) {
-      ctx.font = `700 ${tamanhoDe}px Fredoka`;
+      ctx.font = `700 ${tamanhoDe}px ${p.fontePreco || FONTE_PADRAO_PRECO}`;
       ctx.fillStyle = p.corPreco;
       const larguraDe = ctx.measureText(textoDe).width;
       ctx.fillText(textoDe, xFaixa + larguraFaixa / 2, y);
@@ -368,7 +418,7 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
       y += alturaLinha;
     }
     if (textoPor) {
-      ctx.font = `700 ${p.tamanhoPreco}px Fredoka`;
+      ctx.font = `700 ${p.tamanhoPreco}px ${p.fontePreco || FONTE_PADRAO_PRECO}`;
       ctx.fillStyle = p.corPreco;
       ctx.fillText(textoPor, xFaixa + larguraFaixa / 2, y);
     }
@@ -387,14 +437,16 @@ export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altu
       const larguraFaixa = caixa.largura;
       const xFaixa = caixa.x;
       const tamanho = p.tamanhoFrases || 32;
-      ctx.font = `600 ${tamanho}px Inter`;
+      ctx.font = `600 ${tamanho}px ${p.fonteFrases || FONTE_PADRAO_FRASES}`;
       const alturaLinha = Math.round(tamanho * 1.375);
       const padVertical = Math.round(tamanho * 0.625);
       const alturaFaixa = caixa.altura;
 
-      ctx.fillStyle = p.corFundoFrases || 'rgba(23,60,58,0.82)';
-      desenharRetanguloArredondado(ctx, xFaixa, p.frasesY, larguraFaixa, alturaFaixa, 24);
-      ctx.fill();
+      if (!semFundo(p.corFundoFrases)) {
+        ctx.fillStyle = p.corFundoFrases || 'rgba(23,60,58,0.82)';
+        desenharRetanguloArredondado(ctx, xFaixa, p.frasesY, larguraFaixa, alturaFaixa, 24);
+        ctx.fill();
+      }
 
       ctx.fillStyle = p.corTextoFrases || '#FFFFFF';
       ctx.textAlign = 'center';

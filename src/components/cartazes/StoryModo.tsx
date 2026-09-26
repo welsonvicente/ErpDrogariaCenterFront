@@ -7,6 +7,11 @@ import {
   ALTURA_STORY,
   LARGURA_STORY,
   calcularCaixasStory,
+  carregarFontesCartaz,
+  COR_FUNDO_PRECO_PADRAO,
+  FONTE_PADRAO_FRASES,
+  FONTE_PADRAO_NOME,
+  FONTE_PADRAO_PRECO,
   fmtMoney,
   montarTituloCompartilhamento,
   pintarStory,
@@ -34,6 +39,7 @@ import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
+import { AjustesCaixaTexto } from './AjustesCaixaTexto';
 
 const EMOJIS_DESTAQUE = ['🤩😱', '🔥🔥', '😍', '🎉', '💚', '⚡'];
 const TRANSFORM_PADRAO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
@@ -117,6 +123,12 @@ export function StoryModo() {
   const [corTextoFrases, setCorTextoFrases] = useState('#FFFFFF');
   const [tamanhoFrases, setTamanhoFrases] = useState(32);
   const [margemFrases, setMargemFrases] = useState(60);
+  const [fonteNome, setFonteNome] = useState(FONTE_PADRAO_NOME);
+  const [fontePreco, setFontePreco] = useState(FONTE_PADRAO_PRECO);
+  const [fonteFrases, setFonteFrases] = useState(FONTE_PADRAO_FRASES);
+  const [corFundoPreco, setCorFundoPreco] = useState(COR_FUNDO_PRECO_PADRAO);
+  // Sobe a cada fonte nova baixada — força repintar, porque o canvas não espera a fonte carregar.
+  const [versaoFontes, setVersaoFontes] = useState(0);
 
   const [guiaNome, setGuiaNome] = useState<Guia>({ y: 130, offsetX: 0 });
   const [guiaPreco, setGuiaPreco] = useState<Guia>({ y: 320, offsetX: 0 });
@@ -167,6 +179,10 @@ export function StoryModo() {
     if (config.guiaNome) setGuiaNome(config.guiaNome);
     if (config.guiaPreco) setGuiaPreco(config.guiaPreco);
     if (config.guiaFrases) setGuiaFrases(config.guiaFrases);
+    if (config.fonteNome) setFonteNome(config.fonteNome);
+    if (config.fontePreco) setFontePreco(config.fontePreco);
+    if (config.fonteFrases) setFonteFrases(config.fonteFrases);
+    if (config.corFundoPreco) setCorFundoPreco(config.corFundoPreco);
   }, []);
 
   useEffect(() => {
@@ -187,8 +203,22 @@ export function StoryModo() {
       guiaNome,
       guiaPreco,
       guiaFrases,
+      fonteNome,
+      fontePreco,
+      fonteFrases,
+      corFundoPreco,
     });
-  }, [corLogo, corTextoNome, corPreco, tamanhoNome, tamanhoPreco, margemNome, margemPreco, frasesAtivo, frases, corFundoFrases, corTextoFrases, tamanhoFrases, margemFrases, guiaNome, guiaPreco, guiaFrases]);
+  }, [corLogo, corTextoNome, corPreco, tamanhoNome, tamanhoPreco, margemNome, margemPreco, frasesAtivo, frases, corFundoFrases, corTextoFrases, tamanhoFrases, margemFrases, guiaNome, guiaPreco, guiaFrases, fonteNome, fontePreco, fonteFrases, corFundoPreco]);
+
+  useEffect(() => {
+    let cancelado = false;
+    carregarFontesCartaz([fonteNome, fontePreco, fonteFrases]).then(() => {
+      if (!cancelado) setVersaoFontes((v) => v + 1);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [fonteNome, fontePreco, fonteFrases]);
 
   // ---------------------------------------------------------------------------
   // Projeto: carrega o ativo (ou oferece migrar um rascunho antigo, ou abre o
@@ -430,6 +460,10 @@ export function StoryModo() {
       margemNome,
       margemPreco,
       margemFrases,
+      fonteNome,
+      fontePreco,
+      fonteFrases,
+      corFundoPreco,
     };
     pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, parametros);
     const proximasCaixas = calcularCaixasStory(ctx, LARGURA_STORY, parametros);
@@ -464,6 +498,11 @@ export function StoryModo() {
     margemFrases,
     imagemExtra,
     imagemExtraCaixa,
+    fonteNome,
+    fontePreco,
+    fonteFrases,
+    corFundoPreco,
+    versaoFontes,
   ]);
 
   useEffect(() => {
@@ -872,32 +911,33 @@ export function StoryModo() {
                   <button type="button" className="btn-ghost" onClick={resetarElementoSelecionado}>Redefinir</button>
                 </div>
                 <p>Arraste o centro para mover. Use as bordas ou os pontos para redimensionar.</p>
-                {elementoSelecionado !== 'imagemExtra' && <div className="field-row">
-                  <div className="field">
-                    <label>Tamanho {elementoSelecionado === 'nome' ? tamanhoNome : elementoSelecionado === 'preco' ? tamanhoPreco : tamanhoFrases}px</label>
-                    <input
-                      type="range"
-                      min={elementoSelecionado === 'nome' ? 24 : elementoSelecionado === 'preco' ? 34 : 18}
-                      max={elementoSelecionado === 'nome' ? 70 : elementoSelecionado === 'preco' ? 90 : 50}
-                      value={elementoSelecionado === 'nome' ? tamanhoNome : elementoSelecionado === 'preco' ? tamanhoPreco : tamanhoFrases}
-                      onChange={(e) => {
-                        const valor = Number(e.target.value);
-                        if (elementoSelecionado === 'nome') setTamanhoNome(valor);
-                        if (elementoSelecionado === 'preco') setTamanhoPreco(valor);
-                        if (elementoSelecionado === 'frases') setTamanhoFrases(valor);
-                      }}
-                    />
-                  </div>
-                  {elementoSelecionado === 'nome' && <>
-                    <div className="field"><label>Fundo</label><input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} /></div>
-                    <div className="field"><label>Texto</label><input type="color" value={corTextoNome} onChange={(e) => setCorTextoNome(e.target.value)} /></div>
-                  </>}
-                  {elementoSelecionado === 'preco' && <div className="field"><label>Texto</label><input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} /></div>}
-                  {elementoSelecionado === 'frases' && <>
-                    <div className="field"><label>Fundo</label><input type="color" value={corFundoFrases} onChange={(e) => setCorFundoFrases(e.target.value)} /></div>
-                    <div className="field"><label>Texto</label><input type="color" value={corTextoFrases} onChange={(e) => setCorTextoFrases(e.target.value)} /></div>
-                  </>}
-                </div>}
+                {elementoSelecionado === 'nome' && (
+                  <AjustesCaixaTexto
+                    tamanho={tamanhoNome} tamanhoMinimo={24} tamanhoMaximo={70} onTamanho={setTamanhoNome}
+                    fonte={fonteNome} onFonte={setFonteNome}
+                    corFundo={corLogo} onCorFundo={setCorLogo}
+                    corTexto={corTextoNome} onCorTexto={setCorTextoNome}
+                    canvasArte={canvasRef} fontePaleta={imagem}
+                  />
+                )}
+                {elementoSelecionado === 'preco' && (
+                  <AjustesCaixaTexto
+                    tamanho={tamanhoPreco} tamanhoMinimo={34} tamanhoMaximo={90} onTamanho={setTamanhoPreco}
+                    fonte={fontePreco} onFonte={setFontePreco}
+                    corFundo={corFundoPreco} onCorFundo={setCorFundoPreco}
+                    corTexto={corPreco} onCorTexto={setCorPreco}
+                    canvasArte={canvasRef} fontePaleta={imagem}
+                  />
+                )}
+                {elementoSelecionado === 'frases' && (
+                  <AjustesCaixaTexto
+                    tamanho={tamanhoFrases} tamanhoMinimo={18} tamanhoMaximo={50} onTamanho={setTamanhoFrases}
+                    fonte={fonteFrases} onFonte={setFonteFrases}
+                    corFundo={corFundoFrases} onCorFundo={setCorFundoFrases}
+                    corTexto={corTextoFrases} onCorTexto={setCorTextoFrases}
+                    canvasArte={canvasRef} fontePaleta={imagem}
+                  />
+                )}
               </section>
             )}
 

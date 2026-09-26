@@ -112,6 +112,10 @@ export interface ConfiguracoesStory {
   guiaNome: { y: number; offsetX: number; x?: number; largura?: number };
   guiaPreco: { y: number; offsetX: number; x?: number; largura?: number };
   guiaFrases: { y: number; offsetX: number; x?: number; largura?: number };
+  fonteNome?: string;
+  fontePreco?: string;
+  fonteFrases?: string;
+  corFundoPreco?: string;
 }
 
 export function carregarConfiguracoes(): Partial<ConfiguracoesStory> | null {
@@ -383,6 +387,7 @@ export interface ConfiguracoesLote {
   corLogo: string;
   corTextoNome: string;
   corPreco: string;
+  corFundoPreco?: string;
 }
 
 export function carregarConfiguracoesLote(): Partial<ConfiguracoesLote> | null {

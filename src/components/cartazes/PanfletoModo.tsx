@@ -6,7 +6,7 @@ import { ElementoStoryEditavel } from '../ElementoStoryEditavel';
 import { EditarStoryProdutoModal } from './EditarStoryProdutoModal';
 import { GaleriaStoriesModal } from './GaleriaStoriesModal';
 import { blobDeImagem, carregarImagemDeArquivo, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
-import { ALTURA_STORY, fmtMoney, LARGURA_STORY, montarTextoPromocional, pintarStory, sugerirPosicoesTexto, type TransformImagem } from '../../utils/cartazEngine';
+import { ALTURA_STORY, carregarFontesCartaz, fmtMoney, LARGURA_STORY, montarTextoPromocional, pintarStory, sugerirPosicoesTexto, type TransformImagem } from '../../utils/cartazEngine';
 import {
   carregarConfiguracoes,
   carregarConfiguracoesPanfleto,
@@ -48,6 +48,7 @@ import {
 } from '../../utils/panfletoEngine';
 import { gerarImagemQr } from '../../utils/qrCode';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
+import { SeletorCor } from './SeletorCor';
 
 type DestinoCamera = 'pendente' | number | null;
 
@@ -959,18 +960,21 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     );
   }
 
-  function handleGerarGaleriaStories() {
+  async function handleGerarGaleriaStories() {
     if (produtos.length === 0) {
       setToast('Adicione produtos ao panfleto antes de gerar os stories.');
       return;
     }
     const configPadrao = carregarConfiguracoes() || {};
+    const parametrosPorProduto = produtos.map((produto) => montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY, logoPadraoStory));
+    // O canvas não espera fonte carregar — sem isso, uma fonte escolhida no Story sairia na reserva do sistema.
+    await carregarFontesCartaz(parametrosPorProduto.flatMap((p) => [p.fonteNome, p.fontePreco, p.fonteFrases]));
     const itens = produtos.map((produto, i) => {
       const canvas = document.createElement('canvas');
       canvas.width = LARGURA_STORY;
       canvas.height = ALTURA_STORY;
       const ctx = canvas.getContext('2d')!;
-      pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY, logoPadraoStory));
+      pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, parametrosPorProduto[i]);
       const nomeSeguro = produto.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${i + 1}`;
       return { conteudo: canvas.toDataURL('image/png'), nomeArquivo: `story-${String(i + 1).padStart(2, '0')}-${nomeSeguro}.png`, mime: 'image/png', rotulo: produto.nome };
     });
@@ -1274,23 +1278,18 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
             </p>
 
             <div className="field-row">
-              <div className="field">
-                <label>Cor da logo</label>
-                <input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Cor da descrição</label>
-                <input type="color" value={corDescricao} onChange={(e) => setCorDescricao(e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Cor do preço</label>
-                <input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} />
-              </div>
+              <SeletorCor rotulo="Cor da logo" valor={corLogo} onAlterar={setCorLogo} canvasArte={canvasRef} />
+              <SeletorCor rotulo="Cor da descrição" valor={corDescricao} onAlterar={setCorDescricao} canvasArte={canvasRef} />
+              <SeletorCor rotulo="Cor do preço" valor={corPreco} onAlterar={setCorPreco} canvasArte={canvasRef} />
             </div>
-            <div className="field">
-              <label>Cor de fundo dos quadrantes dos produtos</label>
-              <input type="color" value={corFundoCard} onChange={(e) => setCorFundoCard(e.target.value)} />
-            </div>
+            <SeletorCor
+              rotulo="Cor de fundo dos quadrantes dos produtos"
+              valor={corFundoCard}
+              onAlterar={setCorFundoCard}
+              canvasArte={canvasRef}
+             
+              permitirSemFundo
+            />
             <div className="field-row">
               <div className="field">
                 <label>Tamanho da descrição {tamanhoNome}px</label>

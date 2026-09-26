@@ -6,7 +6,7 @@
  * parâmetros, sem tocar no DOM da aplicação.
  */
 
-import { calcularDesconto, desenharImagemContain, desenharRetanguloArredondado, fmtMoney, tamanhoOrigem, type CaixaStory, type FonteImagem, type ParametrosStory, type TransformImagem } from './cartazEngine';
+import { calcularDesconto, COR_FUNDO_PRECO_PADRAO, desenharImagemContain, FONTE_PADRAO_FRASES, FONTE_PADRAO_NOME, FONTE_PADRAO_PRECO, desenharRetanguloArredondado, fmtMoney, tamanhoOrigem, type CaixaStory, type FonteImagem, type ParametrosStory, type TransformImagem } from './cartazEngine';
 import type { ConfiguracoesStory } from './cartazPersistencia';
 
 export type AlinhamentoTexto = 'left' | 'center' | 'right';
@@ -46,6 +46,10 @@ export interface AjustesStoryProduto {
   guiaFrases?: GuiaFaixa;
   /** Posição da logomarca padrão (a do Story produto único) só neste produto — ausente = mesma posição definida no Story. */
   imagemExtraCaixa?: CaixaStory;
+  fonteNome?: string;
+  fontePreco?: string;
+  fonteFrases?: string;
+  corFundoPreco?: string;
 }
 
 export interface ProdutoPanfleto {
@@ -128,6 +132,10 @@ export function montarParametrosStoryProduto(
     margemNome: r(a?.margemNome, padrao.margemNome, 60),
     margemPreco: r(a?.margemPreco, padrao.margemPreco, 60),
     margemFrases: r(a?.margemFrases, padrao.margemFrases, 60),
+    fonteNome: r(a?.fonteNome, padrao.fonteNome, FONTE_PADRAO_NOME),
+    fontePreco: r(a?.fontePreco, padrao.fontePreco, FONTE_PADRAO_PRECO),
+    fonteFrases: r(a?.fonteFrases, padrao.fonteFrases, FONTE_PADRAO_FRASES),
+    corFundoPreco: r(a?.corFundoPreco, padrao.corFundoPreco, COR_FUNDO_PRECO_PADRAO),
     imagemExtra: logoPadrao?.imagem ?? null,
     imagemExtraCaixa: logoPadrao ? a?.imagemExtraCaixa ?? logoPadrao.caixa : null,
   };
@@ -355,12 +363,15 @@ export function renderizarPaginaPanfleto(
     const x = pad + deslocamentoX + col * (cardW + gap);
     const y = headerH + row * (cardH + gap);
 
-    ctx.fillStyle = p.corFundoCard;
-    ctx.strokeStyle = '#E4E9E0';
-    ctx.lineWidth = 1;
-    desenharRetanguloArredondado(ctx, x, y, cardW, cardH, 14);
-    ctx.fill();
-    ctx.stroke();
+    // `transparent` = sem card: só foto e textos, direto sobre o fundo da página.
+    if (p.corFundoCard !== 'transparent') {
+      ctx.fillStyle = p.corFundoCard;
+      ctx.strokeStyle = '#E4E9E0';
+      ctx.lineWidth = 1;
+      desenharRetanguloArredondado(ctx, x, y, cardW, cardH, 14);
+      ctx.fill();
+      ctx.stroke();
+    }
 
     const photoPad = 14;
     desenharImagemContain(ctx, produto.imagem, x + photoPad, y + photoPad, cardW - photoPad * 2, photoH);

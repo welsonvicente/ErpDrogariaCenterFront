@@ -1585,3 +1585,88 @@ table.data-table th {
   .folgas-modal-actions { flex-direction: column-reverse; }
   .folgas-modal-actions button { width: 100%; }
 }
+
+/* ---- Seletor de cor de Cartazes (components/cartazes/SeletorCor.tsx) ---- */
+.seletor-cor { position: relative; }
+.seletor-cor-botao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.seletor-cor-botao:hover, .seletor-cor-botao[aria-expanded='true'] { border-color: var(--teal); }
+.seletor-cor-amostra {
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(23, 60, 58, .18);
+}
+/* "Sem fundo": xadrez de transparência com um risco, como nos editores de imagem. */
+.seletor-cor-botao.is-sem-fundo .seletor-cor-amostra {
+  background:
+    linear-gradient(135deg, transparent 46%, var(--late) 46%, var(--late) 54%, transparent 54%),
+    repeating-conic-gradient(#dfe7e4 0% 25%, #fff 0% 50%) 50% / 10px 10px;
+}
+.seletor-cor-valor { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seletor-cor-painel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 232px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow), 0 12px 32px -12px rgba(23, 60, 58, .35);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.seletor-cor-linha { display: flex; gap: 8px; }
+.seletor-cor-linha input[type='color'] { flex: 0 0 44px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--card); }
+.seletor-cor-hex { flex: 1; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; text-transform: uppercase; }
+.seletor-cor-acao { width: 100%; margin: 0; }
+.seletor-cor-titulo { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); }
+.seletor-cor-paleta { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+.seletor-cor-swatch {
+  aspect-ratio: 1;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(23, 60, 58, .18);
+  cursor: pointer;
+}
+.seletor-cor-swatch.is-ativa { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--teal-deep); }
+.seletor-cor-sem-fundo { margin: 0; font-size: 12.5px; }
+
+/* Modo conta-gotas: cursor de mira sobre a arte (incluindo as caixas arrastáveis) e aviso fixo no topo. */
+body.conta-gotas-ativo .cartaz-canvas,
+body.conta-gotas-ativo .story-elemento-editavel { cursor: crosshair !important; }
+.conta-gotas-aviso {
+  position: fixed;
+  z-index: 400;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: 99px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
