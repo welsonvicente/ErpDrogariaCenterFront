@@ -112,7 +112,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [imagemPendenteArquivoId, setImagemPendenteArquivoId] = useState<string | null>(null);
   const [enviandoPendente, setEnviandoPendente] = useState(false);
   const [erroPendente, setErroPendente] = useState(false);
-  const ultimoUploadPendenteRef = useRef<{ blob: Blob; mimeType: string } | null>(null);
+  const ultimaAcaoPendenteRef = useRef<(() => unknown) | null>(null);
 
   const [carregandoImagem, setCarregandoImagem] = useState(false);
   const [nomeProduto, setNomeProduto] = useState('');
@@ -525,7 +525,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   /** Envia (presign → PUT → confirmar) a foto ainda não vinculada a nenhum produto adicionado — usada pelo formulário "Adicionar produto". */
   async function enviarFotoPendente(blob: Blob, mimeType: string) {
     if (!projetoAtivo) return;
-    ultimoUploadPendenteRef.current = { blob, mimeType };
+    ultimaAcaoPendenteRef.current = () => enviarFotoPendente(blob, mimeType);
     setEnviandoPendente(true);
     setErroPendente(false);
     try {
@@ -534,6 +534,27 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     } catch {
       setErroPendente(true);
       setToast('Não foi possível enviar essa foto. Tente de novo.');
+    } finally {
+      setEnviandoPendente(false);
+    }
+  }
+
+  /**
+   * Copia (server-side) a foto de um "produto recente" pro slot pendente
+   * deste projeto — nunca reaproveita a mesma referência: ela pode já
+   * pertencer a outro projeto (ver `arquivoCartazService.duplicar`).
+   */
+  async function duplicarFotoRecentePendente(arquivoOrigemId: string) {
+    if (!projetoAtivo) return;
+    ultimaAcaoPendenteRef.current = () => duplicarFotoRecentePendente(arquivoOrigemId);
+    setEnviandoPendente(true);
+    setErroPendente(false);
+    try {
+      const copia = await arquivoCartazService.duplicar(arquivoOrigemId, projetoAtivo.id);
+      setImagemPendenteArquivoId(copia.id);
+    } catch {
+      setErroPendente(true);
+      setToast('Não foi possível vincular essa foto ao projeto. Tente de novo.');
     } finally {
       setEnviandoPendente(false);
     }
@@ -557,8 +578,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   }
 
   function handleTentarNovamentePendente() {
-    const ultimo = ultimoUploadPendenteRef.current;
-    if (ultimo) enviarFotoPendente(ultimo.blob, ultimo.mimeType);
+    ultimaAcaoPendenteRef.current?.();
   }
 
   function handleTentarNovamenteProduto(idx: number) {
@@ -615,17 +635,20 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   async function handleUsarProdutoRecente(produto: ProdutoRecente) {
     const url = urlsRecentes[produto.arquivoId];
-    if (!url) {
+    if (!url || !projetoAtivo) {
       setToast('Essa foto não está mais disponível.');
       return;
     }
     try {
       const img = await carregarImagemDeDataUrl(url);
       setImagemPendente(img);
-      setImagemPendenteArquivoId(produto.arquivoId);
+      setImagemPendenteArquivoId(null);
       setNomeProduto(produto.name || '');
       setDeProduto(produto.de || '');
       setPorProduto(produto.por || '');
+      // Nunca reaproveita a mesma referência de arquivo — ela pode já
+      // pertencer a outro projeto (ver duplicarFotoRecentePendente).
+      duplicarFotoRecentePendente(produto.arquivoId);
     } catch {
       setToast('Não consegui recuperar a foto desse produto.');
     }

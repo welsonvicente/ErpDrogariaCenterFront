@@ -83,7 +83,7 @@ export function StoryModo() {
   const [enviandoImagem, setEnviandoImagem] = useState(false);
   const [progressoImagem, setProgressoImagem] = useState(0);
   const [erroEnvioImagem, setErroEnvioImagem] = useState(false);
-  const ultimoUploadImagemRef = useRef<{ blob: Blob; mimeType: string } | null>(null);
+  const ultimaAcaoImagemRef = useRef<(() => unknown) | null>(null);
 
   const [imagemExtra, setImagemExtra] = useState<HTMLImageElement | null>(null);
   const [imagemExtraArquivoId, setImagemExtraArquivoId] = useState<string | null>(null);
@@ -506,7 +506,7 @@ export function StoryModo() {
   /** Envia (presign → PUT → confirmar) o Blob já pronto e atualiza o estado correspondente (imagem principal ou logo/selo). */
   async function enviarFotoProduto(blob: Blob, mimeType: string) {
     if (!projetoAtivo) return;
-    ultimoUploadImagemRef.current = { blob, mimeType };
+    ultimaAcaoImagemRef.current = () => enviarFotoProduto(blob, mimeType);
     setEnviandoImagem(true);
     setErroEnvioImagem(false);
     setProgressoImagem(0);
@@ -522,9 +522,31 @@ export function StoryModo() {
     }
   }
 
+  /**
+   * Copia (server-side, sem passar pelo navegador) a foto de um "produto
+   * recente" pra este projeto — nunca reaproveita a mesma referência: ela
+   * pode já pertencer a outro projeto, e um arquivo só pertence a um por
+   * vez (ver `arquivoCartazService.duplicar`).
+   */
+  async function duplicarFotoRecente(arquivoOrigemId: string) {
+    if (!projetoAtivo) return;
+    ultimaAcaoImagemRef.current = () => duplicarFotoRecente(arquivoOrigemId);
+    setEnviandoImagem(true);
+    setErroEnvioImagem(false);
+    try {
+      const copia = await arquivoCartazService.duplicar(arquivoOrigemId, projetoAtivo.id);
+      setImagemArquivoId(copia.id);
+      persistirEstadoImediato({ imagemArquivoId: copia.id });
+    } catch {
+      setErroEnvioImagem(true);
+      setToast('Não foi possível vincular essa foto ao projeto. Tente de novo.');
+    } finally {
+      setEnviandoImagem(false);
+    }
+  }
+
   function handleTentarEnviarImagemDeNovo() {
-    const ultimo = ultimoUploadImagemRef.current;
-    if (ultimo) enviarFotoProduto(ultimo.blob, ultimo.mimeType);
+    ultimaAcaoImagemRef.current?.();
   }
 
   async function definirImagemNova(imagemNova: HTMLImageElement, blob: Blob, mimeType: string, transform: TransformImagem = TRANSFORM_PADRAO) {
@@ -573,7 +595,7 @@ export function StoryModo() {
 
   async function handleUsarProdutoRecente(produto: ProdutoRecente) {
     const url = urlsRecentes[produto.arquivoId];
-    if (!url) {
+    if (!url || !projetoAtivo) {
       setToast('Essa foto não está mais disponível.');
       return;
     }
@@ -581,10 +603,12 @@ export function StoryModo() {
       const img = await carregarImagemDeDataUrl(url);
       setImagem(img);
       setTransformImagem(TRANSFORM_PADRAO);
-      setImagemArquivoId(produto.arquivoId);
       setNome(produto.name || '');
       setDe(produto.de || '');
       setPor(produto.por || '');
+      // Nunca reaproveita a mesma referência de arquivo — ela pode já
+      // pertencer a outro projeto (ver duplicarFotoRecente).
+      duplicarFotoRecente(produto.arquivoId);
     } catch {
       setToast('Não consegui recuperar a foto desse produto.');
     }

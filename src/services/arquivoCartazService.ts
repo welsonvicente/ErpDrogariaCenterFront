@@ -51,6 +51,19 @@ export const arquivoCartazService = {
     await api.delete(`/cartazes/imagens/${arquivoId}`);
   },
 
+  /**
+   * Copia um arquivo já confirmado (de qualquer projeto, inclusive sem
+   * nenhum) pra um NOVO arquivo vinculado ao projeto informado — sem passar
+   * pelo navegador (cópia feita direto no R2). Usada ao reaproveitar uma
+   * foto de "produtos recentes" num projeto diferente de onde ela nasceu:
+   * um arquivo só pertence a um projeto por vez, então reaproveitar a mesma
+   * referência faria o projeto original "perder" a foto.
+   */
+  async duplicar(arquivoId: string, projetoId: string): Promise<{ id: string; mimeType: string; tamanhoBytes: number; url: string }> {
+    const { data } = await api.post(`/cartazes/imagens/${arquivoId}/duplicar`, { projetoId });
+    return data;
+  },
+
   /** URLs de leitura em lote (ex.: miniaturas de "produtos recentes") — ids inexistentes/de outra organização vêm simplesmente ausentes do resultado. */
   async obterUrls(ids: string[]): Promise<{ id: string; url: string }[]> {
     if (ids.length === 0) return [];
