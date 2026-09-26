@@ -4,24 +4,27 @@ import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal, type GuiaCamera } from '../CameraModal';
 import { EditarStoryProdutoModal } from './EditarStoryProdutoModal';
 import { GaleriaStoriesModal } from './GaleriaStoriesModal';
-import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
+import { blobDeImagem, carregarImagemDeArquivo, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
 import { ALTURA_STORY, fmtMoney, LARGURA_STORY, montarTextoPromocional, pintarStory, sugerirPosicoesTexto, type TransformImagem } from '../../utils/cartazEngine';
 import {
   carregarConfiguracoes,
   carregarConfiguracoesPanfleto,
   carregarImagemDeDataUrl,
   carregarProdutosRecentes,
+  carregarProjetoAtivo,
   carregarRascunhoPanfleto,
   criarImagemAvisoSemFoto,
+  limparProjetoAtivo,
   limparRascunhoPanfleto,
   montarGuiasCameraDoStory,
   salvarConfiguracoesPanfleto,
   salvarProdutoRecente,
-  salvarRascunhoPanfleto,
+  salvarProjetoAtivo,
   type ProdutoRecente,
-  type ResultadoSalvarRascunho,
 } from '../../utils/cartazPersistencia';
 import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
+import { arquivoCartazService } from '../../services/arquivoCartazService';
+import { projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import {
   construirPaginasPanfleto,
   ESCALA_EXPORTACAO_PANFLETO,
@@ -36,32 +39,45 @@ import {
   type ProdutoPanfleto,
 } from '../../utils/panfletoEngine';
 import { gerarImagemQr } from '../../utils/qrCode';
+import { ProjetosCartazPainel } from './ProjetosCartazPainel';
 
 type DestinoCamera = 'pendente' | number | null;
 
 const TAMANHO_QR_LOGICO = 130;
 const EMOJI_PADRAO_STORY = '🤩😱';
 
+/** Produto salvo no `estadoEditor` do projeto — mesmos campos de `ProdutoPanfleto`, sem o `HTMLImageElement` (a foto é só a referência ao R2). */
+interface ProdutoPanfletoSalvo {
+  arquivoId: string | null;
+  nome: string;
+  de: string;
+  por: string;
+  transform: TransformImagem;
+  ajustesStory?: AjustesStoryProduto;
+}
+
+interface EstadoEditorPanfleto {
+  produtos: ProdutoPanfletoSalvo[];
+}
+
+interface StatusUploadProduto {
+  enviando: boolean;
+  erro: boolean;
+}
+
 /**
  * Gerador de Panfleto (vários produtos por página) — Fase 2 da reescrita de
- * Cartazes como tela React nativa (ver PLANO-REESCRITA-FERRAMENTAS.md).
+ * Cartazes como tela React nativa (ver PLANO-REESCRITA-FERRAMENTAS.md),
+ * migrada pra guardar o projeto no backend (Postgres + Cloudflare R2) em vez
+ * de `localStorage`/Base64 — ver PLANO da migração de armazenamento de
+ * imagens. Cada foto é enviada assim que escolhida/capturada (mesmo padrão
+ * do Story); "Adicionar ao panfleto" só exige que esse envio já tenha
+ * terminado.
  *
  * Cada página é pintada fora de tela pelo motor puro em utils/panfletoEngine.ts
  * (mesma matemática de layout do `public/tools/cartazes.html`), e a página
  * atual é copiada pro canvas visível — assim dá pra exportar todas as páginas
  * de uma vez (.zip) sem precisar navegar por elas.
- *
- * Cada produto também pode virar um story individual (1080×1920, formato
- * WhatsApp/Instagram Status) através do botão "📱", que abre um editor
- * completo (`EditarStoryProdutoModal`) com o mesmo arrasto/redimensionamento
- * do modo Story. Por padrão usa as cores/tamanhos/posições configuradas por
- * último no Story (`cartazes_story_settings_v1`), mas qualquer ajuste feito
- * ali fica salvo SÓ NESSE PRODUTO (`produto.ajustesStory`), sem afetar os
- * outros nem o padrão — que continua editável de qualquer produto através de
- * "Editar tamanho/posição padrão", que leva pro modo Story. O botão "🖼️
- * Ajustar" existe por outro motivo: o card do panfleto em si pinta a foto
- * inteira ("contain", sem cortar), então o enquadramento (pan/zoom) não muda
- * nada ali — só afeta a versão em story, que usa recorte "cover".
  */
 interface PanfletoModoProps {
   /** Produtos enviados pelo modo Importar planilha ("Usar no panfleto") — null quando não há nada pendente. */
@@ -80,10 +96,23 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const inputFundoRef = useRef<HTMLInputElement>(null);
   const inputLogoRef = useRef<HTMLInputElement>(null);
   const trocaAlvoIdx = useRef<number | null>(null);
-  const ultimoAvisoRascunhoRef = useRef<ResultadoSalvarRascunho | null>(null);
+
+  // ---- Projeto ativo -------------------------------------------------------
+  const [projetoAtivo, setProjetoAtivo] = useState<ProjetoCartazCompleto | null>(null);
+  const [carregandoProjeto, setCarregandoProjeto] = useState(true);
+  const [mostrarPainelProjetos, setMostrarPainelProjetos] = useState(false);
+  const [prontoParaPersistir, setProntoParaPersistir] = useState(false);
 
   const [produtos, setProdutos] = useState<ProdutoPanfleto[]>([]);
+  const [statusUploadProdutos, setStatusUploadProdutos] = useState<Record<number, StatusUploadProduto>>({});
+  const ultimosUploadsProdutoRef = useRef<Map<number, { blob: Blob; mimeType: string }>>(new Map());
+
   const [imagemPendente, setImagemPendente] = useState<HTMLImageElement | null>(null);
+  const [imagemPendenteArquivoId, setImagemPendenteArquivoId] = useState<string | null>(null);
+  const [enviandoPendente, setEnviandoPendente] = useState(false);
+  const [erroPendente, setErroPendente] = useState(false);
+  const ultimoUploadPendenteRef = useRef<{ blob: Blob; mimeType: string } | null>(null);
+
   const [carregandoImagem, setCarregandoImagem] = useState(false);
   const [nomeProduto, setNomeProduto] = useState('');
   const [deProduto, setDeProduto] = useState('');
@@ -91,6 +120,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [cameraDestino, setCameraDestino] = useState<DestinoCamera>(null);
 
   const [produtosRecentes, setProdutosRecentes] = useState<ProdutoRecente[]>([]);
+  const [urlsRecentes, setUrlsRecentes] = useState<Record<string, string>>({});
 
   const [mostrarTextosCabecalho, setMostrarTextosCabecalho] = useState(true);
   const [nomeLoja, setNomeLoja] = useState('Drogaria Center');
@@ -139,13 +169,32 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // Recebe produtos enviados pelo modo Importar planilha ("Usar no panfleto").
+  // Recebe produtos enviados pelo modo Importar planilha ("Usar no panfleto")
+  // — se já tiverem `arquivoId` (upload feito lá), reaproveita a mesma
+  // referência (sem reenviar); só sobe de novo se por algum motivo a foto
+  // ainda não tinha sido confirmada em lugar nenhum.
   useEffect(() => {
-    if (!produtosRecebidos || produtosRecebidos.length === 0) return;
-    setProdutos((atual) => [...atual, ...produtosRecebidos]);
-    aoReceberProdutos?.();
+    if (!produtosRecebidos || produtosRecebidos.length === 0 || !projetoAtivo) return;
+    const projetoId = projetoAtivo.id;
+    async function incorporar() {
+      const prontos = await Promise.all(
+        produtosRecebidos!.map(async (produto) => {
+          if (produto.arquivoId) return produto;
+          try {
+            const blob = await blobDeImagem(produto.imagem, 'image/jpeg', 0.9);
+            const arquivoId = await arquivoCartazService.enviarImagem(blob, 'image/jpeg', projetoId);
+            return { ...produto, arquivoId };
+          } catch {
+            return produto;
+          }
+        }),
+      );
+      setProdutos((atual) => [...atual, ...prontos]);
+      aoReceberProdutos?.();
+    }
+    incorporar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [produtosRecebidos]);
+  }, [produtosRecebidos, projetoAtivo?.id]);
 
   // Gera o QR (async) quando o link muda — cacheado por texto em utils/qrCode.ts.
   useEffect(() => {
@@ -167,80 +216,36 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     };
   }, [link]);
 
-  // Carrega configurações (preferências permanentes) e oferece restaurar o
-  // rascunho (produtos em andamento) — só uma vez, ao montar.
-  const [prontoParaPersistir, setProntoParaPersistir] = useState(false);
+  // Configurações (preferências permanentes) continuam em localStorage — só
+  // textos/cores/tamanhos, nunca imagem.
   useEffect(() => {
     const config = carregarConfiguracoesPanfleto();
-    if (config) {
-      if (config.nomeLoja !== undefined) setNomeLoja(config.nomeLoja);
-      if (config.nomeLojaAlinhamento) setNomeLojaAlinhamento(config.nomeLojaAlinhamento);
-      if (config.titulo !== undefined) setTitulo(config.titulo);
-      if (config.tituloAlinhamento) setTituloAlinhamento(config.tituloAlinhamento);
-      if (config.mostrarTextosCabecalho !== undefined) setMostrarTextosCabecalho(config.mostrarTextosCabecalho);
-      if (config.mostrarTextosRodape !== undefined) setMostrarTextosRodape(config.mostrarTextosRodape);
-      if (config.textoRodape1 !== undefined) setTextoRodape1(config.textoRodape1);
-      if (config.textoRodape1Alinhamento) setTextoRodape1Alinhamento(config.textoRodape1Alinhamento);
-      if (config.textoRodape2 !== undefined) setTextoRodape2(config.textoRodape2);
-      if (config.textoRodape2Alinhamento) setTextoRodape2Alinhamento(config.textoRodape2Alinhamento);
-      if (config.qrAlinhamento) setQrAlinhamento(config.qrAlinhamento);
-      if (config.link !== undefined) setLink(config.link);
-      if (config.itensPorPagina) setItensPorPagina(config.itensPorPagina);
-      if (config.corLogo) setCorLogo(config.corLogo);
-      if (config.corDescricao) setCorDescricao(config.corDescricao);
-      if (config.corPreco) setCorPreco(config.corPreco);
-      if (config.corFundoCard) setCorFundoCard(config.corFundoCard);
-      if (config.tamanhoNome) setTamanhoNome(config.tamanhoNome);
-      if (config.tamanhoPreco) setTamanhoPreco(config.tamanhoPreco);
-      if (config.tamanhoBorda) setTamanhoBorda(config.tamanhoBorda);
-      if (config.tamanhoSelo) setTamanhoSelo(config.tamanhoSelo);
-      if (config.manterFaixaBranca !== undefined) setManterFaixaBranca(config.manterFaixaBranca);
-    }
-
-    setProdutosRecentes(carregarProdutosRecentes());
-
-    async function restaurarRascunhoSeConfirmado() {
-      const rascunho = carregarRascunhoPanfleto();
-      if (!rascunho || rascunho.produtos.length === 0) return;
-
-      const quando = rascunho.savedAt ? new Date(rascunho.savedAt).toLocaleString('pt-BR') : '';
-      const mensagem = `Encontramos um rascunho não finalizado com ${rascunho.produtos.length} produto(s) do panfleto${quando ? ` (salvo em ${quando})` : ''}. Deseja continuar de onde parou?`;
-      if (!window.confirm(mensagem)) {
-        limparRascunhoPanfleto();
-        return;
-      }
-
-      const restaurados: ProdutoPanfleto[] = [];
-      let semFotoCount = 0;
-      for (const p of rascunho.produtos) {
-        try {
-          // `imgSrc` vazio = a foto não coube salvar no rascunho (ver
-          // salvarRascunhoPanfleto) — mostra um aviso no lugar da foto em vez
-          // de descartar o produto inteiro; nome/preço não se perdem, só a
-          // foto precisa ser tirada de novo.
-          if (!p.imgSrc) semFotoCount++;
-          const imagem = p.imgSrc ? await carregarImagemDeDataUrl(p.imgSrc) : await criarImagemAvisoSemFoto();
-          restaurados.push({ imagem, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory });
-        } catch {
-          /* foto do rascunho corrompida — pula esse produto */
-        }
-      }
-      setProdutos(restaurados);
-      if (semFotoCount > 0) {
-        setToast(`${semFotoCount} produto(s) recuperado(s) sem a foto — toque em "Trocar foto" pra tirar de novo.`);
-      }
-    }
-    restaurarRascunhoSeConfirmado().finally(() => setProntoParaPersistir(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!config) return;
+    if (config.nomeLoja !== undefined) setNomeLoja(config.nomeLoja);
+    if (config.nomeLojaAlinhamento) setNomeLojaAlinhamento(config.nomeLojaAlinhamento);
+    if (config.titulo !== undefined) setTitulo(config.titulo);
+    if (config.tituloAlinhamento) setTituloAlinhamento(config.tituloAlinhamento);
+    if (config.mostrarTextosCabecalho !== undefined) setMostrarTextosCabecalho(config.mostrarTextosCabecalho);
+    if (config.mostrarTextosRodape !== undefined) setMostrarTextosRodape(config.mostrarTextosRodape);
+    if (config.textoRodape1 !== undefined) setTextoRodape1(config.textoRodape1);
+    if (config.textoRodape1Alinhamento) setTextoRodape1Alinhamento(config.textoRodape1Alinhamento);
+    if (config.textoRodape2 !== undefined) setTextoRodape2(config.textoRodape2);
+    if (config.textoRodape2Alinhamento) setTextoRodape2Alinhamento(config.textoRodape2Alinhamento);
+    if (config.qrAlinhamento) setQrAlinhamento(config.qrAlinhamento);
+    if (config.link !== undefined) setLink(config.link);
+    if (config.itensPorPagina) setItensPorPagina(config.itensPorPagina);
+    if (config.corLogo) setCorLogo(config.corLogo);
+    if (config.corDescricao) setCorDescricao(config.corDescricao);
+    if (config.corPreco) setCorPreco(config.corPreco);
+    if (config.corFundoCard) setCorFundoCard(config.corFundoCard);
+    if (config.tamanhoNome) setTamanhoNome(config.tamanhoNome);
+    if (config.tamanhoPreco) setTamanhoPreco(config.tamanhoPreco);
+    if (config.tamanhoBorda) setTamanhoBorda(config.tamanhoBorda);
+    if (config.tamanhoSelo) setTamanhoSelo(config.tamanhoSelo);
+    if (config.manterFaixaBranca !== undefined) setManterFaixaBranca(config.manterFaixaBranca);
   }, []);
 
-  // Salva as configurações (preferências permanentes) — não inclui os
-  // produtos nem a imagem de fundo, que não são "preferência", são o trabalho
-  // em andamento (produtos vão pro rascunho; a imagem de fundo, como no HTML
-  // original, não é persistida — reenviar é mais simples que arriscar lotar o
-  // localStorage com uma imagem grande a cada preferência salva).
   useEffect(() => {
-    if (!prontoParaPersistir) return;
     const timer = setTimeout(() => {
       salvarConfiguracoesPanfleto({
         nomeLoja,
@@ -269,55 +274,147 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     }, 400);
     return () => clearTimeout(timer);
   }, [
-    prontoParaPersistir,
-    nomeLoja,
-    nomeLojaAlinhamento,
-    titulo,
-    tituloAlinhamento,
-    mostrarTextosCabecalho,
-    mostrarTextosRodape,
-    textoRodape1,
-    textoRodape1Alinhamento,
-    textoRodape2,
-    textoRodape2Alinhamento,
-    qrAlinhamento,
-    link,
-    itensPorPagina,
-    corLogo,
-    corDescricao,
-    corPreco,
-    corFundoCard,
-    tamanhoNome,
-    tamanhoPreco,
-    tamanhoBorda,
-    tamanhoSelo,
-    manterFaixaBranca,
+    nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento, mostrarTextosCabecalho, mostrarTextosRodape,
+    textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento, qrAlinhamento, link,
+    itensPorPagina, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco, tamanhoBorda,
+    tamanhoSelo, manterFaixaBranca,
   ]);
 
-  // Salva o rascunho (só os produtos) — recuperável se a aba fechar ou travar
-  // no meio de um panfleto com vários produtos já adicionados. Quando as
-  // fotos não cabem mais no localStorage (comum no celular com várias fotos
-  // de câmera — ver salvarRascunhoPanfleto), avisa uma vez em vez de deixar
-  // a pessoa achando que está tudo protegido quando não está mais.
-  useEffect(() => {
-    if (!prontoParaPersistir) return;
-    const timer = setTimeout(() => {
-      const resultado = salvarRascunhoPanfleto(
-        produtos.map((p) => ({ imgSrc: p.imagem.src, nome: p.nome, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
-      );
-      if (resultado !== 'completo' && ultimoAvisoRascunhoRef.current !== resultado) {
-        ultimoAvisoRascunhoRef.current = resultado;
-        setToast(
-          resultado === 'sem-fotos'
-            ? '⚠️ As fotos não couberam mais pra salvar automaticamente — baixe ou compartilhe o que já tem, pra não arriscar perder no meio do caminho.'
-            : '⚠️ Não foi possível salvar o rascunho automático — baixe ou compartilhe o que já tem, pra não arriscar perder no meio do caminho.',
-        );
-      } else if (resultado === 'completo') {
-        ultimoAvisoRascunhoRef.current = null;
+  // ---------------------------------------------------------------------------
+  // Projeto: carrega o ativo, oferece migrar um rascunho antigo, ou abre o
+  // painel de projetos — mesmo padrão do StoryModo.
+
+  async function aplicarProjeto(projeto: ProjetoCartazCompleto) {
+    setProntoParaPersistir(false);
+    setProjetoAtivo(projeto);
+    salvarProjetoAtivo('panfleto', projeto.id);
+    setMostrarPainelProjetos(false);
+
+    const estado = (projeto.estadoEditor || {}) as Partial<EstadoEditorPanfleto>;
+    const mapaArquivos = new Map(projeto.arquivos.map((a) => [a.id, a] as const));
+    const salvos = estado.produtos || [];
+
+    const restaurados: ProdutoPanfleto[] = [];
+    let semFotoCount = 0;
+    for (const p of salvos) {
+      const arquivo = p.arquivoId ? mapaArquivos.get(p.arquivoId) : undefined;
+      let imagem: HTMLImageElement | null = null;
+      if (arquivo) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          imagem = await carregarImagemDeDataUrl(arquivo.url);
+        } catch {
+          /* foto corrompida/inacessível — mostra aviso no lugar */
+        }
       }
+      if (!imagem) {
+        semFotoCount++;
+        // eslint-disable-next-line no-await-in-loop
+        imagem = await criarImagemAvisoSemFoto();
+      }
+      restaurados.push({ imagem, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, arquivoId: p.arquivoId });
+    }
+    setProdutos(restaurados);
+    if (semFotoCount > 0) {
+      setToast(`${semFotoCount} produto(s) recuperado(s) sem a foto — toque em "🔄" pra escolher de novo.`);
+    }
+    setProntoParaPersistir(true);
+  }
+
+  async function migrarRascunhoAntigo(rascunho: NonNullable<ReturnType<typeof carregarRascunhoPanfleto>>) {
+    const projeto = await projetoCartazService.criar('panfleto', `Panfleto migrado — ${new Date().toLocaleDateString('pt-BR')}`);
+
+    const produtosMigrados: ProdutoPanfletoSalvo[] = [];
+    for (const p of rascunho.produtos) {
+      let arquivoId: string | null = null;
+      if (p.imgSrc) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const img = await carregarImagemDeDataUrl(p.imgSrc);
+          // eslint-disable-next-line no-await-in-loop
+          const blob = await blobDeImagem(img, 'image/jpeg', 0.9);
+          // eslint-disable-next-line no-await-in-loop
+          arquivoId = await arquivoCartazService.enviarImagem(blob, 'image/jpeg', projeto.id);
+        } catch {
+          /* foto antiga corrompida — segue sem ela */
+        }
+      }
+      produtosMigrados.push({ arquivoId, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory });
+    }
+
+    const estadoEditor: EstadoEditorPanfleto = { produtos: produtosMigrados };
+    await projetoCartazService.atualizar(projeto.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> });
+    limparRascunhoPanfleto();
+
+    const completo = await projetoCartazService.obter(projeto.id);
+    await aplicarProjeto(completo);
+  }
+
+  useEffect(() => {
+    async function iniciar() {
+      const ponteiro = carregarProjetoAtivo('panfleto');
+      if (ponteiro) {
+        try {
+          const projeto = await projetoCartazService.obter(ponteiro);
+          await aplicarProjeto(projeto);
+          setCarregandoProjeto(false);
+          return;
+        } catch {
+          limparProjetoAtivo('panfleto');
+        }
+      }
+
+      const rascunhoAntigo = carregarRascunhoPanfleto();
+      if (rascunhoAntigo && rascunhoAntigo.produtos.length > 0) {
+        const migrar = window.confirm(
+          `Encontramos um rascunho de Panfleto deste navegador com ${rascunhoAntigo.produtos.length} produto(s), de antes dos projetos salvos no servidor. Quer transformá-lo num projeto novo?`,
+        );
+        if (migrar) {
+          try {
+            await migrarRascunhoAntigo(rascunhoAntigo);
+            setCarregandoProjeto(false);
+            return;
+          } catch {
+            setToast('Não foi possível migrar o rascunho antigo agora. Ele continua salvo neste navegador — tente de novo mais tarde.');
+          }
+        } else {
+          limparRascunhoPanfleto();
+        }
+      }
+
+      setMostrarPainelProjetos(true);
+      setCarregandoProjeto(false);
+    }
+    iniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autosave do estado do editor (produtos) no projeto.
+  useEffect(() => {
+    if (!prontoParaPersistir || !projetoAtivo) return;
+    const timer = setTimeout(() => {
+      const estadoEditor: EstadoEditorPanfleto = {
+        produtos: produtos.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
+      };
+      projetoCartazService.atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> }).catch(() => {
+        setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.');
+      });
     }, 700);
     return () => clearTimeout(timer);
-  }, [prontoParaPersistir, produtos]);
+  }, [prontoParaPersistir, projetoAtivo, produtos]);
+
+  useEffect(() => {
+    setProdutosRecentes(carregarProdutosRecentes());
+  }, [projetoAtivo?.id]);
+
+  useEffect(() => {
+    const ids = produtosRecentes.map((p) => p.arquivoId);
+    if (ids.length === 0) return;
+    arquivoCartazService
+      .obterUrls(ids)
+      .then((resultado) => setUrlsRecentes(Object.fromEntries(resultado.map((r) => [r.id, r.url]))))
+      .catch(() => undefined);
+  }, [produtosRecentes]);
 
   function desenharPaginaVisivel(indice: number) {
     const visivel = canvasRef.current;
@@ -328,9 +425,6 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     visivel.getContext('2d')?.drawImage(atual, 0, 0);
   }
 
-  // Repinta todas as páginas fora de tela sempre que produtos ou qualquer
-  // parâmetro visual mudam — permite exportar todas de uma vez (.zip) sem
-  // precisar navegar por elas primeiro.
   useEffect(() => {
     const sizing = PRESETS_TAMANHO_PANFLETO[itensPorPagina] || PRESETS_TAMANHO_PANFLETO[9];
     const paginas = construirPaginasPanfleto(produtos, itensPorPagina);
@@ -374,37 +468,12 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     } else {
       desenharPaginaVisivel(indiceValido);
     }
-    // paginaAtual fica de fora de propósito — mudar de página não deve
-    // reconstruir todas as páginas de novo, só redesenhar a visível (efeito
-    // abaixo). Ele só entra aqui pra corrigir o índice quando páginas somem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    produtos,
-    itensPorPagina,
-    mostrarTextosCabecalho,
-    nomeLoja,
-    nomeLojaAlinhamento,
-    titulo,
-    tituloAlinhamento,
-    mostrarTextosRodape,
-    textoRodape1,
-    textoRodape1Alinhamento,
-    textoRodape2,
-    textoRodape2Alinhamento,
-    qrAlinhamento,
-    link,
-    imagemQr,
-    corLogo,
-    corDescricao,
-    corPreco,
-    corFundoCard,
-    tamanhoNome,
-    tamanhoPreco,
-    tamanhoBorda,
-    tamanhoSelo,
-    imagemFundo,
-    manterFaixaBranca,
-    imagemLogo,
+    produtos, itensPorPagina, mostrarTextosCabecalho, nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento,
+    mostrarTextosRodape, textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento,
+    qrAlinhamento, link, imagemQr, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco,
+    tamanhoBorda, tamanhoSelo, imagemFundo, manterFaixaBranca, imagemLogo,
   ]);
 
   useEffect(() => {
@@ -412,13 +481,60 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paginaAtual]);
 
+  /** Envia (presign → PUT → confirmar) a foto ainda não vinculada a nenhum produto adicionado — usada pelo formulário "Adicionar produto". */
+  async function enviarFotoPendente(blob: Blob, mimeType: string) {
+    if (!projetoAtivo) return;
+    ultimoUploadPendenteRef.current = { blob, mimeType };
+    setEnviandoPendente(true);
+    setErroPendente(false);
+    try {
+      const arquivoId = await arquivoCartazService.enviarImagem(blob, mimeType, projetoAtivo.id);
+      setImagemPendenteArquivoId(arquivoId);
+    } catch {
+      setErroPendente(true);
+      setToast('Não foi possível enviar essa foto. Tente de novo.');
+    } finally {
+      setEnviandoPendente(false);
+    }
+  }
+
+  /** Envia a foto de um produto JÁ adicionado (trocar foto) e atualiza o `arquivoId` dele quando terminar. */
+  async function enviarFotoDeProdutoExistente(idx: number, blob: Blob, mimeType: string) {
+    if (!projetoAtivo) return;
+    ultimosUploadsProdutoRef.current.set(idx, { blob, mimeType });
+    setStatusUploadProdutos((atual) => ({ ...atual, [idx]: { enviando: true, erro: false } }));
+    try {
+      const arquivoId = await arquivoCartazService.enviarImagem(blob, mimeType, projetoAtivo.id);
+      setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, arquivoId } : p)));
+      setStatusUploadProdutos((atual) => ({ ...atual, [idx]: { enviando: false, erro: false } }));
+    } catch {
+      setStatusUploadProdutos((atual) => ({ ...atual, [idx]: { enviando: false, erro: true } }));
+      setToast('Não foi possível enviar essa foto. Toque em "Tentar de novo".');
+    }
+  }
+
+  function handleTentarNovamentePendente() {
+    const ultimo = ultimoUploadPendenteRef.current;
+    if (ultimo) enviarFotoPendente(ultimo.blob, ultimo.mimeType);
+  }
+
+  function handleTentarNovamenteProduto(idx: number) {
+    const ultimo = ultimosUploadsProdutoRef.current.get(idx);
+    if (ultimo) enviarFotoDeProdutoExistente(idx, ultimo.blob, ultimo.mimeType);
+  }
+
   async function handleEscolherArquivoPendente(event: ChangeEvent<HTMLInputElement>) {
     const arquivo = event.target.files?.[0];
     event.target.value = '';
     if (!arquivo) return;
     setCarregandoImagem(true);
     try {
-      setImagemPendente(await carregarImagemDeArquivo(arquivo));
+      const { imagem, blob, mimeType } = await carregarImagemEBlobDeArquivo(arquivo);
+      setImagemPendente(imagem);
+      setImagemPendenteArquivoId(null);
+      await enviarFotoPendente(blob, mimeType);
+    } catch {
+      setToast('Não foi possível ler essa foto. Tente outra.');
     } finally {
       setCarregandoImagem(false);
     }
@@ -430,10 +546,16 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     const idx = trocaAlvoIdx.current;
     trocaAlvoIdx.current = null;
     if (!arquivo || idx === null) return;
-    const imagem = await carregarImagemDeArquivo(arquivo);
-    setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem, transform: TRANSFORM_PADRAO_PANFLETO } : p)));
+    try {
+      const { imagem, blob, mimeType } = await carregarImagemEBlobDeArquivo(arquivo);
+      setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem, transform: TRANSFORM_PADRAO_PANFLETO, arquivoId: null } : p)));
+      await enviarFotoDeProdutoExistente(idx, blob, mimeType);
+    } catch {
+      setToast('Não foi possível ler essa foto. Tente outra.');
+    }
   }
 
+  /** Fundo/logo do panfleto — nunca persistidos (mesmo comportamento de antes), continuam usando o carregador simples em memória. */
   async function handleEscolherImagemFundo(event: ChangeEvent<HTMLInputElement>) {
     const arquivo = event.target.files?.[0];
     event.target.value = '';
@@ -448,21 +570,36 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     setImagemLogo(await carregarImagemDeArquivo(arquivo));
   }
 
-  function handleUsarProdutoRecente(produto: ProdutoRecente) {
-    carregarImagemDeDataUrl(produto.imgSrc)
-      .then((img) => {
-        setImagemPendente(img);
-        setNomeProduto(produto.name || '');
-        setDeProduto(produto.de || '');
-        setPorProduto(produto.por || '');
-      })
-      .catch(() => setToast('Não consegui recuperar a foto desse produto.'));
+  async function handleUsarProdutoRecente(produto: ProdutoRecente) {
+    const url = urlsRecentes[produto.arquivoId];
+    if (!url) {
+      setToast('Essa foto não está mais disponível.');
+      return;
+    }
+    try {
+      const img = await carregarImagemDeDataUrl(url);
+      setImagemPendente(img);
+      setImagemPendenteArquivoId(produto.arquivoId);
+      setNomeProduto(produto.name || '');
+      setDeProduto(produto.de || '');
+      setPorProduto(produto.por || '');
+    } catch {
+      setToast('Não consegui recuperar a foto desse produto.');
+    }
   }
 
   function handleAdicionarProduto() {
     const nomeTrim = nomeProduto.trim();
     if (!imagemPendente) {
       setToast('Escolha a foto do produto antes de adicionar.');
+      return;
+    }
+    if (enviandoPendente) {
+      setToast('Aguarde a foto terminar de enviar antes de adicionar.');
+      return;
+    }
+    if (!imagemPendenteArquivoId) {
+      setToast('O envio dessa foto falhou — tente de novo antes de adicionar.');
       return;
     }
     if (!nomeTrim) {
@@ -474,11 +611,12 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       return;
     }
 
-    setProdutos((atual) => [...atual, { imagem: imagemPendente, nome: nomeTrim, de: deProduto, por: porProduto, transform: TRANSFORM_PADRAO_PANFLETO }]);
-    salvarProdutoRecente({ imgSrc: imagemPendente.src, name: nomeTrim, de: deProduto, por: porProduto });
+    setProdutos((atual) => [...atual, { imagem: imagemPendente, nome: nomeTrim, de: deProduto, por: porProduto, transform: TRANSFORM_PADRAO_PANFLETO, arquivoId: imagemPendenteArquivoId }]);
+    salvarProdutoRecente({ arquivoId: imagemPendenteArquivoId, name: nomeTrim, de: deProduto, por: porProduto });
     setProdutosRecentes(carregarProdutosRecentes());
 
     setImagemPendente(null);
+    setImagemPendenteArquivoId(null);
     setNomeProduto('');
     setDeProduto('');
     setPorProduto('');
@@ -514,7 +652,6 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     return { conteudo: zipBlob, nomeArquivo: `panfletos-${Date.now()}.zip`, mime: 'application/zip' };
   }
 
-  /** Baixa ou compartilha (Web Share, quando o navegador suportar) — no celular, dá pra mandar direto pro WhatsApp. */
   async function handleBaixarPanfleto() {
     setSalvando(true);
     try {
@@ -529,7 +666,6 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     }
   }
 
-  /** Salva direto na pasta de Downloads do computador, sem passar pela folha de compartilhar. */
   async function handleBaixarPanfletoDireto() {
     setSalvandoDireto(true);
     try {
@@ -569,19 +705,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     setAjusteIdx(null);
   }
 
-  /** Grava os ajustes feitos no editor de story individual (posição/tamanho/texto) de volta no produto. */
   function handleSalvarAjustesStory(idx: number, ajustesStory: AjustesStoryProduto, campos: { nome: string; de: string; por: string }) {
     setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...campos, ajustesStory } : p)));
   }
 
-  /**
-   * Analisa a foto de CADA produto (localmente, sem servidor) e ajusta a
-   * posição de nome/preço/frases pra evitar a parte mais "cheia" da imagem —
-   * mesma heurística do botão "🪄 Sugerir posição" do editor individual (ver
-   * `sugerirPosicoesTexto`), só que pro lote inteiro de uma vez em vez de
-   * abrir produto por produto. Fica salvo no `ajustesStory` de cada um, então
-   * continua arrastável individualmente depois se algum não ficar bom.
-   */
   function handleSugerirPosicaoTodos() {
     if (produtos.length === 0) {
       setToast('Adicione produtos ao panfleto antes de analisar as fotos.');
@@ -610,13 +737,6 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     );
   }
 
-  /**
-   * Gera o story (1080×1920) de CADA produto do panfleto e abre a prévia em
-   * galeria antes de baixar/compartilhar — dá pra conferir posição/corte/preço
-   * do lote inteiro de uma vez em vez de só descobrir um problema depois de já
-   * ter mandado pro grupo. Cada produto usa seu `ajustesStory`, senão o padrão
-   * do modo Story — mesma regra de `EditarStoryProdutoModal`.
-   */
   function handleGerarGaleriaStories() {
     if (produtos.length === 0) {
       setToast('Adicione produtos ao panfleto antes de gerar os stories.');
@@ -635,7 +755,6 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     setItensGaleriaStories(itens);
   }
 
-  /** Confirmação da galeria — mesma lógica de baixar/compartilhar de antes, só que agora depois de revisar. */
   async function handleBaixarTodosStories() {
     if (!itensGaleriaStories) return;
     setBaixandoStories(true);
@@ -650,6 +769,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     }
   }
 
+  function handleTrocarProjeto() {
+    setMostrarPainelProjetos(true);
+  }
+
   function OpcoesAlinhamento({ value, onChange }: { value: AlinhamentoTexto; onChange: (v: AlinhamentoTexto) => void }) {
     return (
       <select value={value} onChange={(e) => onChange(e.target.value as AlinhamentoTexto)}>
@@ -660,392 +783,427 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     );
   }
 
+  if (carregandoProjeto) {
+    return <div className="card cartaz-painel">Carregando…</div>;
+  }
+
   return (
     <>
-      <div className="cartaz-cols">
-        <div className="card cartaz-painel">
-          <h3 className="cartaz-titulo-secao">Adicionar produto ao panfleto</h3>
+      {mostrarPainelProjetos && (
+        <ProjetosCartazPainel tipo="panfleto" onAbrirProjeto={aplicarProjeto} onFechar={projetoAtivo ? () => setMostrarPainelProjetos(false) : undefined} />
+      )}
 
-          {produtosRecentes.length > 0 && (
-            <div className="field" style={{ marginBottom: 10 }}>
-              <label>Últimos produtos usados</label>
-              <div className="cartaz-recentes">
-                {produtosRecentes.map((p) => (
-                  <button
-                    type="button"
-                    key={`${p.name}-${p.usedAt}`}
-                    className="cartaz-recente-item"
-                    title={`Usar "${p.name}" de novo`}
-                    onClick={() => handleUsarProdutoRecente(p)}
-                  >
-                    <img src={p.imgSrc} alt="" />
-                    <span className="cartaz-recente-nome">{p.name}</span>
-                    <span className="cartaz-recente-preco">R${fmtMoney(p.por)}</span>
-                  </button>
-                ))}
-              </div>
+      {projetoAtivo && (
+        <div className="cartaz-cols">
+          <div className="card cartaz-painel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
+                Adicionar produto ao panfleto
+              </h3>
+              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12 }} onClick={handleTrocarProjeto}>
+                📁 {projetoAtivo.nome}
+              </button>
             </div>
-          )}
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            <label
-              className="upload-box"
-              style={{ display: 'block', cursor: 'pointer', flex: 1, margin: 0 }}
-              onClick={() => inputPendenteRef.current?.click()}
-            >
-              {carregandoImagem
-                ? '⏳ Carregando foto...'
-                : imagemPendente
-                  ? '📷 Trocar foto'
-                  : '📷 Escolher foto'}
-            </label>
-            <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, whiteSpace: 'nowrap' }} onClick={() => setCameraDestino('pendente')}>
-              📸 Tirar foto
-            </button>
-            <input ref={inputPendenteRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEscolherArquivoPendente} />
-          </div>
-          {imagemPendente && (
-            <div style={{ marginBottom: 10 }}>
-              <img src={imagemPendente.src} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8 }} />
-            </div>
-          )}
-
-          <div className="field">
-            <label>Nome do produto</label>
-            <input value={nomeProduto} onChange={(e) => setNomeProduto(e.target.value)} placeholder="Ex: SIMETICONA 125MG 30CAP" />
-          </div>
-          <div className="field-row">
-            <div className="field">
-              <label>De (R$)</label>
-              <input type="number" step="0.01" value={deProduto} onChange={(e) => setDeProduto(e.target.value)} placeholder="20,99" />
-            </div>
-            <div className="field">
-              <label>Por (R$)</label>
-              <input type="number" step="0.01" value={porProduto} onChange={(e) => setPorProduto(e.target.value)} placeholder="9,99" />
-            </div>
-          </div>
-          <button type="button" className="btn-primary" style={{ width: '100%' }} onClick={handleAdicionarProduto}>
-            + Adicionar ao panfleto
-          </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 20 }}>
-            <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
-              Produtos no panfleto
-            </h3>
-            <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12, padding: '6px 10px' }} onClick={handleRemoverTodos}>
-              🗑️ Remover todos
-            </button>
-          </div>
-          {aoAbrirConfiguracaoPadrao && (
-            <button
-              type="button"
-              className="btn-ghost"
-              style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
-              onClick={aoAbrirConfiguracaoPadrao}
-            >
-              🖋️ Editar tamanho/posição padrão dos stories (vale pra todo produto sem ajuste próprio)
-            </button>
-          )}
-          {produtos.length > 0 && (
-            <button
-              type="button"
-              className="btn-ghost"
-              style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
-              onClick={handleSugerirPosicaoTodos}
-              title="Analisa a foto de cada produto e ajusta nome/preço pra evitar tapar o produto"
-            >
-              🪄 Analisar e ajustar posição de todas as fotos
-            </button>
-          )}
-          {produtos.length > 0 && (
-            <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
-              Sugestão automática por produto — roda na hora, sem mandar as fotos pra lugar nenhum. Não é perfeita; dá pra ajustar um produto específico depois em "📱".
-            </p>
-          )}
-          {produtos.length > 0 && (
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
-              onClick={handleGerarGaleriaStories}
-            >
-              👁️ Ver todos os stories antes de baixar ({produtos.length})
-            </button>
-          )}
-          {produtos.length > 0 && (
-            <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
-              Mostra uma prévia de todos pra conferir antes. No celular, o botão de dentro abre a folha de compartilhar já com as imagens prontas pra postar no WhatsApp/Instagram; no computador, baixa um .zip com todas.
-            </p>
-          )}
-          <div className="product-list">
-            {produtos.length === 0 && <div className="empty-note">Nenhum produto adicionado ainda.</div>}
-            {produtos.map((p, idx) => (
-              <div className="product-row" key={`${p.nome}-${idx}`}>
-                <img src={p.imagem.src} alt="" />
-                <div className="pinfo">
-                  <div className="pname">{p.nome}</div>
-                  <div className="pprice">
-                    {p.de ? `De R$${p.de} · ` : ''}Por R${p.por}
-                  </div>
-                </div>
-                <div className="product-row-acoes">
-                  <button
-                    type="button"
-                    className="product-row-acao"
-                    title="Trocar foto (galeria)"
-                    onClick={() => {
-                      trocaAlvoIdx.current = idx;
-                      inputTrocaRef.current?.click();
-                    }}
-                  >
-                    🔄
-                  </button>
-                  <button type="button" className="product-row-acao" title="Trocar foto (câmera)" onClick={() => setCameraDestino(idx)}>
-                    📸
-                  </button>
-                  <button type="button" className="product-row-acao" title="Ajustar enquadramento da foto (usado ao gerar story individual)" onClick={() => setAjusteIdx(idx)}>
-                    🖼️
-                  </button>
-                  <button type="button" className="product-row-acao" title="Editar e baixar o story individual deste produto" onClick={() => setEditarStoryIdx(idx)}>
-                    📱
-                  </button>
-                  <button type="button" title="Remover" onClick={() => handleRemoverProduto(idx)}>
-                    Remover
-                  </button>
+            {produtosRecentes.length > 0 && (
+              <div className="field" style={{ marginBottom: 10 }}>
+                <label>Últimos produtos usados</label>
+                <div className="cartaz-recentes">
+                  {produtosRecentes.map((p) => (
+                    <button
+                      type="button"
+                      key={`${p.name}-${p.usedAt}`}
+                      className="cartaz-recente-item"
+                      title={`Usar "${p.name}" de novo`}
+                      onClick={() => handleUsarProdutoRecente(p)}
+                    >
+                      {urlsRecentes[p.arquivoId] ? <img src={urlsRecentes[p.arquivoId]} alt="" /> : <span aria-hidden="true">💊</span>}
+                      <span className="cartaz-recente-nome">{p.name}</span>
+                      <span className="cartaz-recente-preco">R${fmtMoney(p.por)}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-          <input ref={inputTrocaRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleTrocarFotoProduto} />
+            )}
 
-          <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '16px 0' }} />
-
-          <h3 className="cartaz-titulo-secao">Textos do cabeçalho</h3>
-          <label className="cartaz-checkbox">
-            <input type="checkbox" checked={mostrarTextosCabecalho} onChange={(e) => setMostrarTextosCabecalho(e.target.checked)} /> Mostrar
-            textos do cabeçalho
-          </label>
-          <div className="field-row">
-            <div className="field" style={{ flex: 2 }}>
-              <label>Nome da loja</label>
-              <input value={nomeLoja} onChange={(e) => setNomeLoja(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Posição</label>
-              <OpcoesAlinhamento value={nomeLojaAlinhamento} onChange={setNomeLojaAlinhamento} />
-            </div>
-          </div>
-          <div className="field-row">
-            <div className="field" style={{ flex: 2 }}>
-              <label>Título/chamada</label>
-              <input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Posição</label>
-              <OpcoesAlinhamento value={tituloAlinhamento} onChange={setTituloAlinhamento} />
-            </div>
-          </div>
-
-          <h3 className="cartaz-titulo-secao" style={{ marginTop: 18 }}>
-            Textos do rodapé
-          </h3>
-          <label className="cartaz-checkbox">
-            <input type="checkbox" checked={mostrarTextosRodape} onChange={(e) => setMostrarTextosRodape(e.target.checked)} /> Mostrar
-            textos do rodapé
-          </label>
-          <div className="field-row">
-            <div className="field" style={{ flex: 2 }}>
-              <label>Frase principal do rodapé</label>
-              <input value={textoRodape1} onChange={(e) => setTextoRodape1(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Posição</label>
-              <OpcoesAlinhamento value={textoRodape1Alinhamento} onChange={setTextoRodape1Alinhamento} />
-            </div>
-          </div>
-          <div className="field-row">
-            <div className="field" style={{ flex: 2 }}>
-              <label>Frase secundária do rodapé</label>
-              <input value={textoRodape2} onChange={(e) => setTextoRodape2(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Posição</label>
-              <OpcoesAlinhamento value={textoRodape2Alinhamento} onChange={setTextoRodape2Alinhamento} />
-            </div>
-          </div>
-          <div className="field">
-            <label>Posição do QR Code</label>
-            <select value={qrAlinhamento} onChange={(e) => setQrAlinhamento(e.target.value as 'left' | 'right')}>
-              <option value="left">Esquerda</option>
-              <option value="right">Direita</option>
-            </select>
-          </div>
-          <p className="footnote" style={{ textAlign: 'left', margin: '-6px 0 14px' }}>
-            Dica: se o texto e o QR Code ficarem se sobrepondo, escolha posições opostas (ex: QR à esquerda, texto
-            centralizado ou à direita).
-          </p>
-
-          <div className="field">
-            <label>Itens por panfleto</label>
-            <select value={itensPorPagina} onChange={(e) => setItensPorPagina(Number(e.target.value))}>
-              {ITENS_POR_PAGINA_OPCOES.map((n) => (
-                <option key={n} value={n}>
-                  {n === 3 ? '3 (fotos grandes)' : n === 9 ? '9 (padrão)' : n === 12 ? '12 (fotos menores)' : n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="footnote" style={{ textAlign: 'left', margin: '-6px 0 12px' }}>
-            Se tiver mais produtos do que cabe, o restante vira automaticamente outros panfletos (baixados juntos num
-            .zip).
-          </p>
-
-          <div className="field-row">
-            <div className="field">
-              <label>Cor da logo</label>
-              <input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Cor da descrição</label>
-              <input type="color" value={corDescricao} onChange={(e) => setCorDescricao(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Cor do preço</label>
-              <input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} />
-            </div>
-          </div>
-          <div className="field">
-            <label>Cor de fundo dos quadrantes dos produtos</label>
-            <input type="color" value={corFundoCard} onChange={(e) => setCorFundoCard(e.target.value)} />
-          </div>
-          <div className="field-row">
-            <div className="field">
-              <label>Tamanho da descrição {tamanhoNome}px</label>
-              <input type="range" min={10} max={24} value={tamanhoNome} onChange={(e) => setTamanhoNome(Number(e.target.value))} />
-            </div>
-            <div className="field">
-              <label>Tamanho do preço {tamanhoPreco}px</label>
-              <input type="range" min={13} max={30} value={tamanhoPreco} onChange={(e) => setTamanhoPreco(Number(e.target.value))} />
-            </div>
-          </div>
-          <div className="field-row">
-            <div className="field">
-              <label>Tamanho da borda externa {tamanhoBorda}px</label>
-              <input type="range" min={12} max={90} value={tamanhoBorda} onChange={(e) => setTamanhoBorda(Number(e.target.value))} />
-            </div>
-            <div className="field">
-              <label>Tamanho da letra do selo de desconto {tamanhoSelo}px</label>
-              <input type="range" min={9} max={22} value={tamanhoSelo} onChange={(e) => setTamanhoSelo(Number(e.target.value))} />
-            </div>
-          </div>
-
-          <div className="field">
-            <label>Imagem de fundo do panfleto (opcional)</label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <label
                 className="upload-box"
-                style={{ display: 'block', cursor: 'pointer', flex: 1, margin: 0, fontSize: 12, padding: 14 }}
-                onClick={() => inputFundoRef.current?.click()}
+                style={{ display: 'block', cursor: enviandoPendente ? 'wait' : 'pointer', flex: 1, margin: 0 }}
+                onClick={() => !enviandoPendente && inputPendenteRef.current?.click()}
               >
-                {imagemFundo ? '🖼️ Trocar imagem de fundo' : '🖼️ Escolher imagem de fundo'}
+                {carregandoImagem
+                  ? '⏳ Carregando foto...'
+                  : enviandoPendente
+                    ? '⬆️ Enviando...'
+                    : imagemPendente
+                      ? '📷 Trocar foto'
+                      : '📷 Escolher foto'}
               </label>
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={() => setImagemFundo(null)}>
-                Remover
+              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, whiteSpace: 'nowrap' }} disabled={enviandoPendente} onClick={() => setCameraDestino('pendente')}>
+                📸 Tirar foto
               </button>
+              <input ref={inputPendenteRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEscolherArquivoPendente} />
             </div>
-            <input ref={inputFundoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEscolherImagemFundo} />
-            <label className="cartaz-checkbox" style={{ marginTop: 10 }}>
-              <input type="checkbox" checked={manterFaixaBranca} onChange={(e) => setManterFaixaBranca(e.target.checked)} /> Manter faixa
-              branca atrás do cabeçalho e do rodapé (ajuda a ler o texto sobre a imagem de fundo)
-            </label>
-          </div>
-
-          <div className="cartaz-imagem-extra">
-            <div>
-              <strong>Logomarca ou selo</strong>
-              <span>PNG com fundo transparente aparece no canto da foto de TODOS os produtos do panfleto.</span>
-            </div>
-            <div className="cartaz-imagem-extra-actions">
-              <button type="button" className="btn-ghost" onClick={() => inputLogoRef.current?.click()}>
-                {imagemLogo ? 'Trocar PNG' : '+ Adicionar PNG'}
-              </button>
-              {imagemLogo && (
-                <button type="button" className="btn-ghost" onClick={() => setImagemLogo(null)}>
-                  Remover
+            {imagemPendente && (
+              <div style={{ marginBottom: 10 }}>
+                <img src={imagemPendente.src} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8 }} />
+              </div>
+            )}
+            {erroPendente && (
+              <p className="footnote" style={{ textAlign: 'left', color: '#c0392b', margin: '0 0 10px' }}>
+                A foto não foi enviada.{' '}
+                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, padding: '2px 8px', fontSize: 12 }} onClick={handleTentarNovamentePendente}>
+                  Tentar de novo
                 </button>
-              )}
+              </p>
+            )}
+
+            <div className="field">
+              <label>Nome do produto</label>
+              <input value={nomeProduto} onChange={(e) => setNomeProduto(e.target.value)} placeholder="Ex: SIMETICONA 125MG 30CAP" />
             </div>
-            <input ref={inputLogoRef} type="file" accept="image/png" style={{ display: 'none' }} onChange={handleEscolherImagemLogo} />
-          </div>
-
-          <div className="field">
-            <label>Link do Pix / WhatsApp para o QR Code (opcional)</label>
-            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Ex: https://wa.me/5511999999999" />
-          </div>
-
-          <div className="cartaz-actions">
-            <button type="button" className="btn-ghost" onClick={handleBaixarPanfleto} disabled={salvando}>
-              {salvando ? 'Gerando…' : '⬇️ Baixar ou compartilhar (WhatsApp etc.)'}
+            <div className="field-row">
+              <div className="field">
+                <label>De (R$)</label>
+                <input type="number" step="0.01" value={deProduto} onChange={(e) => setDeProduto(e.target.value)} placeholder="20,99" />
+              </div>
+              <div className="field">
+                <label>Por (R$)</label>
+                <input type="number" step="0.01" value={porProduto} onChange={(e) => setPorProduto(e.target.value)} placeholder="9,99" />
+              </div>
+            </div>
+            <button type="button" className="btn-primary" style={{ width: '100%' }} onClick={handleAdicionarProduto}>
+              + Adicionar ao panfleto
             </button>
-            <button type="button" className="btn-primary" onClick={handleBaixarPanfletoDireto} disabled={salvandoDireto}>
-              {salvandoDireto ? 'Gerando…' : '💾 Salvar direto no computador'}
-            </button>
-          </div>
-          <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
-            "Salvar direto no computador" vai sem passar pela folha de compartilhar — cai certinho na pasta de
-            Downloads.
-          </p>
-          <div className="cartaz-actions cartaz-actions--single">
-            <button type="button" className="btn-ghost" onClick={handleCopiarTexto}>
-              📋 Copiar texto pronto (WhatsApp/Instagram)
-            </button>
-          </div>
-          <p className="footnote">Sem limite de gerações. Adicione quantos produtos quiser — o layout se ajusta sozinho.</p>
-        </div>
 
-        <div className="cartaz-preview">
-          <div className="cartaz-preview-head">
-            <strong>Prévia em tempo real</strong>
-            <span>O panfleto se atualiza conforme você edita.</span>
-          </div>
-          <div className="cartaz-canvas-frame cartaz-canvas-frame--panfleto">
-            <canvas ref={canvasRef} className="cartaz-canvas cartaz-canvas--panfleto" />
-          </div>
-          {totalPaginas > 1 && (
-            <div className="panfleto-paginacao">
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} disabled={paginaAtual === 0} onClick={() => setPaginaAtual((p) => Math.max(0, p - 1))}>
-                ◀
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 20 }}>
+              <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
+                Produtos no panfleto
+              </h3>
+              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12, padding: '6px 10px' }} onClick={handleRemoverTodos}>
+                🗑️ Remover todos
               </button>
-              <span>
-                Página {paginaAtual + 1}/{totalPaginas}
-              </span>
+            </div>
+            {aoAbrirConfiguracaoPadrao && (
               <button
                 type="button"
                 className="btn-ghost"
-                style={{ width: 'auto', margin: 0 }}
-                disabled={paginaAtual >= totalPaginas - 1}
-                onClick={() => setPaginaAtual((p) => Math.min(totalPaginas - 1, p + 1))}
+                style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
+                onClick={aoAbrirConfiguracaoPadrao}
               >
-                ▶
+                🖋️ Editar tamanho/posição padrão dos stories (vale pra todo produto sem ajuste próprio)
+              </button>
+            )}
+            {produtos.length > 0 && (
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
+                onClick={handleSugerirPosicaoTodos}
+                title="Analisa a foto de cada produto e ajusta nome/preço pra evitar tapar o produto"
+              >
+                🪄 Analisar e ajustar posição de todas as fotos
+              </button>
+            )}
+            {produtos.length > 0 && (
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
+                onClick={handleGerarGaleriaStories}
+              >
+                👁️ Ver todos os stories antes de baixar ({produtos.length})
+              </button>
+            )}
+            <div className="product-list">
+              {produtos.length === 0 && <div className="empty-note">Nenhum produto adicionado ainda.</div>}
+              {produtos.map((p, idx) => (
+                <div className="product-row" key={`${p.nome}-${idx}`}>
+                  <img src={p.imagem.src} alt="" />
+                  <div className="pinfo">
+                    <div className="pname">{p.nome}</div>
+                    <div className="pprice">
+                      {p.de ? `De R$${p.de} · ` : ''}Por R${p.por}
+                    </div>
+                    {statusUploadProdutos[idx]?.enviando && <span className="bstatus searching">Enviando foto...</span>}
+                    {statusUploadProdutos[idx]?.erro && (
+                      <span className="bstatus failed">
+                        Falha no envio —{' '}
+                        <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, padding: '1px 6px', fontSize: 11 }} onClick={() => handleTentarNovamenteProduto(idx)}>
+                          Tentar de novo
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                  <div className="product-row-acoes">
+                    <button
+                      type="button"
+                      className="product-row-acao"
+                      title="Trocar foto (galeria)"
+                      onClick={() => {
+                        trocaAlvoIdx.current = idx;
+                        inputTrocaRef.current?.click();
+                      }}
+                    >
+                      🔄
+                    </button>
+                    <button type="button" className="product-row-acao" title="Trocar foto (câmera)" onClick={() => setCameraDestino(idx)}>
+                      📸
+                    </button>
+                    <button type="button" className="product-row-acao" title="Ajustar enquadramento da foto (usado ao gerar story individual)" onClick={() => setAjusteIdx(idx)}>
+                      🖼️
+                    </button>
+                    <button type="button" className="product-row-acao" title="Editar e baixar o story individual deste produto" onClick={() => setEditarStoryIdx(idx)}>
+                      📱
+                    </button>
+                    <button type="button" title="Remover" onClick={() => handleRemoverProduto(idx)}>
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <input ref={inputTrocaRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleTrocarFotoProduto} />
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '16px 0' }} />
+
+            <h3 className="cartaz-titulo-secao">Textos do cabeçalho</h3>
+            <label className="cartaz-checkbox">
+              <input type="checkbox" checked={mostrarTextosCabecalho} onChange={(e) => setMostrarTextosCabecalho(e.target.checked)} /> Mostrar
+              textos do cabeçalho
+            </label>
+            <div className="field-row">
+              <div className="field" style={{ flex: 2 }}>
+                <label>Nome da loja</label>
+                <input value={nomeLoja} onChange={(e) => setNomeLoja(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Posição</label>
+                <OpcoesAlinhamento value={nomeLojaAlinhamento} onChange={setNomeLojaAlinhamento} />
+              </div>
+            </div>
+            <div className="field-row">
+              <div className="field" style={{ flex: 2 }}>
+                <label>Título/chamada</label>
+                <input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Posição</label>
+                <OpcoesAlinhamento value={tituloAlinhamento} onChange={setTituloAlinhamento} />
+              </div>
+            </div>
+
+            <h3 className="cartaz-titulo-secao" style={{ marginTop: 18 }}>
+              Textos do rodapé
+            </h3>
+            <label className="cartaz-checkbox">
+              <input type="checkbox" checked={mostrarTextosRodape} onChange={(e) => setMostrarTextosRodape(e.target.checked)} /> Mostrar
+              textos do rodapé
+            </label>
+            <div className="field-row">
+              <div className="field" style={{ flex: 2 }}>
+                <label>Frase principal do rodapé</label>
+                <input value={textoRodape1} onChange={(e) => setTextoRodape1(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Posição</label>
+                <OpcoesAlinhamento value={textoRodape1Alinhamento} onChange={setTextoRodape1Alinhamento} />
+              </div>
+            </div>
+            <div className="field-row">
+              <div className="field" style={{ flex: 2 }}>
+                <label>Frase secundária do rodapé</label>
+                <input value={textoRodape2} onChange={(e) => setTextoRodape2(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Posição</label>
+                <OpcoesAlinhamento value={textoRodape2Alinhamento} onChange={setTextoRodape2Alinhamento} />
+              </div>
+            </div>
+            <div className="field">
+              <label>Posição do QR Code</label>
+              <select value={qrAlinhamento} onChange={(e) => setQrAlinhamento(e.target.value as 'left' | 'right')}>
+                <option value="left">Esquerda</option>
+                <option value="right">Direita</option>
+              </select>
+            </div>
+            <p className="footnote" style={{ textAlign: 'left', margin: '-6px 0 14px' }}>
+              Dica: se o texto e o QR Code ficarem se sobrepondo, escolha posições opostas (ex: QR à esquerda, texto
+              centralizado ou à direita).
+            </p>
+
+            <div className="field">
+              <label>Itens por panfleto</label>
+              <select value={itensPorPagina} onChange={(e) => setItensPorPagina(Number(e.target.value))}>
+                {ITENS_POR_PAGINA_OPCOES.map((n) => (
+                  <option key={n} value={n}>
+                    {n === 3 ? '3 (fotos grandes)' : n === 9 ? '9 (padrão)' : n === 12 ? '12 (fotos menores)' : n}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="footnote" style={{ textAlign: 'left', margin: '-6px 0 12px' }}>
+              Se tiver mais produtos do que cabe, o restante vira automaticamente outros panfletos (baixados juntos num
+              .zip).
+            </p>
+
+            <div className="field-row">
+              <div className="field">
+                <label>Cor da logo</label>
+                <input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Cor da descrição</label>
+                <input type="color" value={corDescricao} onChange={(e) => setCorDescricao(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Cor do preço</label>
+                <input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} />
+              </div>
+            </div>
+            <div className="field">
+              <label>Cor de fundo dos quadrantes dos produtos</label>
+              <input type="color" value={corFundoCard} onChange={(e) => setCorFundoCard(e.target.value)} />
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>Tamanho da descrição {tamanhoNome}px</label>
+                <input type="range" min={10} max={24} value={tamanhoNome} onChange={(e) => setTamanhoNome(Number(e.target.value))} />
+              </div>
+              <div className="field">
+                <label>Tamanho do preço {tamanhoPreco}px</label>
+                <input type="range" min={13} max={30} value={tamanhoPreco} onChange={(e) => setTamanhoPreco(Number(e.target.value))} />
+              </div>
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>Tamanho da borda externa {tamanhoBorda}px</label>
+                <input type="range" min={12} max={90} value={tamanhoBorda} onChange={(e) => setTamanhoBorda(Number(e.target.value))} />
+              </div>
+              <div className="field">
+                <label>Tamanho da letra do selo de desconto {tamanhoSelo}px</label>
+                <input type="range" min={9} max={22} value={tamanhoSelo} onChange={(e) => setTamanhoSelo(Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Imagem de fundo do panfleto (opcional)</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <label
+                  className="upload-box"
+                  style={{ display: 'block', cursor: 'pointer', flex: 1, margin: 0, fontSize: 12, padding: 14 }}
+                  onClick={() => inputFundoRef.current?.click()}
+                >
+                  {imagemFundo ? '🖼️ Trocar imagem de fundo' : '🖼️ Escolher imagem de fundo'}
+                </label>
+                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={() => setImagemFundo(null)}>
+                  Remover
+                </button>
+              </div>
+              <input ref={inputFundoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEscolherImagemFundo} />
+              <label className="cartaz-checkbox" style={{ marginTop: 10 }}>
+                <input type="checkbox" checked={manterFaixaBranca} onChange={(e) => setManterFaixaBranca(e.target.checked)} /> Manter faixa
+                branca atrás do cabeçalho e do rodapé (ajuda a ler o texto sobre a imagem de fundo)
+              </label>
+            </div>
+
+            <div className="cartaz-imagem-extra">
+              <div>
+                <strong>Logomarca ou selo</strong>
+                <span>PNG com fundo transparente aparece no canto da foto de TODOS os produtos do panfleto.</span>
+              </div>
+              <div className="cartaz-imagem-extra-actions">
+                <button type="button" className="btn-ghost" onClick={() => inputLogoRef.current?.click()}>
+                  {imagemLogo ? 'Trocar PNG' : '+ Adicionar PNG'}
+                </button>
+                {imagemLogo && (
+                  <button type="button" className="btn-ghost" onClick={() => setImagemLogo(null)}>
+                    Remover
+                  </button>
+                )}
+              </div>
+              <input ref={inputLogoRef} type="file" accept="image/png" style={{ display: 'none' }} onChange={handleEscolherImagemLogo} />
+            </div>
+
+            <div className="field">
+              <label>Link do Pix / WhatsApp para o QR Code (opcional)</label>
+              <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Ex: https://wa.me/5511999999999" />
+            </div>
+
+            <div className="cartaz-actions">
+              <button type="button" className="btn-ghost" onClick={handleBaixarPanfleto} disabled={salvando}>
+                {salvando ? 'Gerando…' : '⬇️ Baixar ou compartilhar (WhatsApp etc.)'}
+              </button>
+              <button type="button" className="btn-primary" onClick={handleBaixarPanfletoDireto} disabled={salvandoDireto}>
+                {salvandoDireto ? 'Gerando…' : '💾 Salvar direto no computador'}
               </button>
             </div>
-          )}
+            <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
+              "Salvar direto no computador" vai sem passar pela folha de compartilhar — cai certinho na pasta de
+              Downloads.
+            </p>
+            <div className="cartaz-actions cartaz-actions--single">
+              <button type="button" className="btn-ghost" onClick={handleCopiarTexto}>
+                📋 Copiar texto pronto (WhatsApp/Instagram)
+              </button>
+            </div>
+            <p className="footnote">Sem limite de gerações. Adicione quantos produtos quiser — o layout se ajusta sozinho.</p>
+          </div>
+
+          <div className="cartaz-preview">
+            <div className="cartaz-preview-head">
+              <strong>Prévia em tempo real</strong>
+              <span>O panfleto se atualiza conforme você edita.</span>
+            </div>
+            <div className="cartaz-canvas-frame cartaz-canvas-frame--panfleto">
+              <canvas ref={canvasRef} className="cartaz-canvas cartaz-canvas--panfleto" />
+            </div>
+            {totalPaginas > 1 && (
+              <div className="panfleto-paginacao">
+                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} disabled={paginaAtual === 0} onClick={() => setPaginaAtual((p) => Math.max(0, p - 1))}>
+                  ◀
+                </button>
+                <span>
+                  Página {paginaAtual + 1}/{totalPaginas}
+                </span>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ width: 'auto', margin: 0 }}
+                  disabled={paginaAtual >= totalPaginas - 1}
+                  onClick={() => setPaginaAtual((p) => Math.min(totalPaginas - 1, p + 1))}
+                >
+                  ▶
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {toast && <div className="toast">{toast}</div>}
 
       <CameraModal
         aberto={cameraDestino !== null}
         onFechar={() => setCameraDestino(null)}
-        onCapturar={(img) => {
-          if (cameraDestino === 'pendente') {
-            setImagemPendente(img);
-          } else if (typeof cameraDestino === 'number') {
-            const idx = cameraDestino;
-            setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem: img, transform: TRANSFORM_PADRAO_PANFLETO } : p)));
-          }
+        onCapturar={async (img) => {
+          const destino = cameraDestino;
           setCameraDestino(null);
+          try {
+            const blob = await blobDeImagem(img, 'image/jpeg', 0.92);
+            if (destino === 'pendente') {
+              setImagemPendente(img);
+              setImagemPendenteArquivoId(null);
+              await enviarFotoPendente(blob, 'image/jpeg');
+            } else if (typeof destino === 'number') {
+              const idx = destino;
+              setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem: img, transform: TRANSFORM_PADRAO_PANFLETO, arquivoId: null } : p)));
+              await enviarFotoDeProdutoExistente(idx, blob, 'image/jpeg');
+            }
+          } catch {
+            setToast('Não foi possível processar a foto capturada.');
+          }
         }}
         guias={montarGuiasCameraDoStory() as GuiaCamera[]}
       />
@@ -1061,10 +1219,6 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
       {editarStoryIdx !== null && produtos[editarStoryIdx] && (
         <EditarStoryProdutoModal
-          // Força remontar ao trocar de produto — sem isso, alternar rápido
-          // entre dois "📱" (fechar um e abrir outro) pode virar só uma troca
-          // de props na MESMA instância aos olhos do React, e os campos
-          // (nome/de/por, useState) ficam com o valor do produto anterior.
           key={editarStoryIdx}
           produto={produtos[editarStoryIdx]}
           onFechar={() => setEditarStoryIdx(null)}

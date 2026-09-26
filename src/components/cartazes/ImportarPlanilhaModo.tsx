@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal, type GuiaCamera } from '../CameraModal';
 import { GaleriaStoriesModal } from './GaleriaStoriesModal';
-import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
+import { blobDeImagem, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
 import {
   ALTURA_STORY,
   LARGURA_STORY,
@@ -22,16 +22,21 @@ import {
 import {
   carregarConfiguracoesLote,
   carregarImagemDeDataUrl,
+  carregarProjetoAtivo,
   carregarRascunhoLote,
+  limparProjetoAtivo,
   limparRascunhoLote,
   montarGuiasCameraDoStory,
   salvarConfiguracoesLote,
-  salvarRascunhoLote,
-  type ResultadoSalvarRascunho,
+  salvarProjetoAtivo,
 } from '../../utils/cartazPersistencia';
 import { compartilharOuBaixarVarios } from '../../utils/compartilharArquivo';
+import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazService';
+import { projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { useFilaUploadImagens } from '../../hooks/useFilaUploadImagens';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
+import { ProjetosCartazPainel } from './ProjetosCartazPainel';
 
 function formatarTamanho(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -47,6 +52,21 @@ const ROTULO_STATUS: Record<ProdutoImportado['status'], string> = {
   failed: 'Busca falhou',
 };
 
+/** Produto salvo no `estadoEditor` do projeto — mesmos campos de `ProdutoImportado`, sem o `HTMLImageElement`. */
+interface ProdutoLoteSalvo {
+  descricao: string;
+  normal: number | null;
+  promo: number | null;
+  ean: string | null;
+  arquivoId: string | null;
+  status: ProdutoImportado['status'];
+  transform: ProdutoImportado['transform'];
+}
+
+interface EstadoEditorLote {
+  produtos: ProdutoLoteSalvo[];
+}
+
 interface ImportarPlanilhaModoProps {
   /** Envia os produtos com foto pro modo Panfleto e troca de aba. */
   aoEnviarParaPanfleto: (produtos: ProdutoPanfleto[]) => void;
@@ -54,21 +74,38 @@ interface ImportarPlanilhaModoProps {
 
 /**
  * Importar planilha (.xls/.xlsx ou colar colunas do Excel/Sheets) — Fase 3 da
- * reescrita de Cartazes como tela React nativa (ver PLANO-REESCRITA-FERRAMENTAS.md).
+ * reescrita de Cartazes como tela React nativa (ver PLANO-REESCRITA-FERRAMENTAS.md),
+ * migrada pra guardar o projeto (produtos + referências de foto) no backend
+ * (Postgres + Cloudflare R2) em vez de `localStorage`/Base64 — ver PLANO da
+ * migração de armazenamento de imagens. Esse era o modo onde o limite de
+ * poucas fotos de câmera (localStorage) mais doía, por importar várias de
+ * uma vez.
  *
- * A leitura/parsing é toda em utils/batchEngine.ts (função pura); os stories
- * em lote reaproveitam `pintarStory` de utils/cartazEngine.ts sem duplicar
- * nada — mesmo motor usado pelo modo Story, só com cores próprias deste modo
- * e o resto (posição das faixas, tamanhos, margens) no padrão de fábrica.
+ * A planilha ORIGINAL (o arquivo .xlsx em si) continua guardada como antes
+ * (Postgres, via `cartazService`/`arquivos_importados`) — só as FOTOS de cada
+ * produto migraram pro R2.
+ *
+ * Upload de fotos passa pela fila (`useFilaUploadImagens`, concorrência
+ * limitada + progresso + retry por item) — tanto fotos manuais/câmera quanto
+ * as encontradas por "buscar automaticamente", que ainda roda uma busca por
+ * vez (não sobrecarrega a busca por IA) mas deixa os UPLOADS das fotos já
+ * encontradas correrem em paralelo.
  */
 export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaModoProps) {
   const inputPlanilhaRef = useRef<HTMLInputElement>(null);
   const inputManualRef = useRef<HTMLInputElement>(null);
   const trocaAlvoIdx = useRef<number | null>(null);
-  const ultimoAvisoRascunhoRef = useRef<ResultadoSalvarRascunho | null>(null);
+
+  // ---- Projeto ativo -------------------------------------------------------
+  const [projetoAtivo, setProjetoAtivo] = useState<ProjetoCartazCompleto | null>(null);
+  const [carregandoProjeto, setCarregandoProjeto] = useState(true);
+  const [mostrarPainelProjetos, setMostrarPainelProjetos] = useState(false);
+  const [prontoParaPersistir, setProntoParaPersistir] = useState(false);
+
+  const fila = useFilaUploadImagens(projetoAtivo?.id ?? null);
+  const idxParaIdLocalRef = useRef<Map<number, string>>(new Map());
 
   const [produtos, setProdutos] = useState<ProdutoImportado[]>([]);
-  const [prontoParaPersistir, setProntoParaPersistir] = useState(false);
   const [statusImportacao, setStatusImportacao] = useState(
     'A planilha precisa ter colunas com o nome do produto, preço normal, valor da promoção e EAN (código de barras).',
   );
@@ -109,9 +146,8 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     }
   }
 
-  // Arquivos já enviados por qualquer aparelho da organização — ver
-  // "Coloque essa opção de baixar/salvar também o arquivo que importo" (pedido
-  // de guardar o arquivo original no servidor, não só os produtos já lidos).
+  // Arquivos já enviados por qualquer aparelho da organização (a planilha
+  // original, sem relação com o R2) — independente de projeto ativo.
   useEffect(() => {
     recarregarArquivosSalvos();
   }, []);
@@ -131,78 +167,149 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     return () => clearTimeout(timer);
   }, [corLogo, corTextoNome, corPreco]);
 
-  // Rascunho dos produtos em andamento — sem isso, um travamento/recarregamento
-  // no meio de um lote de fotos tiradas na hora (a planilha em si não traz
-  // foto nenhuma) perdia tudo sem chance de recuperar, diferente do Panfleto
-  // (que já tinha essa proteção).
-  useEffect(() => {
-    async function restaurarRascunhoSeConfirmado() {
-      const rascunho = carregarRascunhoLote();
-      if (!rascunho || rascunho.produtos.length === 0) return;
+  function atualizarProduto(idx: number, patch: Partial<ProdutoImportado>) {
+    setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+  }
 
-      const quando = rascunho.savedAt ? new Date(rascunho.savedAt).toLocaleString('pt-BR') : '';
-      const mensagem = `Encontramos um rascunho não finalizado com ${rascunho.produtos.length} produto(s) importado(s)${quando ? ` (salvo em ${quando})` : ''}. Deseja continuar de onde parou?`;
-      if (!window.confirm(mensagem)) {
-        limparRascunhoLote();
-        return;
-      }
+  /** Enfileira o upload da foto de um produto (busca automática, manual ou câmera) — concorrência limitada, progresso e retry por item (ver `useFilaUploadImagens`). */
+  function enviarFotoDoProduto(idx: number, blob: Blob, mimeType: string) {
+    const [idLocal] = fila.adicionar([{ blob, mimeType, onSucesso: (arquivoId) => atualizarProduto(idx, { arquivoId }) }]);
+    idxParaIdLocalRef.current.set(idx, idLocal);
+  }
 
-      const restaurados: ProdutoImportado[] = [];
-      let semFotoCount = 0;
-      for (const p of rascunho.produtos) {
-        // `imgSrc` vazio = a foto não coube salvar no rascunho (localStorage
-        // cheio, comum com várias fotos de câmera) — mantém o produto (texto)
-        // marcado como "sem imagem" em vez de descartá-lo.
-        let imagem: HTMLImageElement | null = null;
-        if (p.imgSrc) {
-          try {
-            imagem = await carregarImagemDeDataUrl(p.imgSrc);
-          } catch {
-            /* foto do rascunho corrompida — segue sem ela */
-          }
+  function statusUploadDoProduto(idx: number) {
+    const idLocal = idxParaIdLocalRef.current.get(idx);
+    if (!idLocal) return null;
+    return fila.itens.find((item) => item.idLocal === idLocal) || null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Projeto: carrega o ativo, oferece migrar um rascunho antigo, ou abre o
+  // painel de projetos — mesmo padrão do StoryModo/PanfletoModo.
+
+  async function aplicarProjeto(projeto: ProjetoCartazCompleto) {
+    setProntoParaPersistir(false);
+    setProjetoAtivo(projeto);
+    salvarProjetoAtivo('planilha', projeto.id);
+    setMostrarPainelProjetos(false);
+    idxParaIdLocalRef.current.clear();
+    fila.limpar();
+
+    const estado = (projeto.estadoEditor || {}) as Partial<EstadoEditorLote>;
+    const mapaArquivos = new Map(projeto.arquivos.map((a) => [a.id, a] as const));
+    const salvos = estado.produtos || [];
+
+    const restaurados: ProdutoImportado[] = [];
+    for (const p of salvos) {
+      const arquivo = p.arquivoId ? mapaArquivos.get(p.arquivoId) : undefined;
+      let imagem: HTMLImageElement | null = null;
+      if (arquivo) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          imagem = await carregarImagemDeDataUrl(arquivo.url);
+        } catch {
+          /* foto corrompida/inacessível — produto continua, só sem imagem */
         }
-        if (!imagem) semFotoCount++;
-        restaurados.push({
-          descricao: p.descricao,
-          normal: p.normal,
-          promo: p.promo,
-          ean: p.ean,
-          imagem,
-          status: imagem ? p.status : 'pending',
-          transform: p.transform || TRANSFORM_PADRAO,
-        });
       }
-      setProdutos(restaurados);
-      if (semFotoCount > 0) {
-        setToast(`${semFotoCount} produto(s) recuperado(s) sem a foto — toque em "Trocar" pra tirar de novo.`);
-      }
+      restaurados.push({
+        descricao: p.descricao,
+        normal: p.normal,
+        promo: p.promo,
+        ean: p.ean,
+        imagem,
+        status: imagem ? p.status : 'pending',
+        transform: p.transform || TRANSFORM_PADRAO,
+        arquivoId: imagem ? p.arquivoId : null,
+      });
     }
-    restaurarRascunhoSeConfirmado().finally(() => setProntoParaPersistir(true));
+    setProdutos(restaurados);
+    setProntoParaPersistir(true);
+  }
+
+  async function migrarRascunhoAntigo(rascunho: NonNullable<ReturnType<typeof carregarRascunhoLote>>) {
+    const projeto = await projetoCartazService.criar('planilha', `Lote migrado — ${new Date().toLocaleDateString('pt-BR')}`);
+
+    const produtosMigrados: ProdutoLoteSalvo[] = [];
+    for (const p of rascunho.produtos) {
+      let arquivoId: string | null = null;
+      if (p.imgSrc) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const img = await carregarImagemDeDataUrl(p.imgSrc);
+          // eslint-disable-next-line no-await-in-loop
+          const blob = await blobDeImagem(img, 'image/jpeg', 0.9);
+          // eslint-disable-next-line no-await-in-loop
+          arquivoId = await arquivoCartazService.enviarImagem(blob, 'image/jpeg', projeto.id);
+        } catch {
+          /* foto antiga corrompida — segue sem ela */
+        }
+      }
+      produtosMigrados.push({ descricao: p.descricao, normal: p.normal, promo: p.promo, ean: p.ean, arquivoId, status: p.status, transform: p.transform });
+    }
+
+    const estadoEditor: EstadoEditorLote = { produtos: produtosMigrados };
+    await projetoCartazService.atualizar(projeto.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> });
+    limparRascunhoLote();
+
+    const completo = await projetoCartazService.obter(projeto.id);
+    await aplicarProjeto(completo);
+  }
+
+  useEffect(() => {
+    async function iniciar() {
+      const ponteiro = carregarProjetoAtivo('planilha');
+      if (ponteiro) {
+        try {
+          const projeto = await projetoCartazService.obter(ponteiro);
+          await aplicarProjeto(projeto);
+          setCarregandoProjeto(false);
+          return;
+        } catch {
+          limparProjetoAtivo('planilha');
+        }
+      }
+
+      const rascunhoAntigo = carregarRascunhoLote();
+      if (rascunhoAntigo && rascunhoAntigo.produtos.length > 0) {
+        const migrar = window.confirm(
+          `Encontramos um rascunho de Importar planilha deste navegador com ${rascunhoAntigo.produtos.length} produto(s), de antes dos projetos salvos no servidor. Quer transformá-lo num projeto novo?`,
+        );
+        if (migrar) {
+          try {
+            await migrarRascunhoAntigo(rascunhoAntigo);
+            setCarregandoProjeto(false);
+            return;
+          } catch {
+            setToast('Não foi possível migrar o rascunho antigo agora. Ele continua salvo neste navegador — tente de novo mais tarde.');
+          }
+        } else {
+          limparRascunhoLote();
+        }
+      }
+
+      setMostrarPainelProjetos(true);
+      setCarregandoProjeto(false);
+    }
+    iniciar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Autosave do estado do editor (produtos) no projeto.
   useEffect(() => {
-    if (!prontoParaPersistir) return;
+    if (!prontoParaPersistir || !projetoAtivo) return;
     const timer = setTimeout(() => {
-      const resultado = salvarRascunhoLote(
-        produtos.map((p) => ({ descricao: p.descricao, normal: p.normal, promo: p.promo, ean: p.ean, imgSrc: p.imagem?.src || '', status: p.status, transform: p.transform })),
-      );
-      if (resultado !== 'completo' && ultimoAvisoRascunhoRef.current !== resultado) {
-        ultimoAvisoRascunhoRef.current = resultado;
-        setToast(
-          resultado === 'sem-fotos'
-            ? '⚠️ As fotos não couberam mais pra salvar automaticamente — gere os stories ou envie pro panfleto agora, pra não arriscar perder no meio do caminho.'
-            : '⚠️ Não foi possível salvar o rascunho automático — gere os stories ou envie pro panfleto agora, pra não arriscar perder no meio do caminho.',
-        );
-      } else if (resultado === 'completo') {
-        ultimoAvisoRascunhoRef.current = null;
-      }
+      const estadoEditor: EstadoEditorLote = {
+        produtos: produtos.map((p) => ({ descricao: p.descricao, normal: p.normal, promo: p.promo, ean: p.ean, arquivoId: p.arquivoId, status: p.status, transform: p.transform })),
+      };
+      projetoCartazService.atualizar(projetoAtivo.id, { estadoEditor: estadoEditor as unknown as Record<string, unknown> }).catch(() => {
+        setToast('Não foi possível salvar as últimas alterações — verifique sua conexão.');
+      });
     }, 700);
     return () => clearTimeout(timer);
-  }, [prontoParaPersistir, produtos]);
+  }, [prontoParaPersistir, projetoAtivo, produtos]);
 
-  function atualizarProduto(idx: number, patch: Partial<ProdutoImportado>) {
-    setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+  function handleTrocarProjeto() {
+    setMostrarPainelProjetos(true);
   }
 
   async function handleEscolherPlanilha(event: ChangeEvent<HTMLInputElement>) {
@@ -229,12 +336,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     }
   }
 
-  /**
-   * Guarda o arquivo original no servidor depois de já ter lido com sucesso —
-   * best-effort: se a rede cair aqui, o import em si já funcionou (os
-   * produtos já estão na tela), só não vai dar pra reabrir esse arquivo de
-   * outro aparelho depois. Roda em paralelo, sem travar a tela de import.
-   */
+  /** Guarda a planilha ORIGINAL no servidor (Postgres, sem relação com R2) — inalterado, best-effort. */
   async function enviarArquivoParaServidor(arquivo: File) {
     try {
       await cartazService.enviarArquivo(arquivo);
@@ -301,6 +403,12 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
       const img = await carregarImagemExterna(imageUrl);
       if (imagemExportavel(img)) {
         atualizarProduto(idx, { imagem: img, status: 'found' });
+        try {
+          const blob = await blobDeImagem(img, 'image/jpeg', 0.9);
+          enviarFotoDoProduto(idx, blob, 'image/jpeg');
+        } catch {
+          /* não deu pra converter essa foto pra upload — a arte ainda funciona nesta sessão, só não persiste */
+        }
       } else {
         atualizarProduto(idx, { status: 'failed' });
       }
@@ -309,6 +417,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     }
   }
 
+  /** Busca uma imagem por vez (não sobrecarrega a IA), mas os UPLOADS de cada foto encontrada correm em paralelo (fila com concorrência limitada). */
   async function handleBuscarTodas() {
     setBuscandoTodas(true);
     try {
@@ -328,8 +437,13 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     const idx = trocaAlvoIdx.current;
     trocaAlvoIdx.current = null;
     if (!arquivo || idx === null) return;
-    const imagem = await carregarImagemDeArquivo(arquivo);
-    atualizarProduto(idx, { imagem, status: 'manual', transform: TRANSFORM_PADRAO });
+    try {
+      const { imagem, blob, mimeType } = await carregarImagemEBlobDeArquivo(arquivo);
+      atualizarProduto(idx, { imagem, status: 'manual', transform: TRANSFORM_PADRAO, arquivoId: null });
+      enviarFotoDoProduto(idx, blob, mimeType);
+    } catch {
+      setToast('Não foi possível ler essa foto. Tente outra.');
+    }
   }
 
   function handleRemoverProduto(idx: number) {
@@ -383,6 +497,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
         de: p.normal !== null ? String(p.normal) : '',
         por: p.promo !== null ? String(p.promo) : '',
         transform: p.transform,
+        arquivoId: p.arquivoId,
       })),
     );
     setToast(`${comImagem.length} produto(s) enviados pro panfleto!`);
@@ -448,168 +563,205 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
 
   const produtoAjuste = ajusteIdx !== null ? produtos[ajusteIdx] : null;
 
+  if (carregandoProjeto) {
+    return <div className="card cartaz-painel">Carregando…</div>;
+  }
+
   return (
     <>
-      <div className="card cartaz-painel">
-        <h3 className="cartaz-titulo-secao">Importar planilha (.xls ou .xlsx)</h3>
-        <label className="upload-box cartaz-upload-planilha" onClick={() => inputPlanilhaRef.current?.click()}>
-          📊 Clique para escolher o arquivo da planilha
-        </label>
-        <input ref={inputPlanilhaRef} type="file" accept=".xls,.xlsx" style={{ display: 'none' }} onChange={handleEscolherPlanilha} />
-        <p className="footnote" style={{ textAlign: 'left' }}>
-          {statusImportacao}
-        </p>
+      {mostrarPainelProjetos && (
+        <ProjetosCartazPainel tipo="planilha" onAbrirProjeto={aplicarProjeto} onFechar={projetoAtivo ? () => setMostrarPainelProjetos(false) : undefined} />
+      )}
 
-        {!carregandoArquivosSalvos && arquivosSalvos.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <label>Arquivos já enviados (de qualquer computador ou celular)</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-              {arquivosSalvos.map((a) => (
-                <div key={a.id} className="batch-row" style={{ padding: '8px 10px' }}>
-                  <div className="thumb">📄</div>
-                  <div className="binfo">
-                    <div className="bname">{a.nomeOriginal}</div>
-                    <div className="bprice">
-                      {formatarTamanho(a.tamanhoBytes)} · {new Date(a.criadoEm).toLocaleString('pt-BR')}
+      {projetoAtivo && (
+        <>
+          <div className="card cartaz-painel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
+                Importar planilha (.xls ou .xlsx)
+              </h3>
+              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0, fontSize: 12 }} onClick={handleTrocarProjeto}>
+                📁 {projetoAtivo.nome}
+              </button>
+            </div>
+            <label className="upload-box cartaz-upload-planilha" onClick={() => inputPlanilhaRef.current?.click()}>
+              📊 Clique para escolher o arquivo da planilha
+            </label>
+            <input ref={inputPlanilhaRef} type="file" accept=".xls,.xlsx" style={{ display: 'none' }} onChange={handleEscolherPlanilha} />
+            <p className="footnote" style={{ textAlign: 'left' }}>
+              {statusImportacao}
+            </p>
+
+            {!carregandoArquivosSalvos && arquivosSalvos.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <label>Arquivos já enviados (de qualquer computador ou celular)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                  {arquivosSalvos.map((a) => (
+                    <div key={a.id} className="batch-row" style={{ padding: '8px 10px' }}>
+                      <div className="thumb">📄</div>
+                      <div className="binfo">
+                        <div className="bname">{a.nomeOriginal}</div>
+                        <div className="bprice">
+                          {formatarTamanho(a.tamanhoBytes)} · {new Date(a.criadoEm).toLocaleString('pt-BR')}
+                        </div>
+                      </div>
+                      <div className="bactions">
+                        <button type="button" onClick={() => handleUsarArquivoSalvo(a)} disabled={usandoArquivoSalvoId !== null}>
+                          {usandoArquivoSalvoId === a.id ? 'Abrindo…' : '📥 Usar este arquivo'}
+                        </button>
+                        <button type="button" className="del" onClick={() => handleRemoverArquivoSalvo(a)}>
+                          Remover
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="bactions">
-                    <button type="button" onClick={() => handleUsarArquivoSalvo(a)} disabled={usandoArquivoSalvoId !== null}>
-                      {usandoArquivoSalvoId === a.id ? 'Abrindo…' : '📥 Usar este arquivo'}
-                    </button>
-                    <button type="button" className="del" onClick={() => handleRemoverArquivoSalvo(a)}>
-                      Remover
-                    </button>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              </div>
+            )}
 
-        <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '18px 0' }} />
+            <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '18px 0' }} />
 
-        <h3 className="cartaz-titulo-secao">Ou cole direto do Excel/Sheets (uma coluna por vez)</h3>
-        <p className="footnote" style={{ textAlign: 'left', marginBottom: 10 }}>
-          Copia uma coluna inteira da planilha (Ctrl+C) e cola no campo correspondente abaixo — um valor por linha. A
-          ordem das linhas é o que liga um campo ao outro (linha 1 de "Descrição" = linha 1 de "Preço Normal" etc).
-        </p>
-        <div className="field">
-          <label>Descrição do produto (uma por linha)</label>
-          <textarea
-            rows={4}
-            value={descColada}
-            onChange={(e) => setDescColada(e.target.value)}
-            placeholder={'ABERALGINA 500MG/ML GTS 10ML\nAPEVITIN BC LIQ 240ML\n...'}
-          />
-        </div>
-        <div className="paste-grid">
-          <div className="field">
-            <label>Preço Normal</label>
-            <textarea rows={4} value={normalColada} onChange={(e) => setNormalColada(e.target.value)} placeholder={'4,00\n17,00\n...'} />
-          </div>
-          <div className="field">
-            <label>Valor Promoção</label>
-            <textarea rows={4} value={promoColada} onChange={(e) => setPromoColada(e.target.value)} placeholder={'1,99\n9,99\n...'} />
-          </div>
-          <div className="field">
-            <label>EAN</label>
-            <textarea rows={4} value={eanColada} onChange={(e) => setEanColada(e.target.value)} placeholder={'7894164000050\n...'} />
-          </div>
-        </div>
-        <button type="button" className="btn-primary cartaz-import-action" onClick={handleAdicionarColados}>
-          + Adicionar produtos colados
-        </button>
-      </div>
-
-      {produtos.length > 0 && (
-        <div className="card cartaz-painel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-            <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
-              Produtos importados ({produtos.length})
-            </h3>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleBuscarTodas} disabled={buscandoTodas}>
-                {buscandoTodas ? 'Buscando…' : '🔍 Buscar todas as imagens'}
-              </button>
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleUsarNoPanfleto}>
-                🗞️ Usar no panfleto
-              </button>
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleCopiarTextoTodos}>
-                📋 Copiar texto pronto
-              </button>
-              <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={handleGerarGaleriaStories}>
-                👁️ Ver todos os stories antes de baixar
-              </button>
-              <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleRemoverTodos}>
-                🗑️ Remover todos
-              </button>
-            </div>
-          </div>
-          <p className="footnote" style={{ textAlign: 'left', marginBottom: 12 }}>
-            A busca automática de imagem nem sempre funciona (muitos sites bloqueiam uso externo da foto) — quando
-            falhar, use "Trocar" pra enviar a foto manualmente.
-          </p>
-          <div className="field-row">
+            <h3 className="cartaz-titulo-secao">Ou cole direto do Excel/Sheets (uma coluna por vez)</h3>
+            <p className="footnote" style={{ textAlign: 'left', marginBottom: 10 }}>
+              Copia uma coluna inteira da planilha (Ctrl+C) e cola no campo correspondente abaixo — um valor por linha. A
+              ordem das linhas é o que liga um campo ao outro (linha 1 de "Descrição" = linha 1 de "Preço Normal" etc).
+            </p>
             <div className="field">
-              <label>Cor do logo/nome (stories gerados)</label>
-              <input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} />
+              <label>Descrição do produto (uma por linha)</label>
+              <textarea
+                rows={4}
+                value={descColada}
+                onChange={(e) => setDescColada(e.target.value)}
+                placeholder={'ABERALGINA 500MG/ML GTS 10ML\nAPEVITIN BC LIQ 240ML\n...'}
+              />
             </div>
-            <div className="field">
-              <label>Cor do texto do nome</label>
-              <input type="color" value={corTextoNome} onChange={(e) => setCorTextoNome(e.target.value)} />
+            <div className="paste-grid">
+              <div className="field">
+                <label>Preço Normal</label>
+                <textarea rows={4} value={normalColada} onChange={(e) => setNormalColada(e.target.value)} placeholder={'4,00\n17,00\n...'} />
+              </div>
+              <div className="field">
+                <label>Valor Promoção</label>
+                <textarea rows={4} value={promoColada} onChange={(e) => setPromoColada(e.target.value)} placeholder={'1,99\n9,99\n...'} />
+              </div>
+              <div className="field">
+                <label>EAN</label>
+                <textarea rows={4} value={eanColada} onChange={(e) => setEanColada(e.target.value)} placeholder={'7894164000050\n...'} />
+              </div>
             </div>
-            <div className="field">
-              <label>Cor do preço</label>
-              <input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} />
-            </div>
+            <button type="button" className="btn-primary cartaz-import-action" onClick={handleAdicionarColados}>
+              + Adicionar produtos colados
+            </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {produtos.map((p, idx) => (
-              <div className="batch-row" key={`${p.descricao}-${idx}`}>
-                <div className="thumb">{p.imagem ? <img src={p.imagem.src} alt="" /> : '💊'}</div>
-                <div className="binfo">
-                  <div className="bname">{p.descricao}</div>
-                  <div className="bprice">
-                    {p.normal ? `De R$${fmtMoney(p.normal)} · ` : ''}
-                    {p.promo ? `Por R$${fmtMoney(p.promo)}` : 'sem preço promo'}
-                    {p.ean ? ` · EAN ${p.ean}` : ''}
-                  </div>
-                  <span className={`bstatus ${p.status}`}>{ROTULO_STATUS[p.status]}</span>
-                </div>
-                <div className="bactions">
-                  <button type="button" onClick={() => buscarImagemProduto(idx)}>
-                    🔍 Buscar
+          {produtos.length > 0 && (
+            <div className="card cartaz-painel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>
+                  Produtos importados ({produtos.length})
+                </h3>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleBuscarTodas} disabled={buscandoTodas}>
+                    {buscandoTodas ? 'Buscando…' : '🔍 Buscar todas as imagens'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      trocaAlvoIdx.current = idx;
-                      inputManualRef.current?.click();
-                    }}
-                  >
-                    📤 Trocar
+                  <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleUsarNoPanfleto}>
+                    🗞️ Usar no panfleto
                   </button>
-                  <button type="button" onClick={() => setCameraDestino(idx)}>
-                    📸 Foto
+                  <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleCopiarTextoTodos}>
+                    📋 Copiar texto pronto
                   </button>
-                  {p.imagem && (
-                    <button type="button" onClick={() => setAjusteIdx(idx)}>
-                      🖼️ Ajustar
-                    </button>
-                  )}
-                  <button type="button" onClick={() => handleCopiarTextoItem(idx)}>
-                    📋 Copiar texto
+                  <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={handleGerarGaleriaStories}>
+                    👁️ Ver todos os stories antes de baixar
                   </button>
-                  <button type="button" className="del" onClick={() => handleRemoverProduto(idx)}>
-                    Remover
+                  <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleRemoverTodos}>
+                    🗑️ Remover todos
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+              <p className="footnote" style={{ textAlign: 'left', marginBottom: 12 }}>
+                A busca automática de imagem nem sempre funciona (muitos sites bloqueiam uso externo da foto) — quando
+                falhar, use "Trocar" pra enviar a foto manualmente.
+              </p>
+              <div className="field-row">
+                <div className="field">
+                  <label>Cor do logo/nome (stories gerados)</label>
+                  <input type="color" value={corLogo} onChange={(e) => setCorLogo(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Cor do texto do nome</label>
+                  <input type="color" value={corTextoNome} onChange={(e) => setCorTextoNome(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Cor do preço</label>
+                  <input type="color" value={corPreco} onChange={(e) => setCorPreco(e.target.value)} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {produtos.map((p, idx) => {
+                  const statusUpload = statusUploadDoProduto(idx);
+                  return (
+                    <div className="batch-row" key={`${p.descricao}-${idx}`}>
+                      <div className="thumb">{p.imagem ? <img src={p.imagem.src} alt="" /> : '💊'}</div>
+                      <div className="binfo">
+                        <div className="bname">{p.descricao}</div>
+                        <div className="bprice">
+                          {p.normal ? `De R$${fmtMoney(p.normal)} · ` : ''}
+                          {p.promo ? `Por R$${fmtMoney(p.promo)}` : 'sem preço promo'}
+                          {p.ean ? ` · EAN ${p.ean}` : ''}
+                        </div>
+                        <span className={`bstatus ${p.status}`}>{ROTULO_STATUS[p.status]}</span>
+                        {statusUpload?.estado === 'enviando' && <span className="bstatus searching"> · Enviando foto {statusUpload.progresso}%</span>}
+                        {statusUpload?.estado === 'erro' && (
+                          <span className="bstatus failed">
+                            {' '}
+                            · Envio falhou —{' '}
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              style={{ width: 'auto', margin: 0, padding: '1px 6px', fontSize: 11 }}
+                              onClick={() => fila.tentarNovamente(idxParaIdLocalRef.current.get(idx)!)}
+                            >
+                              Tentar de novo
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                      <div className="bactions">
+                        <button type="button" onClick={() => buscarImagemProduto(idx)}>
+                          🔍 Buscar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            trocaAlvoIdx.current = idx;
+                            inputManualRef.current?.click();
+                          }}
+                        >
+                          📤 Trocar
+                        </button>
+                        <button type="button" onClick={() => setCameraDestino(idx)}>
+                          📸 Foto
+                        </button>
+                        {p.imagem && (
+                          <button type="button" onClick={() => setAjusteIdx(idx)}>
+                            🖼️ Ajustar
+                          </button>
+                        )}
+                        <button type="button" onClick={() => handleCopiarTextoItem(idx)}>
+                          📋 Copiar texto
+                        </button>
+                        <button type="button" className="del" onClick={() => handleRemoverProduto(idx)}>
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <input ref={inputManualRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleTrocarFotoManual} />
@@ -619,11 +771,17 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
       <CameraModal
         aberto={cameraDestino !== null}
         onFechar={() => setCameraDestino(null)}
-        onCapturar={(img) => {
-          if (cameraDestino !== null) {
-            atualizarProduto(cameraDestino, { imagem: img, status: 'manual', transform: TRANSFORM_PADRAO });
-          }
+        onCapturar={async (img) => {
+          const idx = cameraDestino;
           setCameraDestino(null);
+          if (idx === null) return;
+          atualizarProduto(idx, { imagem: img, status: 'manual', transform: TRANSFORM_PADRAO, arquivoId: null });
+          try {
+            const blob = await blobDeImagem(img, 'image/jpeg', 0.92);
+            enviarFotoDoProduto(idx, blob, 'image/jpeg');
+          } catch {
+            setToast('Não foi possível processar a foto capturada.');
+          }
         }}
         guias={montarGuiasCameraDoStory() as GuiaCamera[]}
       />

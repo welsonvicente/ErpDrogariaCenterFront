@@ -18,12 +18,14 @@ export interface ProdutoImportado {
   imagem: HTMLImageElement | null;
   status: StatusImagemProduto;
   transform: TransformImagem;
+  /** Id do arquivo no R2 (ver `ArquivoCartazService` no backend) — nulo enquanto não houver foto ou o upload dela ainda estiver em andamento/tiver falhado. */
+  arquivoId: string | null;
 }
 
 export const TRANSFORM_PADRAO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
 
 export function novoProdutoImportado(base: { descricao: string; normal: number | null; promo: number | null; ean: string | null }): ProdutoImportado {
-  return { ...base, imagem: null, status: 'pending', transform: TRANSFORM_PADRAO };
+  return { ...base, imagem: null, status: 'pending', transform: TRANSFORM_PADRAO, arquivoId: null };
 }
 
 export function parseCelulaDinheiro(v: unknown): number | null {

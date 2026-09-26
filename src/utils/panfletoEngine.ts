@@ -60,6 +60,12 @@ export interface ProdutoPanfleto {
   transform: TransformImagem;
   /** Ajustes salvos especificamente pro story deste produto — ver `AjustesStoryProduto`. Ausente = usa só o padrão do Story. */
   ajustesStory?: AjustesStoryProduto;
+  /**
+   * Id do arquivo no R2 (ver `ArquivoCartazService` no backend) — nulo
+   * enquanto o upload dessa foto ainda está em andamento/falhou. Não afeta a
+   * pintura (que só usa `imagem`), só a persistência do projeto.
+   */
+  arquivoId?: string | null;
 }
 
 const GUIA_PADRAO_NOME: GuiaFaixa = { y: 130, offsetX: 0 };

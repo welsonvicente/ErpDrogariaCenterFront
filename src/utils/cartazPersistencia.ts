@@ -1,31 +1,47 @@
+import { arquivoCartazService } from '../services/arquivoCartazService';
 import type { StatusImagemProduto } from './batchEngine';
 import type { TransformImagem } from './cartazEngine';
 import type { AjustesStoryProduto } from './panfletoEngine';
 
 /**
- * Persistência local (por navegador/aparelho) do gerador de Story — três
- * coisas guardadas separadamente, portadas de `public/tools/cartazes.html`
- * com o mesmo particionamento que já existia lá:
+ * Persistência local (por navegador/aparelho) do gerador de Cartazes —
+ * depois da migração de armazenamento de imagens pra Cloudflare R2 (ver
+ * PLANO da migração), só sobra aqui:
  *
  *  - **Produtos recentes**: histórico curto pra reaproveitar foto/nome/preço
  *    num clique quando a mesma oferta se repete (comum em promoção semanal).
- *    Reaproveita a MESMA chave de armazenamento que a versão HTML completa
- *    já usa (`/cartazes/completo`) — é o mesmo formato de dado, então um
- *    produto usado numa tela aparece na outra.
+ *    Guarda `arquivoId` (referência ao R2), não mais `imgSrc` em base64 —
+ *    ATENÇÃO: isso quebrou a compatibilidade de formato com a mesma chave
+ *    que a versão HTML completa (`public/tools/cartazes.html`, rota
+ *    `/cartazes/completo`) ainda usa; como aquela versão já é só
+ *    referência/backup (ver PLANO-REESCRITA-FERRAMENTAS.md), não foi
+ *    migrada nesta rodada — os dois não vão mais compartilhar essa lista.
  *  - **Configurações**: cores, tamanhos, margens, frases e posição das
  *    faixas — persistem entre sessões pra não ter que reconfigurar tudo toda
- *    vez que a ferramenta é reaberta. Chave própria desta tela (o formato não
- *    é o mesmo da versão HTML, que guarda por id de elemento DOM).
- *  - **Rascunho**: o produto em andamento (imagem, nome, preço) — recuperado
- *    se a aba fechar ou travar no meio de um lançamento. Diferente das
- *    configurações, é específico do produto, não uma preferência permanente.
+ *    vez que a ferramenta é reaberta. Nunca guardam imagem.
+ *  - **Projeto ativo**: só um ponteiro (id) por modo — o rascunho de verdade
+ *    (produto(s) em andamento, incluindo fotos) mora no backend a partir de
+ *    agora (ver `services/projetoCartazService.ts`), não aqui.
+ *  - **Rascunho antigo** (`carregarRascunho*`/`limparRascunho*` abaixo):
+ *    funções que só restam pra Fase 7 da migração — detectar um rascunho
+ *    salvo antes dessa mudança e oferecer transformá-lo num projeto. Nada no
+ *    app escreve mais nessas chaves.
  */
 
 const CHAVE_PRODUTOS_RECENTES = 'cartazes_recent_products_v1';
 const MAXIMO_PRODUTOS_RECENTES = 20;
 
+/**
+ * `arquivoId` (não mais `imgSrc` em base64) — a foto já está no R2, subida
+ * como parte do produto que gerou esse "recente" (ver `ArquivoCartazService`
+ * no backend: um arquivo `confirmado` sem `projetoId` fica vivo até essa
+ * lista descartar a entrada, nunca é tocado pelo job de limpeza). Pra exibir
+ * a miniatura, quem lê essa lista busca URLs frescas em lote com
+ * `arquivoCartazService.obterUrls` — a URL assinada de leitura expira em
+ * minutos, então nunca é guardada aqui.
+ */
 export interface ProdutoRecente {
-  imgSrc: string;
+  arquivoId: string;
   name: string;
   de: string;
   por: string;
@@ -40,23 +56,39 @@ export function carregarProdutosRecentes(): ProdutoRecente[] {
   }
 }
 
-export function salvarProdutoRecente(produto: { imgSrc: string; name: string; de: string; por: string }) {
-  if (!produto.imgSrc || !produto.name.trim()) return;
-  let lista = carregarProdutosRecentes();
+/**
+ * Quando um produto repetido substitui outro (mesmo nome) ou a lista passa
+ * do limite de 20, a foto correspondente é apagada do R2 em segundo plano —
+ * sem isso, acumulariam pra sempre (ver comentário em `ProdutoRecente`).
+ */
+export function salvarProdutoRecente(produto: { arquivoId: string; name: string; de: string; por: string }) {
+  if (!produto.arquivoId || !produto.name.trim()) return;
+  const atual = carregarProdutosRecentes();
   const chave = produto.name.trim().toLowerCase();
-  lista = lista.filter((p) => (p.name || '').trim().toLowerCase() !== chave);
-  lista.unshift({ ...produto, usedAt: Date.now() });
-  lista = lista.slice(0, MAXIMO_PRODUTOS_RECENTES);
+  const substituido = atual.find((p) => (p.name || '').trim().toLowerCase() === chave) || null;
+  const semODuplicado = atual.filter((p) => (p.name || '').trim().toLowerCase() !== chave);
+  const comNovo = [{ ...produto, usedAt: Date.now() }, ...semODuplicado];
+  const mantidos = comNovo.slice(0, MAXIMO_PRODUTOS_RECENTES);
+  const descartados = comNovo.slice(MAXIMO_PRODUTOS_RECENTES);
+
   try {
-    localStorage.setItem(CHAVE_PRODUTOS_RECENTES, JSON.stringify(lista));
+    localStorage.setItem(CHAVE_PRODUTOS_RECENTES, JSON.stringify(mantidos));
   } catch {
     // provavelmente sem espaço — tenta uma lista mais curta antes de desistir
     try {
-      localStorage.setItem(CHAVE_PRODUTOS_RECENTES, JSON.stringify(lista.slice(0, 8)));
+      localStorage.setItem(CHAVE_PRODUTOS_RECENTES, JSON.stringify(mantidos.slice(0, 8)));
     } catch {
       /* sem espaço nem pra isso — só não guarda dessa vez */
     }
   }
+
+  [substituido, ...descartados]
+    .filter((p): p is ProdutoRecente => p !== null && p.arquivoId !== produto.arquivoId)
+    .forEach((p) => {
+      arquivoCartazService.remover(p.arquivoId).catch(() => {
+        /* best-effort — se falhar, o arquivo fica órfão no R2 até uma limpeza futura; não é crítico */
+      });
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -160,19 +192,11 @@ export function carregarRascunho(): RascunhoStory | null {
   }
 }
 
-export function salvarRascunho(rascunho: Omit<RascunhoStory, 'savedAt'>) {
-  const temAlgo = rascunho.imgSrc || rascunho.nome || rascunho.de || rascunho.por;
-  try {
-    if (temAlgo) {
-      localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({ ...rascunho, savedAt: Date.now() }));
-    } else {
-      localStorage.removeItem(CHAVE_RASCUNHO);
-    }
-  } catch {
-    /* armazenamento indisponível/cheio — sem rascunho desta vez, sem quebrar nada */
-  }
-}
-
+/**
+ * Continua existindo só pra Fase 7 da migração (detectar e oferecer migrar
+ * um rascunho antigo pra um projeto, ver `StoryModo.tsx`) — nada mais volta a
+ * ESCREVER nessa chave desde a migração pra projetos no backend/R2.
+ */
 export function limparRascunho() {
   try {
     localStorage.removeItem(CHAVE_RASCUNHO);
@@ -254,40 +278,11 @@ export function carregarRascunhoPanfleto(): RascunhoPanfleto | null {
   }
 }
 
-export type ResultadoSalvarRascunho = 'completo' | 'sem-fotos' | 'falhou';
-
 /**
- * Salva o rascunho (produtos em andamento) — se o navegador não tiver espaço
- * pras fotos (localStorage costuma ter só uns 5-10MB por site, e fotos de
- * câmera em quantidade estouram isso fácil), tenta de novo SEM as fotos em
- * vez de desistir: perder a posição/nome/preço de tudo é bem pior do que só
- * precisar tirar as fotos de novo. Devolve o que realmente conseguiu salvar,
- * pra quem chamou avisar a pessoa em vez de deixá-la achando que está tudo
- * protegido quando não está.
+ * Continua existindo só pra Fase 7 da migração (detectar e oferecer migrar
+ * um rascunho antigo pra um projeto, ver `PanfletoModo.tsx`) — nada mais
+ * volta a ESCREVER nessa chave desde a migração pra projetos no backend/R2.
  */
-export function salvarRascunhoPanfleto(produtos: ProdutoPanfletoRascunho[]): ResultadoSalvarRascunho {
-  if (!produtos.length) {
-    try {
-      localStorage.removeItem(CHAVE_RASCUNHO_PANFLETO);
-    } catch {
-      /* nada a limpar */
-    }
-    return 'completo';
-  }
-  try {
-    localStorage.setItem(CHAVE_RASCUNHO_PANFLETO, JSON.stringify({ produtos, savedAt: Date.now() }));
-    return 'completo';
-  } catch {
-    try {
-      const semFotos = produtos.map((p) => ({ ...p, imgSrc: '' }));
-      localStorage.setItem(CHAVE_RASCUNHO_PANFLETO, JSON.stringify({ produtos: semFotos, savedAt: Date.now() }));
-      return 'sem-fotos';
-    } catch {
-      return 'falhou';
-    }
-  }
-}
-
 export function limparRascunhoPanfleto() {
   try {
     localStorage.removeItem(CHAVE_RASCUNHO_PANFLETO);
@@ -330,30 +325,12 @@ export function carregarRascunhoLote(): RascunhoLote | null {
   }
 }
 
-/** Mesma estratégia de `salvarRascunhoPanfleto`: sem espaço pras fotos, tenta salvar só o texto em vez de perder tudo. */
-export function salvarRascunhoLote(produtos: ProdutoLoteRascunho[]): ResultadoSalvarRascunho {
-  if (!produtos.length) {
-    try {
-      localStorage.removeItem(CHAVE_RASCUNHO_LOTE);
-    } catch {
-      /* nada a limpar */
-    }
-    return 'completo';
-  }
-  try {
-    localStorage.setItem(CHAVE_RASCUNHO_LOTE, JSON.stringify({ produtos, savedAt: Date.now() }));
-    return 'completo';
-  } catch {
-    try {
-      const semFotos = produtos.map((p) => ({ ...p, imgSrc: '' }));
-      localStorage.setItem(CHAVE_RASCUNHO_LOTE, JSON.stringify({ produtos: semFotos, savedAt: Date.now() }));
-      return 'sem-fotos';
-    } catch {
-      return 'falhou';
-    }
-  }
-}
-
+/**
+ * Continua existindo só pra Fase 7 da migração (detectar e oferecer migrar
+ * um rascunho antigo pra um projeto, ver `ImportarPlanilhaModo.tsx`) — nada
+ * mais volta a ESCREVER nessa chave desde a migração pra projetos no
+ * backend/R2.
+ */
 export function limparRascunhoLote() {
   try {
     localStorage.removeItem(CHAVE_RASCUNHO_LOTE);
@@ -387,10 +364,10 @@ export function salvarConfiguracoesLote(config: ConfiguracoesLote) {
 }
 
 /**
- * Imagem "aviso" usada quando o rascunho não conseguiu guardar a foto de um
- * produto (ver `ResultadoSalvarRascunho`) — assim o produto (nome/preço)
- * ainda aparece pra pessoa recuperar depois de um recarregamento, só falta
- * tirar a foto de novo, em vez de o produto inteiro sumir sem explicação.
+ * Imagem "aviso" usada quando um produto do Panfleto é restaurado do projeto
+ * sem conseguir carregar a foto (arquivo apagado/inacessível no R2) — assim
+ * o produto (nome/preço) ainda aparece pra pessoa recuperar, só falta tirar
+ * a foto de novo, em vez de o produto inteiro sumir sem explicação.
  */
 export function criarImagemAvisoSemFoto(): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -420,11 +397,58 @@ export function criarImagemAvisoSemFoto(): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * Carrega uma imagem a partir de qualquer URL — `data:` (compatibilidade com
+ * rascunhos antigos) ou uma URL assinada do R2 (fluxo atual). `crossOrigin`
+ * é necessário pras imagens do R2: sem ele, o canvas fica "contaminado" e
+ * `toDataURL`/`toBlob` (baixar/gerar story) lançam exceção — inofensivo pra
+ * `data:` URLs, que não passam por CORS.
+ */
 export function carregarImagemDeDataUrl(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Projeto ativo — ponteiro leve (só o id, texto puro) por modo. É o único
+// dado de "onde eu estava" que continua no localStorage depois da migração
+// pra R2: o estado completo do projeto, incluindo as fotos, mora no backend
+// (ver `services/projetoCartazService.ts`). Isso só diz qual projeto
+// retomar automaticamente ao abrir a tela de novo.
+
+export type TipoProjetoCartazPersistencia = 'story' | 'panfleto' | 'planilha';
+
+const CHAVE_PROJETO_ATIVO: Record<TipoProjetoCartazPersistencia, string> = {
+  story: 'cartazes_projeto_ativo_story_v1',
+  panfleto: 'cartazes_projeto_ativo_panfleto_v1',
+  planilha: 'cartazes_projeto_ativo_planilha_v1',
+};
+
+export function carregarProjetoAtivo(tipo: TipoProjetoCartazPersistencia): string | null {
+  try {
+    return localStorage.getItem(CHAVE_PROJETO_ATIVO[tipo]);
+  } catch {
+    return null;
+  }
+}
+
+export function salvarProjetoAtivo(tipo: TipoProjetoCartazPersistencia, projetoId: string) {
+  try {
+    localStorage.setItem(CHAVE_PROJETO_ATIVO[tipo], projetoId);
+  } catch {
+    /* sem espaço/indisponível — só não retoma automaticamente na próxima vez, nada quebra */
+  }
+}
+
+export function limparProjetoAtivo(tipo: TipoProjetoCartazPersistencia) {
+  try {
+    localStorage.removeItem(CHAVE_PROJETO_ATIVO[tipo]);
+  } catch {
+    /* nada a limpar */
+  }
 }
