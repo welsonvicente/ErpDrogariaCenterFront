@@ -97,6 +97,37 @@ describe('FolgasPage', () => {
     expect(screen.getByText('1 folga(s) disponível(is).')).toBeInTheDocument();
   });
 
+  it('pede o PIN de gerente em vez de mostrar a gestão vazia quando o servidor exige (428)', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      usuario: { id: 'gerente-2', nome: 'Cláudia', email: null, perfil: 'GERENTE' },
+      atualizarUsuarioLocal: vi.fn(),
+    } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(folgasService.get).mockRejectedValue({
+      response: { status: 428, data: { message: 'Defina um PIN de acesso ao painel antes de continuar.', details: { acao: 'DEFINIR_PIN_GESTOR' } } },
+    });
+
+    renderizar();
+
+    expect(await screen.findByText('Defina seu PIN de gerente para abrir Folgas')).toBeInTheDocument();
+    expect(screen.getByLabelText('Seu PIN atual')).toBeInTheDocument();
+    expect(screen.queryByText('Banco de folgas da equipe')).toBeNull();
+  });
+
+  it('mostra no histórico o crédito registrado no mês mesmo com data trabalhada de outro mês', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      usuario: { id: 'admin-1', nome: 'Admin', email: null, perfil: 'ADMIN' },
+    } as ReturnType<typeof useAuth>);
+    const estado = estadoFolgasVazio();
+    estado.employees.push({ id: 'emp-w', usuarioId: null, name: 'Willian' });
+    estado.credits.push({ id: 'cred-w', employeeId: 'emp-w', workedDate: '2020-01-05', createdAt: new Date().toISOString() });
+    vi.mocked(folgasService.get).mockResolvedValue({ estado, versao: 1 });
+
+    renderizar();
+
+    expect(await screen.findByText('05/01/2020')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remover' })).not.toHaveLength(0);
+  });
+
   it('vincula em lote nomes legados encontrados no cadastro', async () => {
     const user = userEvent.setup();
     vi.mocked(useAuth).mockReturnValue({

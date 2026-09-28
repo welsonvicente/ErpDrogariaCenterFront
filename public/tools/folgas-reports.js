@@ -73,7 +73,7 @@ const REPORTS = {
     title: 'Histórico de créditos concedidos',
     build(){
       const usedDateByCredit = pairCreditsWithDaysOff();
-      const rows = state.credits.filter(c=> dentroDoPeriodo(c.workedDate)).sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate))
+      const rows = state.credits.filter(creditoNoPeriodo).sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate))
         .map(c=>{
           const emp = state.employees.find(e=>e.id===c.employeeId);
           const usedDate = usedDateByCredit.get(c.id);

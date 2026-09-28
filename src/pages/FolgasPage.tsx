@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as XLSX from 'xlsx';
+import { DefinirPinGestorModal } from '../components/DefinirPinGestorModal';
 import { FerramentaShell } from '../components/FerramentaShell';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -40,6 +41,12 @@ const TIPO_AFASTAMENTO: Record<FolgasAfastamento['type'], string> = { ferias: '�
 
 function clonar(estado: EstadoFolgas): EstadoFolgas {
   return JSON.parse(JSON.stringify(estado)) as EstadoFolgas;
+}
+
+/** Gerente/admin que entrou pelo PIN de balcão: o backend responde 428 até a pessoa definir o próprio PIN forte. */
+function exigePinGestor(erro: unknown) {
+  const resposta = erro as { response?: { status?: number; data?: { details?: { acao?: string } } } };
+  return resposta.response?.status === 428 && resposta.response.data?.details?.acao === 'DEFINIR_PIN_GESTOR';
 }
 
 function mensagemErro(erro: unknown) {
@@ -85,7 +92,7 @@ function nomeComparavel(nome: string) {
 
 export function FolgasPage() {
   useDocumentTitle('Folgas');
-  const { usuario } = useAuth();
+  const { usuario, atualizarUsuarioLocal } = useAuth();
   const ehGestor = usuario?.perfil === 'ADMIN' || usuario?.perfil === 'GERENTE';
 
   const [estado, setEstado] = useState<EstadoFolgas>(() => estadoFolgasVazio());
@@ -96,6 +103,8 @@ export function FolgasPage() {
   const [toast, setToast] = useState('');
   const [modal, setModal] = useState<Modal>(null);
   const [usuarios, setUsuarios] = useState<Funcionario[]>([]);
+  const [precisaPinGestor, setPrecisaPinGestor] = useState(false);
+  const [modalPinAberto, setModalPinAberto] = useState(false);
 
   const [periodoModo, setPeriodoModo] = useState<'mes' | 'especifico'>('mes');
   const [periodoInicio, setPeriodoInicio] = useState(primeiroDiaMesIso());
@@ -129,8 +138,14 @@ export function FolgasPage() {
       const resultado = await folgasService.get();
       setEstado(resultado.estado);
       setVersao(resultado.versao);
+      setPrecisaPinGestor(false);
     } catch (e) {
-      setErro(mensagemErro(e));
+      if (exigePinGestor(e)) {
+        setPrecisaPinGestor(true);
+        setModalPinAberto(true);
+      } else {
+        setErro(mensagemErro(e));
+      }
     } finally {
       setCarregando(false);
     }
@@ -170,6 +185,11 @@ export function FolgasPage() {
       if (sucesso) setToast(sucesso);
       return true;
     } catch (e) {
+      if (exigePinGestor(e)) {
+        setPrecisaPinGestor(true);
+        setModalPinAberto(true);
+        return false;
+      }
       setErro(mensagemErro(e));
       if ((e as { response?: { status?: number } }).response?.status === 409) await carregar();
       return false;
@@ -190,6 +210,9 @@ export function FolgasPage() {
       })()
     : undefined;
   const dentroDoPeriodo = (data: string) => !!data && data.slice(0, 10) >= periodo.inicio && data.slice(0, 10) <= periodo.fim;
+  // Pela data trabalhada OU pela de registro: um crédito lançado hoje com data de outro mês
+  // (ou de um feriado futuro) sumia da tabela e ficava sem o botão "Remover".
+  const creditoNoPeriodo = (credito: { workedDate: string; createdAt: string }) => dentroDoPeriodo(credito.workedDate) || dentroDoPeriodo(credito.createdAt);
   const nomeColaborador = (id: string) => estado.employees.find((item) => item.id === id)?.name ?? '—';
   const hoje = hojeIso();
   const afastamentosAtivos = estado.leaves.filter((item) => hoje >= item.startDate && hoje <= item.endDate);
@@ -493,7 +516,7 @@ export function FolgasPage() {
     if (chave === 'sickDetail') return { titulo: 'Detalhamento de atestados', cabecalhos: ['Colaborador', 'Registrado em', 'Ausente de', 'Ausente até', 'Dias', 'Motivo'], linhas: estado.leaves.filter((item) => item.type === 'atestado' && dentroDoPeriodo(item.startDate)).map((item) => [nomeColaborador(item.employeeId), formatarDataHora(item.createdAt), formatarData(item.startDate), formatarData(item.endDate), diasInclusivos(item.startDate, item.endDate), item.note || '—']) };
     if (chave === 'balance') return { titulo: 'Saldo por colaborador', cabecalhos: ['Colaborador', 'Créditos', 'Usadas', 'Saldo'], linhas: estado.employees.map((item) => [item.name, creditosDe(estado, item.id).length, folgasDe(estado, item.id).length, saldoDe(estado, item.id)]) };
     if (chave === 'scheduled') return { titulo: 'Folgas agendadas', cabecalhos: ['Colaborador', 'Data', 'Dia da semana'], linhas: estado.daysOff.filter((item) => dentroDoPeriodo(item.date)).map((item) => [nomeColaborador(item.employeeId), formatarData(item.date), diaSemana(item.date)]) };
-    if (chave === 'credits') return { titulo: 'Histórico de créditos', cabecalhos: ['Colaborador', 'Trabalhou em', 'Observação', 'Folga/Status'], linhas: estado.credits.filter((item) => dentroDoPeriodo(item.workedDate)).map((item) => [nomeColaborador(item.employeeId), formatarData(item.workedDate), item.note || '—', creditosPareados.has(item.id) ? formatarData(creditosPareados.get(item.id)!) : 'Disponível']) };
+    if (chave === 'credits') return { titulo: 'Histórico de créditos', cabecalhos: ['Colaborador', 'Trabalhou em', 'Observação', 'Folga/Status'], linhas: estado.credits.filter(creditoNoPeriodo).map((item) => [nomeColaborador(item.employeeId), formatarData(item.workedDate), item.note || '—', creditosPareados.has(item.id) ? formatarData(creditosPareados.get(item.id)!) : 'Disponível']) };
     return { titulo: 'Folgas trocadas por pagamento', cabecalhos: ['Colaborador', 'Trabalhou em', 'Trocada em', 'Valor', 'Forma', 'Observação'], linhas: estado.creditSwaps.filter((item) => dentroDoPeriodo(item.createdAt)).map((item) => [nomeColaborador(item.employeeId), formatarData(item.workedDate), formatarDataHora(item.createdAt), formatarDinheiro(item.valor), FORMA_LABEL[item.forma], item.nota || '—']) };
   }
 
@@ -535,6 +558,33 @@ export function FolgasPage() {
           <h2>Faça login para acessar Folgas</h2>
           <p>Use “Voltar” para entrar como funcionário ou gerente da organização.</p>
         </div>
+      </FerramentaShell>
+    );
+  }
+
+  const modalPin = modalPinAberto && (
+    <DefinirPinGestorModal
+      onClose={() => setModalPinAberto(false)}
+      onDefinido={() => {
+        setModalPinAberto(false);
+        // O token continua valendo; só o estado local precisa saber que o PIN forte foi definido.
+        atualizarUsuarioLocal({ pinForte: true });
+        void carregar();
+      }}
+    />
+  );
+
+  // Sem o PIN forte o servidor não entrega os dados — mostrar a gestão vazia faria parecer que a escala sumiu.
+  if (precisaPinGestor) {
+    return (
+      <FerramentaShell titulo="Folgas">
+        <div className="card folgas-feedback">
+          <div className="folgas-feedback-icon">🔐</div>
+          <h2>Defina seu PIN de gerente para abrir Folgas</h2>
+          <p>Você entrou com o PIN do balcão. Para ver e gerenciar a escala, escolha um PIN só seu, com 6 dígitos ou mais — é feito uma única vez.</p>
+          <button type="button" className="btn-primary" onClick={() => setModalPinAberto(true)}>Definir meu PIN</button>
+        </div>
+        {modalPin}
       </FerramentaShell>
     );
   }
@@ -662,7 +712,7 @@ export function FolgasPage() {
 
             <div className="folgas-grid folgas-grid--2">
               <div className="card folgas-panel"><CabecalhoPainel titulo="Folgas agendadas" relatorio="scheduled" exportarExcel={exportarExcel} exportarPdf={exportarPdf} /><Tabela cabecalhos={['Colaborador', 'Data', '']} vazio="Nenhuma folga no período.">{estado.daysOff.filter((item) => dentroDoPeriodo(item.date)).sort((a, b) => a.date.localeCompare(b.date)).map((item) => <tr key={item.id}><td>{nomeColaborador(item.employeeId)}</td><td>{formatarData(item.date)} · {diaSemana(item.date)}</td><td><button type="button" className="btn-link danger" onClick={() => void cancelarFolga(item.id, true)}>Cancelar</button></td></tr>)}</Tabela></div>
-              <div className="card folgas-panel"><CabecalhoPainel titulo="Créditos concedidos" relatorio="credits" exportarExcel={exportarExcel} exportarPdf={exportarPdf} /><Tabela cabecalhos={['Colaborador', 'Trabalhou em', 'Uso', '']} vazio="Nenhum crédito no período.">{estado.credits.filter((item) => dentroDoPeriodo(item.workedDate)).map((item) => <tr key={item.id}><td>{nomeColaborador(item.employeeId)}</td><td>{formatarData(item.workedDate)}{item.note ? ` · ${item.note}` : ''}</td><td>{creditosPareados.has(item.id) ? formatarData(creditosPareados.get(item.id)!) : <span className="folgas-badge">Disponível</span>}</td><td><button type="button" className="btn-link danger" onClick={() => void removerCredito(item.id)}>Remover</button></td></tr>)}</Tabela></div>
+              <div className="card folgas-panel"><CabecalhoPainel titulo="Créditos concedidos" relatorio="credits" exportarExcel={exportarExcel} exportarPdf={exportarPdf} /><Tabela cabecalhos={['Colaborador', 'Trabalhou em', 'Uso', '']} vazio="Nenhum crédito no período.">{estado.credits.filter(creditoNoPeriodo).map((item) => <tr key={item.id}><td>{nomeColaborador(item.employeeId)}</td><td>{formatarData(item.workedDate)}{item.note ? ` · ${item.note}` : ''}</td><td>{creditosPareados.has(item.id) ? formatarData(creditosPareados.get(item.id)!) : <span className="folgas-badge">Disponível</span>}</td><td><button type="button" className="btn-link danger" onClick={() => void removerCredito(item.id)}>Remover</button></td></tr>)}</Tabela></div>
             </div>
 
             <div className="card folgas-panel"><CabecalhoPainel titulo="Trocas por pagamento" relatorio="swaps" exportarExcel={exportarExcel} exportarPdf={exportarPdf} /><Tabela cabecalhos={['Colaborador', 'Folga trabalhada', 'Pagamento', 'Forma', 'Observação', '']} vazio="Nenhuma troca no período.">{estado.creditSwaps.filter((item) => dentroDoPeriodo(item.createdAt)).map((item) => <tr key={item.id}><td>{nomeColaborador(item.employeeId)}</td><td>{formatarData(item.workedDate)}</td><td>{formatarDinheiro(item.valor)}</td><td>{FORMA_LABEL[item.forma]}</td><td>{item.nota || '—'}</td><td><button type="button" className="btn-link danger" onClick={() => void cancelarTroca(item.id)}>Cancelar troca</button></td></tr>)}</Tabela></div>
@@ -707,6 +757,7 @@ export function FolgasPage() {
 
       {modal === 'auditoria' && <ModalFolgas titulo="Auditoria de folgas" fechar={() => setModal(null)} largo><div className="folgas-modal-list">{estado.auditLog.slice().sort((a, b) => b.timestamp.localeCompare(a.timestamp)).map((item) => <div className="folgas-list-row folgas-audit-row" key={item.id}><span><strong>{item.action}</strong><small>{item.role}{item.details ? ` · ${item.details}` : ''}</small><small>{formatarDataHora(item.timestamp)}</small></span></div>)}{!estado.auditLog.length && <Vazio>Nenhuma ação registrada.</Vazio>}</div><div className="folgas-modal-actions"><button type="button" className="btn-ghost" onClick={() => setModal(null)}>Fechar</button></div></ModalFolgas>}
 
+      {modalPin}
       {toast && <div className="folgas-toast">{toast}</div>}
     </FerramentaShell>
   );

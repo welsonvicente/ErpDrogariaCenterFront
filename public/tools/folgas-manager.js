@@ -545,6 +545,11 @@ function dentroDoPeriodo(dataIso){
   const data = dataIso.slice(0,10);
   return data >= inicio && data <= fim;
 }
+/** Crédito entra no histórico se a data trabalhada OU a data em que foi registrado cair no período —
+ *  senão um crédito lançado hoje com data trabalhada de outro mês (ou feriado futuro) some da tabela e não dá pra remover. */
+function creditoNoPeriodo(c){
+  return dentroDoPeriodo(c.workedDate) || dentroDoPeriodo(c.createdAt);
+}
 function atualizarPeriodoUI(){
   document.getElementById('periodTabMes').classList.toggle('active', periodoModo==='mes');
   document.getElementById('periodTabEspecifico').classList.toggle('active', periodoModo==='especifico');
@@ -673,7 +678,7 @@ function renderManagerView(){
 
   const credBody = document.getElementById('creditsBody');
   credBody.innerHTML = '';
-  const creditsSorted = state.credits.filter(c=> dentroDoPeriodo(c.workedDate)).sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate));
+  const creditsSorted = state.credits.filter(creditoNoPeriodo).sort((a,b)=> new Date(b.workedDate)-new Date(a.workedDate));
   if(creditsSorted.length === 0){
     credBody.innerHTML = '<tr><td colspan="4" class="empty-row">Nenhum crédito registrado nesse período.</td></tr>';
   } else {
