@@ -655,7 +655,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     const dimensoes: DimensaoPaginaPanfleto[] = [];
     paginasCanvasRef.current = paginas.map((produtosDaPagina, i) => {
       const canvas = document.createElement('canvas');
-      dimensoes.push(renderizarPaginaPanfleto(canvas, produtosDaPagina, sizing, i + 1, paginas.length, parametros));
+      dimensoes.push(renderizarPaginaPanfleto(canvas, produtosDaPagina, sizing, i + 1, paginas.length, parametros, itensPorPagina));
       return canvas;
     });
     dimensoesPaginasRef.current = dimensoes;
@@ -1270,6 +1270,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
               <input type="checkbox" checked={mostrarTextosCabecalho} onChange={(e) => setMostrarTextosCabecalho(e.target.checked)} /> Mostrar
               textos do cabeçalho
             </label>
+            <p style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '-4px 0 10px' }}>
+              É o texto do topo de cada página (ex.: “Drogaria Center — Ofertas — parte 1/5”). Desmarque para tirar de todas as páginas.
+            </p>
             <div className="field-row">
               <div className="field" style={{ flex: 2 }}>
                 <label>Nome da loja</label>

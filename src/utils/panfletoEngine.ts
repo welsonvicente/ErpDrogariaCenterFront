@@ -296,6 +296,13 @@ export function renderizarPaginaPanfleto(
   paginaNum: number,
   totalPaginas: number,
   p: ParametrosPaginaPanfleto,
+  /**
+   * Capacidade da página (itens por página). Quando informada, a grade sempre
+   * reserva as fileiras de uma página cheia — senão a última página, com menos
+   * produtos, sai mais baixa, a imagem de fundo ("contain") encolhe junto e os
+   * cards ficam desproporcionais às páginas anteriores.
+   */
+  itensPorPagina?: number,
 ): DimensaoPaginaPanfleto {
   const cols = 3;
   const { cardW, cardH, photoH } = sizing;
@@ -306,7 +313,8 @@ export function renderizarPaginaPanfleto(
   // link configurado — sem isso, reservar o espaço deixa um vão vazio grande
   // entre os produtos e o texto do rodapé.
   const footerH = p.temLink ? 190 : 100;
-  const rows = Math.max(1, Math.ceil(produtosDaPagina.length / cols));
+  const rowsOcupadas = Math.max(1, Math.ceil(produtosDaPagina.length / cols));
+  const rows = Math.max(rowsOcupadas, Math.ceil((itensPorPagina ?? 0) / cols));
   const W = pad * 2 + cols * cardW + (cols - 1) * gap;
   const H = headerH + rows * cardH + (rows - 1) * gap + footerH + pad;
 
@@ -364,7 +372,7 @@ export function renderizarPaginaPanfleto(
   produtosDaPagina.forEach((produto, idx) => {
     const col = idx % cols;
     const row = Math.floor(idx / cols);
-    const itensNaLinha = row === rows - 1 ? produtosDaPagina.length - row * cols : cols;
+    const itensNaLinha = row === rowsOcupadas - 1 ? produtosDaPagina.length - row * cols : cols;
     const deslocamentoX = ((cols - itensNaLinha) * (cardW + gap)) / 2;
     const x = pad + deslocamentoX + col * (cardW + gap);
     const y = headerH + row * (cardH + gap);

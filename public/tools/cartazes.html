@@ -1274,7 +1274,7 @@ function drawAlignedText(ctx, text, y, align, pad, W){
   else { ctx.textAlign = 'left'; ctx.fillText(text, pad, y); }
 }
 
-function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
+function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages, perPage){
   const cols = 3;
   const { cardW, cardH, photoH } = sizing;
   const gap = 24, pad = Number(document.getElementById('flyerPad').value) || 40;
@@ -1285,7 +1285,10 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
   const link = document.getElementById('flyerLink').value.trim();
   const hasQr = link && window.QRCode;
   const footerH = hasQr ? 190 : 100;
-  const rows = Math.max(1, Math.ceil(pageProducts.length / cols));
+  // Reserva sempre as fileiras de uma página cheia: a última página, com menos
+  // produtos, saía mais baixa e o fundo encolhia, desproporcional às anteriores.
+  const rowsUsed = Math.max(1, Math.ceil(pageProducts.length / cols));
+  const rows = Math.max(rowsUsed, Math.ceil((perPage || 0) / cols));
   const W = pad*2 + cols*cardW + (cols-1)*gap;
   const H = headerH + rows*cardH + (rows-1)*gap + footerH + pad;
 
@@ -1354,7 +1357,7 @@ function renderFlyerPage(canvas, pageProducts, sizing, pageNum, totalPages){
   pageProducts.forEach((p, idx)=>{
     const col = idx % cols;
     const row = Math.floor(idx / cols);
-    const itemsInRow = (row === rows-1) ? (pageProducts.length - row*cols) : cols;
+    const itemsInRow = (row === rowsUsed-1) ? (pageProducts.length - row*cols) : cols;
     const rowOffsetX = (cols - itemsInRow) * (cardW+gap) / 2;
     const x = pad + rowOffsetX + col*(cardW+gap);
     const y = headerH + row*(cardH+gap);
@@ -1455,7 +1458,7 @@ function buildFlyerPages(){
   for(let i=0; i<totalPages; i++){
     const chunk = flyerProducts.slice(i*perPage, (i+1)*perPage);
     const pageCanvas = document.createElement('canvas');
-    renderFlyerPage(pageCanvas, chunk, sizing, i+1, totalPages);
+    renderFlyerPage(pageCanvas, chunk, sizing, i+1, totalPages, perPage);
     pages.push(pageCanvas);
   }
   return pages;
