@@ -1519,6 +1519,26 @@ table.data-table th {
 .folgas-table tbody tr:last-child td { border-bottom: 0; }
 .folgas-badge { display: inline-block; padding: 3px 8px; border-radius: 999px; background: var(--bg); color: var(--ink-soft); font-size: 10px; font-weight: 800; }
 .folgas-badge--positivo { background: var(--ok-bg); color: var(--ok); }
+.folgas-badge--pendente { background: var(--warn-bg); color: var(--warn); }
+.folgas-badge--aprovada { background: var(--ok-bg); color: var(--ok); }
+.folgas-badge--recusada { background: var(--late-bg); color: var(--late); }
+.folgas-list-row .folgas-badge { margin-top: 4px; }
+.folgas-aprovacao { padding: 22px 24px; border: 2px solid var(--warn); border-radius: var(--radius); background: var(--warn-bg); box-shadow: var(--shadow); }
+.folgas-aprovacao-head { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.folgas-aprovacao-icone { font-size: 38px; line-height: 1; }
+.folgas-aprovacao-head h2 { margin: 0 0 4px; color: var(--ink); font-size: 21px; }
+.folgas-aprovacao-head p { margin: 0; color: var(--ink-soft); font-size: 13px; }
+.folgas-aprovacao-lista { display: grid; gap: 10px; }
+.folgas-aprovacao-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: 12px; background: var(--card); }
+.folgas-aprovacao-item strong, .folgas-aprovacao-item span, .folgas-aprovacao-item small { display: block; }
+.folgas-aprovacao-item strong { font-size: 16px; color: var(--ink); }
+.folgas-aprovacao-item span { font-size: 14px; color: var(--ink); margin-top: 2px; }
+.folgas-aprovacao-item small { font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; }
+.folgas-aprovacao-acoes { display: flex; gap: 10px; flex-shrink: 0; }
+.folgas-aprovacao-acoes button { border: 0; border-radius: 10px; padding: 12px 20px; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
+.folgas-aprovacao-acoes button:disabled { opacity: 0.6; cursor: wait; }
+.folgas-btn-aceitar { background: var(--ok); color: #fff; }
+.folgas-btn-recusar { background: var(--late-bg); color: var(--late); }
 .folgas-today { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .folgas-today > div { padding: 16px; border-radius: 11px; background: var(--bg); }
 .folgas-today span, .folgas-today strong { display: block; }
@@ -1560,6 +1580,8 @@ table.data-table th {
   .folgas-periodo { flex-direction: column; align-items: stretch; }
   .folgas-periodo-controles { align-items: stretch; }
   .folgas-participacao { flex-direction: column; align-items: stretch; }
+  .folgas-aprovacao-item { flex-direction: column; align-items: stretch; }
+  .folgas-aprovacao-acoes button { flex: 1; }
   .folgas-participacao button { width: 100%; }
   .folgas-participacao-actions { flex-direction: column; }
   .folgas-inline-fields { flex-wrap: wrap; }

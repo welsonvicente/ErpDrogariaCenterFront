@@ -12,6 +12,7 @@ import {
   type EstadoFolgas,
   type FormaPagamentoFolga,
   type FolgasAfastamento,
+  type StatusFolga,
 } from '../types/folgas';
 import {
   amanhaIso,
@@ -26,9 +27,12 @@ import {
   formatarDataHora,
   formatarDinheiro,
   hojeIso,
+  folgaAtiva,
   parearCreditos,
+  podeCancelarFolga,
   primeiroDiaMesIso,
   saldoDe,
+  statusFolga,
   uid,
 } from '../utils/folgas';
 
@@ -38,6 +42,11 @@ type CelulaRelatorio = string | number;
 
 const FORMA_LABEL: Record<FormaPagamentoFolga, string> = { dinheiro: 'Dinheiro', pix: 'Pix', outro: 'Outro' };
 const TIPO_AFASTAMENTO: Record<FolgasAfastamento['type'], string> = { ferias: '🏖️ Férias', atestado: '🩹 Atestado médico' };
+const STATUS_LABEL: Record<StatusFolga, string> = { pendente: 'Aguardando aprovação', aprovada: 'Aprovada', recusada: 'Recusada' };
+
+function BadgeStatus({ status }: { status: StatusFolga }) {
+  return <span className={`folgas-badge folgas-badge--${status}`}>{STATUS_LABEL[status]}</span>;
+}
 
 function clonar(estado: EstadoFolgas): EstadoFolgas {
   return JSON.parse(JSON.stringify(estado)) as EstadoFolgas;
@@ -217,6 +226,12 @@ export function FolgasPage() {
   const hoje = hojeIso();
   const afastamentosAtivos = estado.leaves.filter((item) => hoje >= item.startDate && hoje <= item.endDate);
   const creditosPareados = useMemo(() => parearCreditos(estado), [estado]);
+  // Inclui as recusadas, pra pessoa ver a resposta da gerência.
+  const minhasFolgas = colaboradorAtual
+    ? estado.daysOff.filter((item) => item.employeeId === colaboradorAtual.id).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+  const folgasPendentes = estado.daysOff.filter((item) => statusFolga(item) === 'pendente').sort((a, b) => a.date.localeCompare(b.date));
+  const folgasAprovadasEm = (data: string) => estado.daysOff.filter((item) => item.date === data && statusFolga(item) === 'aprovada');
   const resumoAtestados = estado.employees.map((colaborador) => {
     const atestados = estado.leaves.filter((item) => item.employeeId === colaborador.id && item.type === 'atestado' && dentroDoPeriodo(item.startDate));
     return { colaborador, quantidade: atestados.length, dias: atestados.reduce((total, item) => total + diasInclusivos(item.startDate, item.endDate), 0) };
@@ -450,7 +465,9 @@ export function FolgasPage() {
 
   async function cancelarFolga(id: string, comoGestor = false) {
     const folga = estado.daysOff.find((item) => item.id === id);
-    if (!folga || !window.confirm('Cancelar esta folga agendada? O crédito voltará ao saldo.')) return;
+    if (!folga) return;
+    if (!comoGestor && !podeCancelarFolga(folga)) return setErro('A folga só pode ser cancelada até o dia anterior.');
+    if (!window.confirm('Cancelar esta folga agendada? O crédito voltará ao saldo.')) return;
     await salvar(
       (rascunho) => { rascunho.daysOff = rascunho.daysOff.filter((item) => item.id !== id); },
       comoGestor ? { acao: 'Apagou folga agendada', detalhes: `${nomeColaborador(folga.employeeId)} — ${formatarData(folga.date)}` } : undefined,
@@ -464,17 +481,44 @@ export function FolgasPage() {
     const weekday = new Date(`${data}T12:00:00`).getDay();
     if (estado.blockedWeekdays.some((item) => item.weekday === weekday)) return `Toda ${DIAS_SEMANA[weekday]} está bloqueada para folgas.`;
     if (estado.leaves.some((item) => item.employeeId === employeeId && data >= item.startDate && data <= item.endDate)) return 'Você está afastado nessa data.';
-    if (estado.daysOff.some((item) => item.date === data)) return 'Já existe uma folga agendada nessa data.';
+    if (estado.daysOff.some((item) => item.date === data && folgaAtiva(item))) return 'Já existe uma folga agendada nessa data.';
     return '';
   }
 
   async function agendarMinhaFolga() {
-    if (!colaboradorAtual) return;
+    if (!colaboradorAtual || !usuario) return;
     const problema = validarDataFolga(colaboradorAtual.id, dataAgendada);
     if (problema) return setErro(problema);
     if (saldoDe(estado, colaboradorAtual.id) <= 0) return setErro('Você não tem folgas disponíveis.');
-    const ok = await salvar((rascunho) => rascunho.daysOff.push({ id: uid('off'), employeeId: colaboradorAtual.id, date: dataAgendada, createdAt: new Date().toISOString() }), undefined, `Folga agendada para ${formatarData(dataAgendada)}.`);
+    // Pedido de funcionário espera a gerência; gerente/admin já tem o poder de aprovar, então a própria folga entra aprovada.
+    const agora = new Date().toISOString();
+    const ok = await salvar(
+      (rascunho) => rascunho.daysOff.push(ehGestor
+        ? { id: uid('off'), employeeId: colaboradorAtual.id, date: dataAgendada, createdAt: agora, status: 'aprovada', decididoPor: ator(usuario.nome, usuario.perfil), decididoEm: agora }
+        : { id: uid('off'), employeeId: colaboradorAtual.id, date: dataAgendada, createdAt: agora, status: 'pendente' }),
+      undefined,
+      ehGestor ? `Folga agendada para ${formatarData(dataAgendada)}.` : `Pedido de folga para ${formatarData(dataAgendada)} enviado. Aguarde a aprovação da gerência.`,
+    );
     if (ok) setModal(null);
+  }
+
+  async function decidirFolga(id: string, aprovar: boolean) {
+    const folga = estado.daysOff.find((item) => item.id === id);
+    if (!folga || !usuario) return;
+    const nome = nomeColaborador(folga.employeeId);
+    if (!aprovar && !window.confirm(`Recusar a folga de ${nome} em ${formatarData(folga.date)}? O crédito volta para o saldo dele(a).`)) return;
+    await salvar(
+      (rascunho) => {
+        const alvo = rascunho.daysOff.find((item) => item.id === id);
+        if (alvo) {
+          alvo.status = aprovar ? 'aprovada' : 'recusada';
+          alvo.decididoPor = ator(usuario.nome, usuario.perfil);
+          alvo.decididoEm = new Date().toISOString();
+        }
+      },
+      { acao: aprovar ? 'Aprovou folga' : 'Recusou folga', detalhes: `${nome} — ${formatarData(folga.date)}` },
+      aprovar ? `Folga de ${nome} aprovada.` : `Folga de ${nome} recusada.`,
+    );
   }
 
   async function registrarMeuAtestado() {
@@ -500,7 +544,7 @@ export function FolgasPage() {
   const folgasConsultadas = useMemo(() => {
     const faixa = intervaloConsulta();
     if (!faixa.inicio || !faixa.fim || faixa.fim < faixa.inicio) return [];
-    return estado.daysOff.filter((item) => item.date >= faixa.inicio && item.date <= faixa.fim).sort((a, b) => a.date.localeCompare(b.date));
+    return estado.daysOff.filter((item) => folgaAtiva(item) && item.date >= faixa.inicio && item.date <= faixa.fim).sort((a, b) => a.date.localeCompare(b.date));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consultaTipo, consultaDia, consultaMes, consultaInicio, consultaFim, estado.daysOff]);
 
@@ -515,7 +559,7 @@ export function FolgasPage() {
     }
     if (chave === 'sickDetail') return { titulo: 'Detalhamento de atestados', cabecalhos: ['Colaborador', 'Registrado em', 'Ausente de', 'Ausente até', 'Dias', 'Motivo'], linhas: estado.leaves.filter((item) => item.type === 'atestado' && dentroDoPeriodo(item.startDate)).map((item) => [nomeColaborador(item.employeeId), formatarDataHora(item.createdAt), formatarData(item.startDate), formatarData(item.endDate), diasInclusivos(item.startDate, item.endDate), item.note || '—']) };
     if (chave === 'balance') return { titulo: 'Saldo por colaborador', cabecalhos: ['Colaborador', 'Créditos', 'Usadas', 'Saldo'], linhas: estado.employees.map((item) => [item.name, creditosDe(estado, item.id).length, folgasDe(estado, item.id).length, saldoDe(estado, item.id)]) };
-    if (chave === 'scheduled') return { titulo: 'Folgas agendadas', cabecalhos: ['Colaborador', 'Data', 'Dia da semana'], linhas: estado.daysOff.filter((item) => dentroDoPeriodo(item.date)).map((item) => [nomeColaborador(item.employeeId), formatarData(item.date), diaSemana(item.date)]) };
+    if (chave === 'scheduled') return { titulo: 'Folgas agendadas', cabecalhos: ['Colaborador', 'Data', 'Dia da semana', 'Situação'], linhas: estado.daysOff.filter((item) => dentroDoPeriodo(item.date)).map((item) => [nomeColaborador(item.employeeId), formatarData(item.date), diaSemana(item.date), STATUS_LABEL[statusFolga(item)]]) };
     if (chave === 'credits') return { titulo: 'Histórico de créditos', cabecalhos: ['Colaborador', 'Trabalhou em', 'Observação', 'Folga/Status'], linhas: estado.credits.filter(creditoNoPeriodo).map((item) => [nomeColaborador(item.employeeId), formatarData(item.workedDate), item.note || '—', creditosPareados.has(item.id) ? formatarData(creditosPareados.get(item.id)!) : 'Disponível']) };
     return { titulo: 'Folgas trocadas por pagamento', cabecalhos: ['Colaborador', 'Trabalhou em', 'Trocada em', 'Valor', 'Forma', 'Observação'], linhas: estado.creditSwaps.filter((item) => dentroDoPeriodo(item.createdAt)).map((item) => [nomeColaborador(item.employeeId), formatarData(item.workedDate), formatarDataHora(item.createdAt), formatarDinheiro(item.valor), FORMA_LABEL[item.forma], item.nota || '—']) };
   }
@@ -615,7 +659,7 @@ export function FolgasPage() {
                 </div>
 
                 <div className="folgas-grid folgas-grid--3">
-                  <div className="card folgas-card-lista"><h3>Minhas folgas</h3>{folgasDe(estado, colaboradorAtual.id).length ? folgasDe(estado, colaboradorAtual.id).sort((a, b) => a.date.localeCompare(b.date)).map((item) => <div className="folgas-list-row" key={item.id}><span><strong>{formatarData(item.date)}</strong><small>{diaSemana(item.date)}</small></span><button type="button" className="btn-link danger" onClick={() => void cancelarFolga(item.id)}>Cancelar</button></div>) : <Vazio>Nenhuma folga agendada.</Vazio>}</div>
+                  <div className="card folgas-card-lista"><h3>Minhas folgas</h3>{minhasFolgas.length ? minhasFolgas.map((item) => <div className="folgas-list-row" key={item.id}><span><strong>{formatarData(item.date)}</strong><small>{diaSemana(item.date)}</small><BadgeStatus status={statusFolga(item)} /></span>{podeCancelarFolga(item) && <button type="button" className="btn-link danger" onClick={() => void cancelarFolga(item.id)}>Cancelar</button>}</div>) : <Vazio>Nenhuma folga agendada.</Vazio>}</div>
                   <div className="card folgas-card-lista"><h3>Meus atestados</h3>{estado.leaves.filter((item) => item.employeeId === colaboradorAtual.id && item.type === 'atestado').length ? estado.leaves.filter((item) => item.employeeId === colaboradorAtual.id && item.type === 'atestado').map((item) => <div className="folgas-list-row" key={item.id}><span><strong>{formatarData(item.startDate)} a {formatarData(item.endDate)}</strong><small>{item.note || '—'}</small></span></div>) : <Vazio>Nenhum atestado registrado.</Vazio>}</div>
                   <div className="card folgas-card-lista"><h3>Trocas por pagamento</h3>{estado.creditSwaps.filter((item) => item.employeeId === colaboradorAtual.id).length ? estado.creditSwaps.filter((item) => item.employeeId === colaboradorAtual.id).map((item) => <div className="folgas-list-row" key={item.id}><span><strong>{formatarDinheiro(item.valor)} · {FORMA_LABEL[item.forma]}</strong><small>Folga de {formatarData(item.workedDate)} · {formatarData(item.createdAt)}</small></span></div>) : <Vazio>Nenhuma troca registrada.</Vazio>}</div>
                 </div>
@@ -624,6 +668,33 @@ export function FolgasPage() {
           </section>
         ) : (
           <section className="folgas-gestao">
+            {folgasPendentes.length > 0 && (
+              <div className="folgas-aprovacao" role="alert">
+                <div className="folgas-aprovacao-head">
+                  <span className="folgas-aprovacao-icone" aria-hidden="true">🔔</span>
+                  <div>
+                    <h2>{folgasPendentes.length === 1 ? '1 pedido de folga aguardando sua resposta' : `${folgasPendentes.length} pedidos de folga aguardando sua resposta`}</h2>
+                    <p>Aceite ou recuse cada pedido. O colaborador vê a resposta na tela dele.</p>
+                  </div>
+                </div>
+                <div className="folgas-aprovacao-lista">
+                  {folgasPendentes.map((item) => (
+                    <div className="folgas-aprovacao-item" key={item.id}>
+                      <div>
+                        <strong>{nomeColaborador(item.employeeId)}</strong>
+                        <span>quer folgar em <b>{formatarData(item.date)}</b> ({diaSemana(item.date)}){item.date <= hoje ? ' — data já chegou' : ''}</span>
+                        <small>Pedido em {formatarDataHora(item.createdAt)} · saldo atual: {saldoDe(estado, item.employeeId)}</small>
+                      </div>
+                      <div className="folgas-aprovacao-acoes">
+                        <button type="button" className="folgas-btn-recusar" disabled={salvando} onClick={() => void decidirFolga(item.id, false)}>✕ Recusar</button>
+                        <button type="button" className="folgas-btn-aceitar" disabled={salvando} onClick={() => void decidirFolga(item.id, true)}>✓ Aceitar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="card folgas-periodo">
               <div><span className="folgas-eyebrow">Visão da gestão</span><h2>Banco de folgas da equipe</h2><p>Mostrando dados de {formatarData(periodo.inicio)} até {formatarData(periodo.fim)}.</p></div>
               <div className="folgas-periodo-controles">
@@ -673,21 +744,21 @@ export function FolgasPage() {
             <div className="folgas-stats">
               <div className="card"><strong>{estado.employees.length}</strong><span>Colaboradores</span></div>
               <div className="card"><strong>{estado.credits.length}</strong><span>Créditos concedidos</span></div>
-              <div className="card"><strong>{estado.daysOff.length}</strong><span>Folgas agendadas</span></div>
+              <div className="card"><strong>{estado.daysOff.filter(folgaAtiva).length}</strong><span>Folgas agendadas</span></div>
               <div className="card"><strong>{estado.employees.reduce((total, item) => total + Math.max(0, saldoDe(estado, item.id)), 0)}</strong><span>Saldo disponível</span></div>
             </div>
 
             <div className="folgas-grid folgas-grid--2">
               <div className="card folgas-panel">
                 <h3>🗓️ Quem está de folga</h3>
-                <div className="folgas-today"><div><span>Hoje</span><strong>{estado.daysOff.filter((item) => item.date === hojeIso()).map((item) => nomeColaborador(item.employeeId)).join(', ') || 'Ninguém'}</strong></div><div><span>Amanhã</span><strong>{estado.daysOff.filter((item) => item.date === amanhaIso()).map((item) => nomeColaborador(item.employeeId)).join(', ') || 'Ninguém'}</strong></div></div>
+                <div className="folgas-today"><div><span>Hoje</span><strong>{folgasAprovadasEm(hojeIso()).map((item) => nomeColaborador(item.employeeId)).join(', ') || 'Ninguém'}</strong></div><div><span>Amanhã</span><strong>{folgasAprovadasEm(amanhaIso()).map((item) => nomeColaborador(item.employeeId)).join(', ') || 'Ninguém'}</strong></div></div>
                 <div className="folgas-consulta">
                   <select value={consultaTipo} onChange={(e) => setConsultaTipo(e.target.value as typeof consultaTipo)}><option value="dia">Um dia</option><option value="mes">Um mês</option><option value="periodo">Período</option></select>
                   {consultaTipo === 'dia' && <input type="date" value={consultaDia} onChange={(e) => setConsultaDia(e.target.value)} />}
                   {consultaTipo === 'mes' && <input type="month" value={consultaMes} onChange={(e) => setConsultaMes(e.target.value)} />}
                   {consultaTipo === 'periodo' && <><input type="date" value={consultaInicio} onChange={(e) => setConsultaInicio(e.target.value)} /><input type="date" value={consultaFim} onChange={(e) => setConsultaFim(e.target.value)} /></>}
                 </div>
-                <div className="folgas-consulta-resultado">{folgasConsultadas.length ? folgasConsultadas.map((item) => <span key={item.id}><strong>{nomeColaborador(item.employeeId)}</strong> · {formatarData(item.date)} ({diaSemana(item.date)})</span>) : <Vazio>Ninguém de folga no intervalo.</Vazio>}</div>
+                <div className="folgas-consulta-resultado">{folgasConsultadas.length ? folgasConsultadas.map((item) => <span key={item.id}><strong>{nomeColaborador(item.employeeId)}</strong> · {formatarData(item.date)} ({diaSemana(item.date)}){statusFolga(item) === 'pendente' ? ' · aguardando aprovação' : ''}</span>) : <Vazio>Ninguém de folga no intervalo.</Vazio>}</div>
               </div>
               <div className="card folgas-panel">
                 <CabecalhoPainel titulo="Ausências agora" relatorio="activeLeaves" exportarExcel={exportarExcel} exportarPdf={exportarPdf} />
@@ -711,7 +782,7 @@ export function FolgasPage() {
             </div>
 
             <div className="folgas-grid folgas-grid--2">
-              <div className="card folgas-panel"><CabecalhoPainel titulo="Folgas agendadas" relatorio="scheduled" exportarExcel={exportarExcel} exportarPdf={exportarPdf} /><Tabela cabecalhos={['Colaborador', 'Data', '']} vazio="Nenhuma folga no período.">{estado.daysOff.filter((item) => dentroDoPeriodo(item.date)).sort((a, b) => a.date.localeCompare(b.date)).map((item) => <tr key={item.id}><td>{nomeColaborador(item.employeeId)}</td><td>{formatarData(item.date)} · {diaSemana(item.date)}</td><td><button type="button" className="btn-link danger" onClick={() => void cancelarFolga(item.id, true)}>Cancelar</button></td></tr>)}</Tabela></div>
+              <div className="card folgas-panel"><CabecalhoPainel titulo="Folgas agendadas" relatorio="scheduled" exportarExcel={exportarExcel} exportarPdf={exportarPdf} /><Tabela cabecalhos={['Colaborador', 'Data', 'Situação', '']} vazio="Nenhuma folga no período.">{estado.daysOff.filter((item) => dentroDoPeriodo(item.date)).sort((a, b) => a.date.localeCompare(b.date)).map((item) => <tr key={item.id}><td>{nomeColaborador(item.employeeId)}</td><td>{formatarData(item.date)} · {diaSemana(item.date)}</td><td><BadgeStatus status={statusFolga(item)} /></td><td><button type="button" className="btn-link danger" onClick={() => void cancelarFolga(item.id, true)}>Cancelar</button></td></tr>)}</Tabela></div>
               <div className="card folgas-panel"><CabecalhoPainel titulo="Créditos concedidos" relatorio="credits" exportarExcel={exportarExcel} exportarPdf={exportarPdf} /><Tabela cabecalhos={['Colaborador', 'Trabalhou em', 'Uso', '']} vazio="Nenhum crédito no período.">{estado.credits.filter(creditoNoPeriodo).map((item) => <tr key={item.id}><td>{nomeColaborador(item.employeeId)}</td><td>{formatarData(item.workedDate)}{item.note ? ` · ${item.note}` : ''}</td><td>{creditosPareados.has(item.id) ? formatarData(creditosPareados.get(item.id)!) : <span className="folgas-badge">Disponível</span>}</td><td><button type="button" className="btn-link danger" onClick={() => void removerCredito(item.id)}>Remover</button></td></tr>)}</Tabela></div>
             </div>
 

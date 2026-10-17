@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { funcionarioService } from '../services/funcionarioService';
 import { folgasService } from '../services/folgasService';
 import { estadoFolgasVazio } from '../types/folgas';
+import { amanhaIso, hojeIso } from '../utils/folgas';
 import { FolgasPage } from './FolgasPage';
 
 vi.mock('../context/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -126,6 +127,72 @@ describe('FolgasPage', () => {
 
     expect(await screen.findByText('05/01/2020')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Remover' })).not.toHaveLength(0);
+  });
+
+  it('funcionário pede folga como pendente e só vê Cancelar até a véspera', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useAuth).mockReturnValue({
+      usuario: { id: 'usuario-1', nome: 'Ana', email: null, perfil: 'FUNCIONARIO' },
+    } as ReturnType<typeof useAuth>);
+    const estado = estadoFolgasVazio();
+    estado.employees.push({ id: 'emp-1', usuarioId: 'usuario-1', name: 'Ana' });
+    estado.credits.push(
+      { id: 'cred-1', employeeId: 'emp-1', workedDate: '2026-09-06', createdAt: '2026-09-06T12:00:00Z' },
+      { id: 'cred-2', employeeId: 'emp-1', workedDate: '2026-09-13', createdAt: '2026-09-13T12:00:00Z' },
+      { id: 'cred-3', employeeId: 'emp-1', workedDate: '2026-09-20', createdAt: '2026-09-20T12:00:00Z' },
+    );
+    estado.daysOff.push(
+      { id: 'off-hoje', employeeId: 'emp-1', date: hojeIso(), createdAt: '2026-10-01T12:00:00Z', status: 'aprovada' },
+      { id: 'off-amanha', employeeId: 'emp-1', date: amanhaIso(), createdAt: '2026-10-01T12:00:00Z', status: 'pendente' },
+    );
+    vi.mocked(folgasService.get).mockResolvedValue({ estado, versao: 2 });
+    vi.mocked(folgasService.save).mockResolvedValue(3);
+
+    renderizar();
+
+    expect(await screen.findByText('Aguardando aprovação')).toBeInTheDocument();
+    // Só a folga de amanhã pode ser cancelada; a de hoje já não.
+    expect(screen.getAllByRole('button', { name: 'Cancelar' })).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: /Agendar folga/i }));
+    const data = new Date();
+    data.setDate(data.getDate() + 5);
+    const iso = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+    fireEvent.change(screen.getByRole('dialog', { name: 'Agendar minha folga' }).querySelector('input[type="date"]')!, { target: { value: iso } });
+    await user.click(screen.getByRole('button', { name: 'Confirmar folga' }));
+
+    await waitFor(() => {
+      expect(folgasService.save).toHaveBeenCalledWith(
+        expect.objectContaining({ daysOff: expect.arrayContaining([expect.objectContaining({ date: iso, status: 'pendente' })]) }),
+        2,
+      );
+    });
+  });
+
+  it('mostra o aviso de pedidos pendentes e a gerência aceita', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useAuth).mockReturnValue({
+      usuario: { id: 'gerente-1', nome: 'Carlos', email: null, perfil: 'GERENTE' },
+    } as ReturnType<typeof useAuth>);
+    const estado = estadoFolgasVazio();
+    estado.employees.push({ id: 'emp-1', usuarioId: 'usuario-1', name: 'Ana' });
+    estado.credits.push({ id: 'cred-1', employeeId: 'emp-1', workedDate: '2026-09-06', createdAt: '2026-09-06T12:00:00Z' });
+    estado.daysOff.push({ id: 'off-1', employeeId: 'emp-1', date: amanhaIso(), createdAt: '2026-10-01T12:00:00Z', status: 'pendente' });
+    vi.mocked(folgasService.get).mockResolvedValue({ estado, versao: 5 });
+    vi.mocked(folgasService.save).mockResolvedValue(6);
+
+    renderizar();
+
+    expect(await screen.findByText('1 pedido de folga aguardando sua resposta')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Aceitar/ }));
+
+    await waitFor(() => {
+      expect(folgasService.save).toHaveBeenCalledWith(
+        expect.objectContaining({ daysOff: [expect.objectContaining({ id: 'off-1', status: 'aprovada', decididoPor: 'Carlos (Gerente)' })] }),
+        5,
+      );
+    });
+    expect(screen.queryByText('1 pedido de folga aguardando sua resposta')).toBeNull();
   });
 
   it('vincula em lote nomes legados encontrados no cadastro', async () => {

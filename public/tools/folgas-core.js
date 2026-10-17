@@ -242,7 +242,8 @@ async function saveState(){
 }
 
 function creditsOf(employeeId){ return state.credits.filter(c=>c.employeeId===employeeId); }
-function scheduledOf(employeeId){ return state.daysOff.filter(d=>d.employeeId===employeeId); }
+// Recusada (pela gerência) não consome crédito. Sem `status` = folga anterior à aprovação, vale como aprovada.
+function scheduledOf(employeeId){ return state.daysOff.filter(d=>d.employeeId===employeeId && d.status!=='recusada'); }
 function balanceOf(employeeId){ return creditsOf(employeeId).length - scheduledOf(employeeId).length; }
 
 // Pareia cada crédito (do mais antigo pro mais novo) com a folga correspondente (também da mais antiga pra mais nova),

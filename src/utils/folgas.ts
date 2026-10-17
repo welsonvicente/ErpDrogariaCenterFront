@@ -1,4 +1,4 @@
-import type { EstadoFolgas, FolgasCredito } from '../types/folgas';
+import type { EstadoFolgas, FolgaAgendada, FolgasCredito, StatusFolga } from '../types/folgas';
 
 export const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -49,8 +49,23 @@ export function creditosDe(estado: EstadoFolgas, employeeId: string) {
   return estado.credits.filter((item) => item.employeeId === employeeId);
 }
 
+export function statusFolga(folga: FolgaAgendada): StatusFolga {
+  return folga.status ?? 'aprovada';
+}
+
+/** Recusada não ocupa a data nem consome crédito; pendente reserva os dois até a gerência decidir. */
+export function folgaAtiva(folga: FolgaAgendada) {
+  return statusFolga(folga) !== 'recusada';
+}
+
+/** O colaborador pode cancelar até o dia anterior à folga — no próprio dia ou depois, não. */
+export function podeCancelarFolga(folga: FolgaAgendada, hoje = hojeIso()) {
+  return folgaAtiva(folga) && folga.date > hoje;
+}
+
+/** Folgas que contam no saldo (pendentes e aprovadas). */
 export function folgasDe(estado: EstadoFolgas, employeeId: string) {
-  return estado.daysOff.filter((item) => item.employeeId === employeeId);
+  return estado.daysOff.filter((item) => item.employeeId === employeeId && folgaAtiva(item));
 }
 
 export function saldoDe(estado: EstadoFolgas, employeeId: string) {

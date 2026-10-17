@@ -98,7 +98,9 @@ function renderEmployeeDashboard(){
     mine.forEach(off=>{
       const item = document.createElement('div');
       item.className = 'off-item';
-      item.innerHTML = `<span><span class="date">${fmtDateBr(off.date)}</span><span class="weekday">${weekdayName(off.date)}</span></span><button data-cancel="${off.id}">Cancelar</button>`;
+      // Cancelar só até a véspera da folga — no dia ou depois o botão some (o servidor também barra).
+      const statusTxt = off.status==='pendente' ? ' · aguardando aprovação' : '';
+      item.innerHTML = `<span><span class="date">${fmtDateBr(off.date)}</span><span class="weekday">${weekdayName(off.date)}${statusTxt}</span></span>${off.date > todayStr() ? `<button data-cancel="${off.id}">Cancelar</button>` : ''}`;
       list.appendChild(item);
     });
     list.querySelectorAll('[data-cancel]').forEach(btn=> btn.addEventListener('click', ()=> cancelMyDayOff(btn.dataset.cancel)));
@@ -222,7 +224,7 @@ document.getElementById('confirmScheduleBtn').addEventListener('click', async ()
     return;
   }
 
-  state.daysOff.push({ id: uid('off'), employeeId: currentEmployee.id, date, createdAt: new Date().toISOString() });
+  state.daysOff.push({ id: uid('off'), employeeId: currentEmployee.id, date, createdAt: new Date().toISOString(), status: 'pendente' });
   await saveState();
   scheduleModal.classList.remove('open');
   renderEmployeeDashboard();

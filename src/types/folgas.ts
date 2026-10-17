@@ -12,11 +12,18 @@ export interface FolgasCredito {
   createdAt: string;
 }
 
+/** Pedido do colaborador nasce `pendente`; a gerência aprova ou recusa. Ausente = folga antiga, anterior à aprovação (vale como aprovada). */
+export type StatusFolga = 'pendente' | 'aprovada' | 'recusada';
+
 export interface FolgaAgendada {
   id: string;
   employeeId: string;
   date: string;
   createdAt: string;
+  status?: StatusFolga;
+  /** Quem aprovou/recusou (nome + papel) e quando. */
+  decididoPor?: string;
+  decididoEm?: string;
 }
 
 export interface FolgasAfastamento {
