@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { mensagemErroLogin } from '../utils/mensagemErroLogin';
 
 /** Login do gerente (e-mail + senha) — protege o dashboard administrativo. */
 export function ManagerLoginPage() {
@@ -24,8 +25,8 @@ export function ManagerLoginPage() {
     try {
       await login(email, password);
       navigate(`/${orgSlug}/gerente`);
-    } catch {
-      setError('E-mail ou senha inválidos.');
+    } catch (erro) {
+      setError(mensagemErroLogin(erro, 'E-mail ou senha inválidos.'));
     } finally {
       setLoading(false);
     }

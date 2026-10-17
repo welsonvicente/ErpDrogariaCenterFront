@@ -5,6 +5,7 @@ import { PasswordInput } from '../components/PasswordInput';
 import { lerSessao, salvarSessao, tokenExpirado } from '../services/api';
 import { authService } from '../services/authService';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { mensagemErroLogin } from '../utils/mensagemErroLogin';
 
 /**
  * Login inicial do sistema (rota "/"), fora do contexto de qualquer
@@ -45,8 +46,8 @@ export function OrganizationLoginPage() {
       const { token, usuario, organizacaoSlug } = await authService.loginOrganizacao(email, senha);
       salvarSessao('gerente', { orgSlug: organizacaoSlug, token, usuario });
       navigate(`/${organizacaoSlug}/gerente`);
-    } catch {
-      setError('E-mail ou senha inválidos.');
+    } catch (erro) {
+      setError(mensagemErroLogin(erro, 'E-mail ou senha inválidos.'));
     } finally {
       setLoading(false);
     }

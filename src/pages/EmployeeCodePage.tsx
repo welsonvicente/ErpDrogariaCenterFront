@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { mensagemErroLogin } from '../utils/mensagemErroLogin';
 
 /**
  * Login rápido do funcionário: código + PIN (pensado para terminal
@@ -29,8 +30,8 @@ export function EmployeeCodePage() {
     try {
       await loginFuncionario(codigo.trim(), pin.trim());
       navigate(`/${orgSlug}/funcionario/lancar`);
-    } catch {
-      setError('Código ou PIN inválidos.');
+    } catch (erro) {
+      setError(mensagemErroLogin(erro, 'Código ou PIN inválidos.'));
     } finally {
       setLoading(false);
     }
