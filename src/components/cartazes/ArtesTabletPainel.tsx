@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { ElementoStoryEditavel, type GuiasAlinhamentoStory } from '../ElementoStoryEditavel';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
+import { carregarFundoDoServidor, enviarFundoParaServidor, type FundoNoServidor } from '../../utils/fundoNoServidor';
 import { carregarFontesCartaz } from '../../utils/cartazEngine';
 import { compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
@@ -31,6 +32,9 @@ interface ArtesTabletPainelProps {
   /** A logo é a mesma do panfleto; aqui só dá pra esconder/mostrar nas artes do tablet. */
   mostrarLogo: boolean;
   onMostrarLogo: (mostrar: boolean) => void;
+  /** Fundo salvo no servidor (referência no R2) — null = degradê padrão. */
+  fundoSalvo: FundoNoServidor | null;
+  onFundoSalvo: (fundo: FundoNoServidor | null) => void;
   onAviso: (mensagem: string) => void;
 }
 
@@ -40,11 +44,27 @@ interface ArtesTabletPainelProps {
  * mouse ou o dedo (ver ElementoStoryEditavel). As posições valem pra todas as
  * artes — muda uma vez, sai igual em todas.
  */
-export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixas, logoCaixa, onLogoCaixa, mostrarLogo, onMostrarLogo, onAviso }: ArtesTabletPainelProps) {
+export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixas, logoCaixa, onLogoCaixa, mostrarLogo, onMostrarLogo, fundoSalvo, onFundoSalvo, onAviso }: ArtesTabletPainelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const inputFundoRef = useRef<HTMLInputElement>(null);
   const [imagemFundo, setImagemFundo] = useState<HTMLImageElement | null>(null);
+  const [enviandoFundo, setEnviandoFundo] = useState(false);
+  const fundoMostradoRef = useRef<string | null | undefined>(undefined);
+
+  // Fundo salvo no servidor: baixa quando muda (ao abrir, ou trocado em outro aparelho).
+  useEffect(() => {
+    const id = fundoSalvo?.arquivoId ?? null;
+    if (fundoMostradoRef.current === id) return;
+    fundoMostradoRef.current = id;
+    if (!id) return setImagemFundo(null);
+    let cancelado = false;
+    carregarFundoDoServidor(id)
+      .then((img) => { if (!cancelado) setImagemFundo(img); })
+      .catch(() => { if (!cancelado) onAviso('Não foi possível baixar o fundo salvo das artes do tablet.'); });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fundoSalvo]);
   const [arteAtual, setArteAtual] = useState(0);
   const [selecao, setSelecao] = useState<Selecao>(null);
   const [baixando, setBaixando] = useState(false);
@@ -92,10 +112,18 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
     const arquivo = e.target.files?.[0];
     e.target.value = '';
     if (!arquivo) return;
+    setEnviandoFundo(true);
     try {
-      setImagemFundo(await carregarImagemDeArquivo(arquivo));
+      // Mostra na hora e envia pro servidor — o fundo passa a valer em todos os aparelhos da conta.
+      const img = await carregarImagemDeArquivo(arquivo);
+      setImagemFundo(img);
+      const arquivoId = await enviarFundoParaServidor(img, LARGURA_TABLET);
+      fundoMostradoRef.current = arquivoId; // já está na tela
+      onFundoSalvo({ nome: arquivo.name, arquivoId });
     } catch {
-      onAviso('Não foi possível abrir essa imagem de fundo.');
+      onAviso('Não foi possível salvar esse fundo no servidor. Confira a conexão e tente de novo.');
+    } finally {
+      setEnviandoFundo(false);
     }
   }
 
@@ -149,8 +177,8 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
       </div>
 
       <div className="tablet-painel-acoes">
-        <button type="button" className="btn-ghost" onClick={() => inputFundoRef.current?.click()}>🖼️ {imagemFundo ? 'Trocar fundo' : 'Escolher fundo'}</button>
-        {imagemFundo && <button type="button" className="btn-ghost" onClick={() => setImagemFundo(null)}>Remover fundo</button>}
+        <button type="button" className="btn-ghost" disabled={enviandoFundo} onClick={() => inputFundoRef.current?.click()}>🖼️ {enviandoFundo ? 'Enviando fundo…' : imagemFundo ? 'Trocar fundo' : 'Escolher fundo'}</button>
+        {imagemFundo && <button type="button" className="btn-ghost" disabled={enviandoFundo} onClick={() => onFundoSalvo(null)}>Remover fundo</button>}
         <button type="button" className="btn-ghost" disabled={!caixas} onClick={() => caixas && onCaixas(alinharCaixasTablet(caixas))}>📐 Alinhar produtos</button>
         <button type="button" className="btn-ghost" disabled={!caixas && !logoCaixa} onClick={() => { onCaixas(null); onLogoCaixa(null); setSelecao(null); }}>↺ Posições padrão</button>
         {imagemLogo && (mostrarLogo ? (

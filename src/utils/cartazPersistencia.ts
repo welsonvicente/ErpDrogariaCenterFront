@@ -1,5 +1,6 @@
 import { arquivoCartazService } from '../services/arquivoCartazService';
 import type { CaixaTablet } from './tabletEngine';
+import type { OfertaCartaz, OfertaLote } from './cartazOfertaEngine';
 import { preferenciaCartazService, type ChavePreferenciaCartaz } from '../services/preferenciaCartazService';
 import type { StatusImagemProduto } from './batchEngine';
 import type { CaixaStory, TransformImagem } from './cartazEngine';
@@ -289,6 +290,8 @@ export interface ConfiguracoesPanfleto {
   tabletLogoCaixa?: CaixaTablet | null;
   /** false = a logomarca do panfleto não aparece nas artes do tablet. Ausente = aparece. */
   tabletMostrarLogo?: boolean;
+  /** Fundo das artes do tablet, guardado no R2 (vale em todos os aparelhos) — null/ausente = degradê padrão. */
+  tabletFundo?: { nome: string; arquivoId: string } | null;
 }
 
 export function carregarConfiguracoesPanfleto(): Partial<ConfiguracoesPanfleto> | null {
@@ -541,6 +544,53 @@ export const EVENTO_PREFERENCIAS_SINCRONIZADAS = 'cartazes:preferencias-sincroni
 
 const CHAVE_DESCRICOES_PRODUTO = 'cartazes_descricoes_produto_v1';
 
+// ---------------------------------------------------------------------------
+// Folha A4 do Cartaz de oferta — salva no servidor (por organização), então
+// abre igual em qualquer aparelho logado na mesma conta. O fundo personalizado
+// vai pro R2 e aqui fica só a referência (`arquivoId`).
+
+const CHAVE_CARTAZ_OFERTA = 'cartazes_oferta_folha_v1';
+/** Rascunho antigo, só deste navegador (antes de ir pro servidor) — lido uma vez pra migrar. */
+const CHAVE_CARTAZ_OFERTA_LEGADO = 'cartazes_oferta_rascunho_v1';
+
+export interface FolhaCartazOferta {
+  modo: 'individual' | 'lote';
+  oferta: OfertaCartaz;
+  quantidade: string;
+  porFolhaIndividual: number;
+  lote: OfertaLote[];
+  nomeArquivoLote: string;
+  porFolhaLote: number;
+  pagina: number;
+  /** Fundo personalizado no R2 — null/ausente = modelo oficial. */
+  fundo?: { nome: string; arquivoId: string } | null;
+}
+
+/** Cópia local da folha (a do servidor chega com a sincronização). `fundoLegadoDataUrl` = fundo do rascunho antigo, ainda por enviar. */
+export function carregarFolhaCartazOferta(): (Partial<FolhaCartazOferta> & { fundoLegadoDataUrl?: string; fundoLegadoNome?: string }) | null {
+  try {
+    const atual = localStorage.getItem(CHAVE_CARTAZ_OFERTA);
+    if (atual) return JSON.parse(atual);
+    const legado = JSON.parse(localStorage.getItem(CHAVE_CARTAZ_OFERTA_LEGADO) || 'null');
+    if (!legado) return null;
+    const { fundo, ...resto } = legado;
+    return { ...resto, fundo: null, fundoLegadoDataUrl: fundo?.dataUrl, fundoLegadoNome: fundo?.nome };
+  } catch {
+    return null;
+  }
+}
+
+export function salvarFolhaCartazOferta(folha: FolhaCartazOferta) {
+  try {
+    const serializado = JSON.stringify(folha);
+    localStorage.setItem(CHAVE_CARTAZ_OFERTA, serializado);
+    localStorage.removeItem(CHAVE_CARTAZ_OFERTA_LEGADO);
+    agendarEnvioPreferencia('cartaz_oferta', serializado);
+  } catch {
+    /* armazenamento local indisponível — a folha só não fica salva */
+  }
+}
+
 function normalizarNome(nome: string) {
   return nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 }
@@ -587,6 +637,7 @@ const CHAVE_LOCAL_DA_PREFERENCIA: Record<ChavePreferenciaCartaz, string> = {
   planilha: CHAVE_CONFIGURACOES_LOTE,
   logo_story: CHAVE_LOGO_PADRAO_STORY,
   descricoes_produto: CHAVE_DESCRICOES_PRODUTO,
+  cartaz_oferta: CHAVE_CARTAZ_OFERTA,
 };
 
 let preferenciasSincronizadas = false;

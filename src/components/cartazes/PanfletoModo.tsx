@@ -214,6 +214,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [tabletCaixas, setTabletCaixas] = useState<CaixaTablet[] | null>(null);
   const [tabletLogoCaixa, setTabletLogoCaixa] = useState<CaixaTablet | null>(null);
   const [tabletMostrarLogo, setTabletMostrarLogo] = useState(true);
+  const [tabletFundo, setTabletFundo] = useState<{ nome: string; arquivoId: string } | null>(null);
 
   const [imagemQr, setImagemQr] = useState<HTMLImageElement | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
@@ -358,6 +359,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       if (config.cardsCaixas !== undefined) setCardsCaixas(config.cardsCaixas);
       if (config.tabletLogoCaixa !== undefined) setTabletLogoCaixa(config.tabletLogoCaixa);
       if (config.tabletMostrarLogo !== undefined) setTabletMostrarLogo(config.tabletMostrarLogo);
+      if (config.tabletFundo !== undefined) setTabletFundo(config.tabletFundo);
     }
     aplicarConfiguracoes();
     window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
@@ -401,6 +403,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         tabletCaixas,
         tabletLogoCaixa,
         tabletMostrarLogo,
+        tabletFundo,
         cardsCaixas,
       });
     }, 400);
@@ -409,7 +412,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento, mostrarTextosCabecalho, mostrarTextosRodape,
     textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento, qrAlinhamento, link,
     itensPorPagina, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco, tamanhoBorda,
-    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca, tabletCaixas, tabletLogoCaixa, tabletMostrarLogo, cardsCaixas,
+    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca, tabletCaixas, tabletLogoCaixa, tabletMostrarLogo, tabletFundo, cardsCaixas,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -1662,6 +1665,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
           onLogoCaixa={setTabletLogoCaixa}
           mostrarLogo={tabletMostrarLogo}
           onMostrarLogo={setTabletMostrarLogo}
+          fundoSalvo={tabletFundo}
+          onFundoSalvo={setTabletFundo}
           onAviso={setToast}
         />
       )}
