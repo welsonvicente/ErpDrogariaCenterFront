@@ -1,7 +1,7 @@
 import { api } from './api';
 
 /** Grupos de preferência guardados no servidor — mesmas chaves de `ChavePreferenciaCartaz` no backend. */
-export type ChavePreferenciaCartaz = 'story' | 'panfleto' | 'planilha' | 'logo_story';
+export type ChavePreferenciaCartaz = 'story' | 'panfleto' | 'planilha' | 'logo_story' | 'descricoes_produto';
 
 /**
  * Preferências "padrão" de Cartazes (cores, letras, tamanhos, posições),

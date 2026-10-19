@@ -15,6 +15,8 @@ export interface ProdutoImportado {
   normal: number | null;
   promo: number | null;
   ean: string | null;
+  /** Nome como veio da planilha — chave do dicionário de descrições quando não há EAN (ver `descricaoDoProduto`). `descricao` é o que aparece (pode ter sido editado). */
+  descricaoOriginal?: string;
   imagem: HTMLImageElement | null;
   status: StatusImagemProduto;
   transform: TransformImagem;
@@ -25,7 +27,7 @@ export interface ProdutoImportado {
 export const TRANSFORM_PADRAO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
 
 export function novoProdutoImportado(base: { descricao: string; normal: number | null; promo: number | null; ean: string | null }): ProdutoImportado {
-  return { ...base, imagem: null, status: 'pending', transform: TRANSFORM_PADRAO, arquivoId: null };
+  return { ...base, descricaoOriginal: base.descricao, imagem: null, status: 'pending', transform: TRANSFORM_PADRAO, arquivoId: null };
 }
 
 export function parseCelulaDinheiro(v: unknown): number | null {

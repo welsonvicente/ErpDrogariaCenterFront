@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
+import { CartazOfertaModo } from '../components/cartazes/CartazOfertaModo';
 import { ImportarPlanilhaModo } from '../components/cartazes/ImportarPlanilhaModo';
 import { PanfletoModo } from '../components/cartazes/PanfletoModo';
 import { StoryModo } from '../components/cartazes/StoryModo';
 import { FerramentaShell } from '../components/FerramentaShell';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { sincronizarPreferenciasCartaz } from '../utils/cartazPersistencia';
+import type { OfertaLote } from '../utils/cartazOfertaEngine';
 import type { ProdutoPanfleto } from '../utils/panfletoEngine';
 
-type Modo = 'story' | 'panfleto' | 'planilha';
+type Modo = 'story' | 'panfleto' | 'planilha' | 'oferta';
 
 /**
  * Casca da tela de Cartazes — alterna entre os três modos, todos já
@@ -27,6 +29,7 @@ export function CartazesPage() {
   useDocumentTitle('Cartazes e panfletos');
   const [modo, setModo] = useState<Modo>('story');
   const [produtosParaPanfleto, setProdutosParaPanfleto] = useState<ProdutoPanfleto[] | null>(null);
+  const [ofertasParaCartaz, setOfertasParaCartaz] = useState<OfertaLote[] | null>(null);
 
   // Cores, letras, tamanhos e posições padrão vêm do servidor (por organização), pra valerem em
   // qualquer navegador — os três modos reaplicam quando chegam (ver cartazPersistencia.ts).
@@ -49,6 +52,9 @@ export function CartazesPage() {
           <button type="button" id="cartazes-tab-planilha" role="tab" aria-selected={modo === 'planilha'} aria-controls="cartazes-panel-planilha" className={`mode-tab${modo === 'planilha' ? ' active' : ''}`} onClick={() => setModo('planilha')}>
             📊 Importar <span>planilha</span>
           </button>
+          <button type="button" id="cartazes-tab-oferta" role="tab" aria-selected={modo === 'oferta'} aria-controls="cartazes-panel-oferta" className={`mode-tab${modo === 'oferta' ? ' active' : ''}`} onClick={() => setModo('oferta')}>
+            🏷️ Cartaz de oferta <span>imprimir em A4</span>
+          </button>
         </div>
 
         <div id="cartazes-panel-story" role="tabpanel" aria-labelledby="cartazes-tab-story" className="cartazes-mode" style={{ display: modo === 'story' ? 'block' : 'none' }}>
@@ -67,7 +73,14 @@ export function CartazesPage() {
               setProdutosParaPanfleto(produtos);
               setModo('panfleto');
             }}
+            aoEnviarParaCartazOferta={(ofertas) => {
+              setOfertasParaCartaz(ofertas);
+              setModo('oferta');
+            }}
           />
+        </div>
+        <div id="cartazes-panel-oferta" role="tabpanel" aria-labelledby="cartazes-tab-oferta" className="cartazes-mode" style={{ display: modo === 'oferta' ? 'block' : 'none' }}>
+          <CartazOfertaModo ofertasRecebidas={ofertasParaCartaz} aoReceberOfertas={() => setOfertasParaCartaz(null)} />
         </div>
       </div>
     </FerramentaShell>

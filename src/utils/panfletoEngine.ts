@@ -57,7 +57,11 @@ export interface AjustesStoryProduto {
 
 export interface ProdutoPanfleto {
   imagem: HTMLImageElement;
+  /** O que aparece no card — pode ser a descrição editada pela equipe (ver `descricaoDoProduto`). */
   nome: string;
+  /** Nome como entrou (planilha ou digitado) e EAN — chave do dicionário de descrições. Ausentes em projetos antigos. */
+  nomeOriginal?: string;
+  ean?: string | null;
   de: string;
   por: string;
   /**
@@ -204,6 +208,19 @@ export interface ParametrosPaginaPanfleto {
   /** Logomarca/selo (PNG com fundo transparente) — uma só pro panfleto inteiro, desenhada em cada página na posição de `logoCaixa`. */
   imagemLogo: FonteImagem | null;
   logoCaixa: CaixaLogoPanfleto | null;
+  /**
+   * Posição/tamanho personalizado de cada card, pelo índice na página (valem
+   * pra todas as páginas) — ausente/null = posição da grade. Em fração da
+   * página: `x`/`largura` da largura, `y`/`altura` da altura.
+   */
+  cardsCaixas?: (CaixaCardPanfleto | null)[] | null;
+}
+
+export interface CaixaCardPanfleto {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
 }
 
 /**
@@ -225,6 +242,8 @@ export interface CaixaLogoPanfleto {
 export interface DimensaoPaginaPanfleto {
   largura: number;
   altura: number;
+  /** Onde cada card desta página foi desenhado (px lógicos) — a prévia põe a camada arrastável em cima. */
+  cards?: { x: number; y: number; largura: number; altura: number }[];
 }
 
 /** Converte a caixa relativa da logo pra coordenadas lógicas de uma página de tamanho `pagina`, sempre cabendo inteira dentro dela. */
@@ -313,6 +332,7 @@ export function renderizarPaginaPanfleto(
   // link configurado — sem isso, reservar o espaço deixa um vão vazio grande
   // entre os produtos e o texto do rodapé.
   const footerH = p.temLink ? 190 : 100;
+  const cardsDesenhados: { x: number; y: number; largura: number; altura: number }[] = [];
   const rowsOcupadas = Math.max(1, Math.ceil(produtosDaPagina.length / cols));
   const rows = Math.max(rowsOcupadas, Math.ceil((itensPorPagina ?? 0) / cols));
   const W = pad * 2 + cols * cardW + (cols - 1) * gap;
@@ -374,23 +394,37 @@ export function renderizarPaginaPanfleto(
     const row = Math.floor(idx / cols);
     const itensNaLinha = row === rowsOcupadas - 1 ? produtosDaPagina.length - row * cols : cols;
     const deslocamentoX = ((cols - itensNaLinha) * (cardW + gap)) / 2;
-    const x = pad + deslocamentoX + col * (cardW + gap);
-    const y = headerH + row * (cardH + gap);
+    const rel = p.cardsCaixas?.[idx];
+    const caixa = rel
+      ? { x: rel.x * W, y: rel.y * H, largura: rel.largura * W, altura: rel.altura * H }
+      : { x: pad + deslocamentoX + col * (cardW + gap), y: headerH + row * (cardH + gap), largura: cardW, altura: cardH };
+    cardsDesenhados.push(caixa);
+
+    // Card redimensionado: desenha no tamanho original e escala por igual (texto não distorce);
+    // a altura extra (ou a menos) fica com a foto.
+    const escala = caixa.largura / cardW;
+    const alturaCard = caixa.altura / escala;
+    const alturaFoto = Math.max(30, photoH + (alturaCard - cardH));
+    ctx.save();
+    ctx.translate(caixa.x, caixa.y);
+    ctx.scale(escala, escala);
+    const x = 0;
+    const y = 0;
 
     // `transparent` = sem card: só foto e textos, direto sobre o fundo da página.
     if (p.corFundoCard !== 'transparent') {
       ctx.fillStyle = p.corFundoCard;
       ctx.strokeStyle = '#E4E9E0';
       ctx.lineWidth = 1;
-      desenharRetanguloArredondado(ctx, x, y, cardW, cardH, 14);
+      desenharRetanguloArredondado(ctx, x, y, cardW, alturaCard, 14);
       ctx.fill();
       ctx.stroke();
     }
 
     const photoPad = 14;
-    desenharImagemContain(ctx, produto.imagem, x + photoPad, y + photoPad, cardW - photoPad * 2, photoH);
+    desenharImagemContain(ctx, produto.imagem, x + photoPad, y + photoPad, cardW - photoPad * 2, alturaFoto);
 
-    let cursorY = y + photoPad + photoH + 24;
+    let cursorY = y + photoPad + alturaFoto + 24;
 
     ctx.fillStyle = p.corDescricao;
     ctx.font = `700 ${p.tamanhoNome}px Inter`;
@@ -434,6 +468,7 @@ export function renderizarPaginaPanfleto(
       ctx.fillText(textoSelo, x + photoPad + 9, cursorY + 12 + alturaSelo / 2);
       ctx.textBaseline = 'alphabetic';
     }
+    ctx.restore();
   });
 
   if (produtosDaPagina.length === 0) {
@@ -474,7 +509,28 @@ export function renderizarPaginaPanfleto(
     desenharImagemContain(ctx, p.imagemLogo, caixa.x, caixa.y, caixa.largura, caixa.altura);
   }
 
-  return { largura: W, altura: H };
+  return { largura: W, altura: H, cards: cardsDesenhados };
+}
+
+/**
+ * Posições da grade padrão de uma página CHEIA, em fração da página — base
+ * quando a pessoa arrasta um card pela primeira vez (os outros continuam
+ * onde estavam). Mesma conta de `renderizarPaginaPanfleto`.
+ */
+export function gradePadraoPanfleto(itensPorPagina: number, sizing: DimensaoCardPanfleto, tamanhoBorda: number, temLink: boolean): CaixaCardPanfleto[] {
+  const cols = 3;
+  const gap = 24;
+  const headerH = 130;
+  const footerH = temLink ? 190 : 100;
+  const rows = Math.max(1, Math.ceil(itensPorPagina / cols));
+  const W = tamanhoBorda * 2 + cols * sizing.cardW + (cols - 1) * gap;
+  const H = headerH + rows * sizing.cardH + (rows - 1) * gap + footerH + tamanhoBorda;
+  return Array.from({ length: itensPorPagina }, (_, i) => ({
+    x: (tamanhoBorda + (i % cols) * (sizing.cardW + gap)) / W,
+    y: (headerH + Math.floor(i / cols) * (sizing.cardH + gap)) / H,
+    largura: sizing.cardW / W,
+    altura: sizing.cardH / H,
+  }));
 }
 
 /** Quebra a lista de produtos em páginas de `itensPorPagina` cada. */

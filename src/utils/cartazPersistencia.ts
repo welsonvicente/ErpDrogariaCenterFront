@@ -1,4 +1,5 @@
 import { arquivoCartazService } from '../services/arquivoCartazService';
+import type { CaixaTablet } from './tabletEngine';
 import { preferenciaCartazService, type ChavePreferenciaCartaz } from '../services/preferenciaCartazService';
 import type { StatusImagemProduto } from './batchEngine';
 import type { CaixaStory, TransformImagem } from './cartazEngine';
@@ -281,6 +282,11 @@ export interface ConfiguracoesPanfleto {
   corFundoSelo?: string;
   corTextoSelo?: string;
   manterFaixaBranca: boolean;
+  /** Artes do tablet (1920×1080): posições personalizadas dos 4 cards e da logo — null/ausente = padrão. */
+  tabletCaixas?: CaixaTablet[] | null;
+  /** Posição/tamanho personalizado dos cards do panfleto, por índice na página (fração da página) — null/ausente = grade. */
+  cardsCaixas?: ({ x: number; y: number; largura: number; altura: number } | null)[] | null;
+  tabletLogoCaixa?: CaixaTablet | null;
 }
 
 export function carregarConfiguracoesPanfleto(): Partial<ConfiguracoesPanfleto> | null {
@@ -524,11 +530,61 @@ export function limparProjetoAtivo(tipo: TipoProjetoCartazPersistencia) {
 
 export const EVENTO_PREFERENCIAS_SINCRONIZADAS = 'cartazes:preferencias-sincronizadas';
 
+// ---------------------------------------------------------------------------
+// Descrições de produto editadas — um dicionário da farmácia (sincronizado
+// como as outras preferências) que liga o produto à descrição escolhida pela
+// equipe. Editou no Importar ou no Panfleto, vale nos dois, no Tablet e nas
+// próximas importações. A chave é o EAN quando existe (o nome da planilha pode
+// mudar de um mês pro outro); sem EAN, o nome original, normalizado.
+
+const CHAVE_DESCRICOES_PRODUTO = 'cartazes_descricoes_produto_v1';
+
+function normalizarNome(nome: string) {
+  return nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+}
+
+/** Chave do produto no dicionário: EAN (só dígitos) ou, sem ele, o nome original normalizado. */
+export function chaveDescricaoProduto(nomeOriginal: string, ean?: string | null): string {
+  const digitos = (ean ?? '').replace(/\D/g, '');
+  return digitos ? `ean:${digitos}` : `nome:${normalizarNome(nomeOriginal)}`;
+}
+
+export function carregarDescricoesProduto(): Record<string, string> {
+  try {
+    const valor = JSON.parse(localStorage.getItem(CHAVE_DESCRICOES_PRODUTO) || '{}');
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Descrição escolhida pela equipe pra esse produto, ou o próprio nome original quando ninguém editou. */
+export function descricaoDoProduto(nomeOriginal: string, ean?: string | null): string {
+  return carregarDescricoesProduto()[chaveDescricaoProduto(nomeOriginal, ean)] ?? nomeOriginal;
+}
+
+/** Grava a descrição editada; voltar ao nome original (ou apagar o texto) remove a entrada. */
+export function salvarDescricaoProduto(nomeOriginal: string, ean: string | null | undefined, descricao: string) {
+  const dicionario = carregarDescricoesProduto();
+  const chave = chaveDescricaoProduto(nomeOriginal, ean);
+  const limpa = descricao.replace(/\s+/g, ' ').trim();
+  if (!limpa || limpa === nomeOriginal.trim()) delete dicionario[chave];
+  else dicionario[chave] = limpa;
+  try {
+    const serializado = JSON.stringify(dicionario);
+    localStorage.setItem(CHAVE_DESCRICOES_PRODUTO, serializado);
+    agendarEnvioPreferencia('descricoes_produto', serializado);
+  } catch {
+    /* armazenamento indisponível — a edição vale só nesta tela */
+  }
+}
+
 const CHAVE_LOCAL_DA_PREFERENCIA: Record<ChavePreferenciaCartaz, string> = {
   story: CHAVE_CONFIGURACOES,
   panfleto: CHAVE_CONFIGURACOES_PANFLETO,
   planilha: CHAVE_CONFIGURACOES_LOTE,
   logo_story: CHAVE_LOGO_PADRAO_STORY,
+  descricoes_produto: CHAVE_DESCRICOES_PRODUTO,
 };
 
 let preferenciasSincronizadas = false;

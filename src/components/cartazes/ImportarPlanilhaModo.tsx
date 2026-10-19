@@ -31,6 +31,9 @@ import {
   montarGuiasCameraDoStory,
   salvarConfiguracoesLote,
   salvarProjetoAtivo,
+  chaveDescricaoProduto,
+  descricaoDoProduto,
+  salvarDescricaoProduto,
 } from '../../utils/cartazPersistencia';
 import { compartilharOuBaixarVarios } from '../../utils/compartilharArquivo';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
@@ -38,9 +41,19 @@ import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazS
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { useFilaUploadImagens } from '../../hooks/useFilaUploadImagens';
+import type { OfertaLote } from '../../utils/cartazOfertaEngine';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
+import { NomeProdutoEditavel } from './NomeProdutoEditavel';
 import { SeletorCor } from './SeletorCor';
+
+/** Troca o nome que veio da planilha pela descrição que a equipe já editou (dicionário da farmácia), quando houver. */
+function comDescricoesSalvas(lista: ProdutoImportado[]): ProdutoImportado[] {
+  return lista.map((p) => {
+    const original = p.descricaoOriginal ?? p.descricao;
+    return { ...p, descricaoOriginal: original, descricao: descricaoDoProduto(original, p.ean) };
+  });
+}
 
 function formatarTamanho(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -59,6 +72,7 @@ const ROTULO_STATUS: Record<ProdutoImportado['status'], string> = {
 /** Produto salvo no `estadoEditor` do projeto — mesmos campos de `ProdutoImportado`, sem o `HTMLImageElement`. */
 interface ProdutoLoteSalvo {
   descricao: string;
+  descricaoOriginal?: string;
   normal: number | null;
   promo: number | null;
   ean: string | null;
@@ -74,6 +88,8 @@ interface EstadoEditorLote {
 interface ImportarPlanilhaModoProps {
   /** Envia os produtos com foto pro modo Panfleto e troca de aba. */
   aoEnviarParaPanfleto: (produtos: ProdutoPanfleto[]) => void;
+  /** Envia os produtos com preço de promoção pro Cartaz de oferta (A4), em lote, e troca de aba. */
+  aoEnviarParaCartazOferta?: (ofertas: OfertaLote[]) => void;
 }
 
 /**
@@ -95,7 +111,7 @@ interface ImportarPlanilhaModoProps {
  * vez (não sobrecarrega a busca por IA) mas deixa os UPLOADS das fotos já
  * encontradas correrem em paralelo.
  */
-export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaModoProps) {
+export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazOferta }: ImportarPlanilhaModoProps) {
   const inputPlanilhaRef = useRef<HTMLInputElement>(null);
   const inputManualRef = useRef<HTMLInputElement>(null);
   const trocaAlvoIdx = useRef<number | null>(null);
@@ -171,7 +187,13 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     }
     aplicarConfiguracoes();
     window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
-    return () => window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
+    // Descrições editadas em outro computador chegam com a sincronização — reaplica na lista aberta.
+    const reaplicarDescricoes = () => setProdutos((atual) => comDescricoesSalvas(atual));
+    window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, reaplicarDescricoes);
+    return () => {
+      window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
+      window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, reaplicarDescricoes);
+    };
   }, []);
 
   useEffect(() => {
@@ -243,6 +265,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
       }
       restaurados.push({
         descricao: p.descricao,
+        descricaoOriginal: p.descricaoOriginal,
         normal: p.normal,
         promo: p.promo,
         ean: p.ean,
@@ -252,7 +275,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
         arquivoId: imagem ? p.arquivoId : null,
       });
     }
-    setProdutos(restaurados);
+    setProdutos(comDescricoesSalvas(restaurados));
     setProntoParaPersistir(true);
   }
 
@@ -329,7 +352,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
 
   function montarEstadoEditor(produtosParaSalvar: ProdutoImportado[]): EstadoEditorLote {
     return {
-      produtos: produtosParaSalvar.map((p) => ({ descricao: p.descricao, normal: p.normal, promo: p.promo, ean: p.ean, arquivoId: p.arquivoId, status: p.status, transform: p.transform })),
+      produtos: produtosParaSalvar.map((p) => ({ descricao: p.descricao, descricaoOriginal: p.descricaoOriginal, normal: p.normal, promo: p.promo, ean: p.ean, arquivoId: p.arquivoId, status: p.status, transform: p.transform })),
     };
   }
 
@@ -386,7 +409,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
         setStatusImportacao('Nenhum produto encontrado nessa planilha.');
         return;
       }
-      setProdutos(importados);
+      setProdutos(comDescricoesSalvas(importados));
       setStatusImportacao(`${importados.length} produto(s) importado(s) com sucesso.`);
       enviarArquivoParaServidor(arquivo);
     } catch {
@@ -415,7 +438,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
         setStatusImportacao('Não consegui reconhecer os produtos nesse arquivo salvo.');
         return;
       }
-      setProdutos(importados);
+      setProdutos(comDescricoesSalvas(importados));
       setStatusImportacao(`${importados.length} produto(s) importado(s) de "${meta.nomeOriginal}".`);
     } catch {
       setStatusImportacao('Não foi possível baixar esse arquivo. Tente novamente.');
@@ -440,7 +463,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
       setToast('Cole ao menos a descrição dos produtos (uma por linha).');
       return;
     }
-    setProdutos((atual) => [...atual, ...novos]);
+    setProdutos((atual) => [...atual, ...comDescricoesSalvas(novos)]);
     setDescColada('');
     setNormalColada('');
     setPromoColada('');
@@ -542,6 +565,40 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
     copiarTexto(texto);
   }
 
+  /** Grava no dicionário da farmácia e atualiza todo produto da lista com a mesma chave (mesmo EAN/nome). */
+  function handleEditarDescricao(idx: number, novo: string) {
+    const alvo = produtos[idx];
+    if (!alvo) return;
+    const original = alvo.descricaoOriginal ?? alvo.descricao;
+    salvarDescricaoProduto(original, alvo.ean, novo);
+    const chave = chaveDescricaoProduto(original, alvo.ean);
+    setProdutos((atual) => atual.map((p) => {
+      const orig = p.descricaoOriginal ?? p.descricao;
+      return chaveDescricaoProduto(orig, p.ean) === chave ? { ...p, descricaoOriginal: orig, descricao: descricaoDoProduto(orig, p.ean) } : p;
+    }));
+    setToast('Descrição salva — vale no panfleto, no tablet e nas próximas importações.');
+  }
+
+  /** Cartaz de oferta não usa foto — vai todo produto com preço de promoção, já com a descrição editada. */
+  function handleGerarCartazesOferta() {
+    const comPreco = produtos.filter((p) => p.promo !== null && p.promo > 0);
+    if (comPreco.length === 0) {
+      setToast('Nenhum produto tem preço de promoção. Confira a coluna de promoção da planilha.');
+      return;
+    }
+    aoEnviarParaCartazOferta?.(
+      comPreco.map((p) => ({
+        produto: p.descricao,
+        produtoOriginal: p.descricaoOriginal ?? p.descricao,
+        ean: p.ean,
+        precoAntigo: p.normal ?? '',
+        preco: p.promo as number,
+      })),
+    );
+    const semPreco = produtos.length - comPreco.length;
+    setToast(`${comPreco.length} cartaz(es) de oferta prontos${semPreco ? ` — ${semPreco} sem preço de promoção ficaram de fora` : ''}.`);
+  }
+
   function handleUsarNoPanfleto() {
     const comImagem = produtos.filter((p) => p.imagem);
     if (comImagem.length === 0) {
@@ -552,6 +609,8 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
       comImagem.map((p) => ({
         imagem: p.imagem as HTMLImageElement,
         nome: p.descricao,
+        nomeOriginal: p.descricaoOriginal ?? p.descricao,
+        ean: p.ean,
         de: p.normal !== null ? String(p.normal) : '',
         por: p.promo !== null ? String(p.promo) : '',
         transform: p.transform,
@@ -729,6 +788,11 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
                   <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleUsarNoPanfleto}>
                     🗞️ Usar no panfleto
                   </button>
+                  {aoEnviarParaCartazOferta && (
+                    <button type="button" className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={handleGerarCartazesOferta}>
+                      🏷️ Gerar cartazes de oferta (A4)
+                    </button>
+                  )}
                   <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={handleCopiarTextoTodos}>
                     📋 Copiar texto pronto
                   </button>
@@ -760,7 +824,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto }: ImportarPlanilhaM
                     <div className="batch-row" key={`${p.descricao}-${idx}`}>
                       <div className="thumb">{p.imagem ? <img src={p.imagem.src} alt="" /> : '💊'}</div>
                       <div className="binfo">
-                        <div className="bname">{p.descricao}</div>
+                        <NomeProdutoEditavel className="bname" nome={p.descricao} onSalvar={(novo) => handleEditarDescricao(idx, novo)} />
                         <div className="bprice">
                           {p.normal ? `De R$${fmtMoney(p.normal)} · ` : ''}
                           {p.promo ? `Por R$${fmtMoney(p.promo)}` : 'sem preço promo'}

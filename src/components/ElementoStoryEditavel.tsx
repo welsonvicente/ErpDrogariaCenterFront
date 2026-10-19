@@ -32,6 +32,7 @@ export function ElementoStoryEditavel({
   onSelecionar,
   onAlterar,
   onGuiasAlinhadas,
+  onDuploClique,
 }: {
   frameRef: RefObject<HTMLDivElement | null>;
   caixa: CaixaStory | null;
@@ -48,6 +49,8 @@ export function ElementoStoryEditavel({
   onSelecionar: () => void;
   onAlterar: (caixa: CaixaStory, tamanho?: number) => void;
   onGuiasAlinhadas?: (guias: GuiasAlinhamentoStory | null) => void;
+  /** Duplo clique/toque no elemento (ex.: abrir a edição do produto do card). */
+  onDuploClique?: () => void;
 }) {
   const inicio = useRef<Inicio | null>(null);
   const [arrastando, setArrastando] = useState(false);
@@ -101,11 +104,28 @@ export function ElementoStoryEditavel({
       const centrosY = [alturaArte / 2, ...caixasVizinhas.map((vizinha) => vizinha.y + vizinha.altura / 2)];
       const centroX = proxima.x + proxima.largura / 2;
       const centroY = proxima.y + proxima.altura / 2;
-      const encaixeX = centrosX.find((centro) => Math.abs(centro - centroX) <= tolerancia);
-      const encaixeY = centrosY.find((centro) => Math.abs(centro - centroY) <= tolerancia);
+      let encaixeX = centrosX.find((centro) => Math.abs(centro - centroX) <= tolerancia);
+      let encaixeY = centrosY.find((centro) => Math.abs(centro - centroY) <= tolerancia);
 
       if (encaixeX !== undefined) proxima.x = Math.max(0, Math.min(larguraArte - proxima.largura, encaixeX - proxima.largura / 2));
       if (encaixeY !== undefined) proxima.y = Math.max(0, Math.min(alturaArte - proxima.altura, encaixeY - proxima.altura / 2));
+
+      // Sem encaixe pelo centro, tenta pelas bordas dos vizinhos (topo e lateral esquerda) —
+      // cards de tamanhos diferentes também ficam alinhados, e a régua aparece na borda.
+      if (encaixeY === undefined) {
+        const topo = caixasVizinhas.map((vizinha) => vizinha.y).find((y) => Math.abs(y - proxima.y) <= tolerancia);
+        if (topo !== undefined) {
+          proxima.y = Math.max(0, Math.min(alturaArte - proxima.altura, topo));
+          encaixeY = topo;
+        }
+      }
+      if (encaixeX === undefined) {
+        const esquerda = caixasVizinhas.map((vizinha) => vizinha.x).find((x) => Math.abs(x - proxima.x) <= tolerancia);
+        if (esquerda !== undefined) {
+          proxima.x = Math.max(0, Math.min(larguraArte - proxima.largura, esquerda));
+          encaixeX = esquerda;
+        }
+      }
       onGuiasAlinhadas?.(encaixeX !== undefined || encaixeY !== undefined ? { vertical: encaixeX, horizontal: encaixeY } : null);
       onAlterar(proxima);
       return;
@@ -181,6 +201,7 @@ export function ElementoStoryEditavel({
       onPointerUp={encerrar}
       onPointerCancel={encerrar}
       onKeyDown={handleKeyDown}
+      onDoubleClick={onDuploClique}
     >
       {selecionado && <>
         <i className="story-handle story-handle--top-left" /><i className="story-handle story-handle--top" /><i className="story-handle story-handle--top-right" />

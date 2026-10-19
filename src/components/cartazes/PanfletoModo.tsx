@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties } fro
 import JSZip from 'jszip';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal, type GuiaCamera } from '../CameraModal';
-import { ElementoStoryEditavel } from '../ElementoStoryEditavel';
+import { ElementoStoryEditavel, type GuiasAlinhamentoStory } from '../ElementoStoryEditavel';
 import { EditarStoryProdutoModal } from './EditarStoryProdutoModal';
 import { GaleriaStoriesModal } from './GaleriaStoriesModal';
 import { blobDeImagem, carregarImagemDeArquivo, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
@@ -22,6 +22,9 @@ import {
   salvarConfiguracoesPanfleto,
   salvarProdutoRecente,
   salvarProjetoAtivo,
+  chaveDescricaoProduto,
+  descricaoDoProduto,
+  salvarDescricaoProduto,
   type ProdutoRecente,
 } from '../../utils/cartazPersistencia';
 import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
@@ -34,6 +37,7 @@ import {
   caixaLogoPadrao,
   caixaLogoRelativa,
   construirPaginasPanfleto,
+  gradePadraoPanfleto,
   COR_FUNDO_SELO_PADRAO,
   COR_TEXTO_SELO_PADRAO,
   ESCALA_EXPORTACAO_PANFLETO,
@@ -43,6 +47,7 @@ import {
   renderizarPaginaPanfleto,
   TRANSFORM_PADRAO_PANFLETO,
   type AjustesStoryProduto,
+  type CaixaCardPanfleto,
   type CaixaLogoPanfleto,
   type DimensaoPaginaPanfleto,
   type AlinhamentoTexto,
@@ -50,6 +55,9 @@ import {
   type ProdutoPanfleto,
 } from '../../utils/panfletoEngine';
 import { gerarImagemQr } from '../../utils/qrCode';
+import type { CaixaTablet } from '../../utils/tabletEngine';
+import { ArtesTabletPainel } from './ArtesTabletPainel';
+import { EditorProdutoPanfleto, type EdicaoProdutoPanfleto } from './EditorProdutoPanfleto';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
 import { SeletorCor } from './SeletorCor';
 
@@ -82,6 +90,8 @@ const EMOJI_PADRAO_STORY = '🤩😱';
 interface ProdutoPanfletoSalvo {
   arquivoId: string | null;
   nome: string;
+  nomeOriginal?: string;
+  ean?: string | null;
   de: string;
   por: string;
   transform: TransformImagem;
@@ -189,10 +199,20 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [logoArquivoId, setLogoArquivoId] = useState<string | null>(null);
   const [logoCaixa, setLogoCaixa] = useState<CaixaLogoPanfleto | null>(null);
   const [logoSelecionada, setLogoSelecionada] = useState(false);
+  /** Cards arrastados/redimensionados (valem pra todas as páginas) — null = grade padrão. */
+  const [cardsCaixas, setCardsCaixas] = useState<(CaixaCardPanfleto | null)[] | null>(null);
+  const [cardSelecionado, setCardSelecionado] = useState<number | null>(null);
+  /** Produto aberto no editor de descrição/preço (✏️ na lista ou duplo clique no card da prévia). */
+  const [editandoIdx, setEditandoIdx] = useState<number | null>(null);
+  /** Régua: linha que aparece enquanto um card/logo arrastado fica alinhado com outro ou com o centro da página. */
+  const [guiasAlinhamento, setGuiasAlinhamento] = useState<GuiasAlinhamentoStory | null>(null);
   const [enviandoLogo, setEnviandoLogo] = useState(false);
   const [dimensaoPaginaAtual, setDimensaoPaginaAtual] = useState<DimensaoPaginaPanfleto | null>(null);
   const dimensoesPaginasRef = useRef<DimensaoPaginaPanfleto[]>([]);
   const stageRef = useRef<HTMLDivElement>(null);
+
+  const [tabletCaixas, setTabletCaixas] = useState<CaixaTablet[] | null>(null);
+  const [tabletLogoCaixa, setTabletLogoCaixa] = useState<CaixaTablet | null>(null);
 
   const [imagemQr, setImagemQr] = useState<HTMLImageElement | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
@@ -333,10 +353,20 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       if (config.corFundoSelo) setCorFundoSelo(config.corFundoSelo);
       if (config.corTextoSelo) setCorTextoSelo(config.corTextoSelo);
       if (config.manterFaixaBranca !== undefined) setManterFaixaBranca(config.manterFaixaBranca);
+      if (config.tabletCaixas !== undefined) setTabletCaixas(config.tabletCaixas);
+      if (config.cardsCaixas !== undefined) setCardsCaixas(config.cardsCaixas);
+      if (config.tabletLogoCaixa !== undefined) setTabletLogoCaixa(config.tabletLogoCaixa);
     }
     aplicarConfiguracoes();
     window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
-    return () => window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
+    // Descrições editadas em outro computador chegam com a sincronização — reaplica nos produtos abertos.
+    const reaplicarDescricoes = () =>
+      setProdutos((atual) => atual.map((p) => (p.nomeOriginal ? { ...p, nome: descricaoDoProduto(p.nomeOriginal, p.ean) } : p)));
+    window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, reaplicarDescricoes);
+    return () => {
+      window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
+      window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, reaplicarDescricoes);
+    };
   }, []);
 
   useEffect(() => {
@@ -366,6 +396,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         corFundoSelo,
         corTextoSelo,
         manterFaixaBranca,
+        tabletCaixas,
+        tabletLogoCaixa,
+        cardsCaixas,
       });
     }, 400);
     return () => clearTimeout(timer);
@@ -373,7 +406,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento, mostrarTextosCabecalho, mostrarTextosRodape,
     textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento, qrAlinhamento, link,
     itensPorPagina, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco, tamanhoBorda,
-    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca,
+    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca, tabletCaixas, tabletLogoCaixa, cardsCaixas,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -424,7 +457,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         // eslint-disable-next-line no-await-in-loop
         imagem = await criarImagemAvisoSemFoto();
       }
-      const restaurado = { imagem, nome: p.nome, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, arquivoId: p.arquivoId };
+      const restaurado = { imagem, nome: p.nomeOriginal ? descricaoDoProduto(p.nomeOriginal, p.ean) : p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, arquivoId: p.arquivoId };
       restaurados.push(restaurado);
       if (p.arquivoId && urlsDeFora.has(p.arquivoId) && url && imagem) paraAdotar.push(restaurado);
     }
@@ -551,7 +584,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   function montarEstadoEditor(produtosParaSalvar: ProdutoPanfleto[], logo: Partial<typeof logoRef.current> = {}): EstadoEditorPanfleto {
     const { logoArquivoId: arquivoDaLogo, logoCaixa: caixaDaLogo } = { ...logoRef.current, ...logo };
     return {
-      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
+      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
       logoArquivoId: arquivoDaLogo,
       logoCaixa: caixaDaLogo,
     };
@@ -650,6 +683,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       manterFaixaBranca,
       imagemLogo,
       logoCaixa,
+      cardsCaixas,
     };
 
     const dimensoes: DimensaoPaginaPanfleto[] = [];
@@ -672,7 +706,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     produtos, itensPorPagina, mostrarTextosCabecalho, nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento,
     mostrarTextosRodape, textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento,
     qrAlinhamento, link, imagemQr, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco,
-    tamanhoBorda, tamanhoSelo, corFundoSelo, corTextoSelo, imagemFundo, manterFaixaBranca, imagemLogo, logoCaixa,
+    tamanhoBorda, tamanhoSelo, corFundoSelo, corTextoSelo, imagemFundo, manterFaixaBranca, imagemLogo, logoCaixa, cardsCaixas,
   ]);
 
   useEffect(() => {
@@ -848,6 +882,46 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     }
   }
 
+  /**
+   * Grava a descrição no dicionário da farmácia e atualiza todo produto do
+   * panfleto com a mesma chave. Produto de projeto antigo (sem `nomeOriginal`)
+   * passa a usar o nome de antes da edição como original.
+   */
+  function handleEditarDescricao(idx: number, novo: string) {
+    const alvo = produtos[idx];
+    if (!alvo) return;
+    const original = alvo.nomeOriginal ?? alvo.nome;
+    salvarDescricaoProduto(original, alvo.ean, novo);
+    const chave = chaveDescricaoProduto(original, alvo.ean);
+    setProdutos((atual) => atual.map((p, i) => {
+      const orig = i === idx ? original : p.nomeOriginal;
+      if (!orig || chaveDescricaoProduto(orig, p.ean) !== chave) return p;
+      return { ...p, nomeOriginal: orig, nome: descricaoDoProduto(orig, p.ean) };
+    }));
+    setToast('Descrição salva — vale no panfleto, no tablet e no importar.');
+  }
+
+  /**
+   * Mover/redimensionar um card personaliza a posição DAQUELE índice em todas
+   * as páginas; os outros continuam onde estavam (grade padrão, na primeira vez).
+   */
+  function handleMoverCard(indice: number, caixa: { x: number; y: number; largura: number; altura: number }, pagina: DimensaoPaginaPanfleto) {
+    const sizing = PRESETS_TAMANHO_PANFLETO[itensPorPagina] || PRESETS_TAMANHO_PANFLETO[9];
+    const grade = gradePadraoPanfleto(itensPorPagina, sizing, tamanhoBorda, link.trim().length > 0);
+    const nova: CaixaCardPanfleto = { x: caixa.x / pagina.largura, y: caixa.y / pagina.altura, largura: caixa.largura / pagina.largura, altura: caixa.altura / pagina.altura };
+    setCardsCaixas((atual) => grade.map((padrao, j) => (j === indice ? nova : atual?.[j] ?? padrao)));
+  }
+
+  /** Descrição vai pro dicionário da farmácia (vale no tablet e no importar); preços, só neste produto. */
+  function handleSalvarEdicaoProduto(idx: number, edicao: EdicaoProdutoPanfleto) {
+    const alvo = produtos[idx];
+    if (!alvo) return;
+    if (edicao.nome !== alvo.nome) handleEditarDescricao(idx, edicao.nome);
+    setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, de: edicao.de, por: edicao.por } : p)));
+    setEditandoIdx(null);
+    if (edicao.nome === alvo.nome) setToast('Produto atualizado.');
+  }
+
   function handleAdicionarProduto() {
     const nomeTrim = nomeProduto.trim();
     if (!imagemPendente) {
@@ -871,7 +945,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       return;
     }
 
-    setProdutos((atual) => [...atual, { imagem: imagemPendente, nome: nomeTrim, de: deProduto, por: porProduto, transform: TRANSFORM_PADRAO_PANFLETO, arquivoId: imagemPendenteArquivoId }]);
+    setProdutos((atual) => [...atual, { imagem: imagemPendente, nome: descricaoDoProduto(nomeTrim), nomeOriginal: nomeTrim, de: deProduto, por: porProduto, transform: TRANSFORM_PADRAO_PANFLETO, arquivoId: imagemPendenteArquivoId }]);
     salvarProdutoRecente({ arquivoId: imagemPendenteArquivoId, name: nomeTrim, de: deProduto, por: porProduto });
     setProdutosRecentes(carregarProdutosRecentes());
 
@@ -884,6 +958,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   function handleRemoverProduto(idx: number) {
     setProdutos((atual) => atual.filter((_, i) => i !== idx));
+    // Os índices andam com a remoção — um editor aberto apontaria pro produto errado.
+    setEditandoIdx(null);
   }
 
   function handleRemoverTodos() {
@@ -1219,10 +1295,20 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                 <div className="product-row" key={`${p.nome}-${idx}`}>
                   <img src={p.imagem.src} alt="" />
                   <div className="pinfo">
-                    <div className="pname">{p.nome}</div>
-                    <div className="pprice">
-                      {p.de ? `De R$${p.de} · ` : ''}Por R${p.por}
-                    </div>
+                    {editandoIdx === idx ? (
+                      <EditorProdutoPanfleto
+                        inicial={{ nome: p.nome, de: p.de, por: p.por }}
+                        onSalvar={(edicao) => handleSalvarEdicaoProduto(idx, edicao)}
+                        onCancelar={() => setEditandoIdx(null)}
+                      />
+                    ) : (
+                      <>
+                        <div className="pname">{p.nome}</div>
+                        <div className="pprice">
+                          {p.de ? `De R${fmtMoney(p.de)} · ` : ''}Por R${fmtMoney(p.por)}
+                        </div>
+                      </>
+                    )}
                     {statusUploadProdutos[idx]?.enviando && <span className="bstatus searching">Enviando foto...</span>}
                     {statusUploadProdutos[idx]?.erro && (
                       <span className="bstatus failed">
@@ -1234,6 +1320,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     )}
                   </div>
                   <div className="product-row-acoes">
+                    <button type="button" className="product-row-acao" title="Editar descrição e preço" aria-label={`Editar descrição e preço de ${p.nome}`} onClick={() => setEditandoIdx(editandoIdx === idx ? null : idx)}>
+                      ✏️
+                    </button>
                     <button
                       type="button"
                       className="product-row-acao"
@@ -1335,7 +1424,15 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
             <div className="field">
               <label>Itens por panfleto</label>
-              <select value={itensPorPagina} onChange={(e) => setItensPorPagina(Number(e.target.value))}>
+              <select
+                value={itensPorPagina}
+                onChange={(e) => {
+                  setItensPorPagina(Number(e.target.value));
+                  // Outra quantidade por página muda a grade inteira — as posições arrastadas não servem mais.
+                  setCardsCaixas(null);
+                  setCardSelecionado(null);
+                }}
+              >
                 {ITENS_POR_PAGINA_OPCOES.map((n) => (
                   <option key={n} value={n}>
                     {n === 3 ? '3 (fotos grandes)' : n === 9 ? '9 (padrão)' : n === 12 ? '12 (fotos menores)' : n}
@@ -1453,7 +1550,18 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
           <div className="cartaz-preview">
             <div className="cartaz-preview-head">
               <strong>Prévia em tempo real</strong>
-              <span>{logoSelecionada ? 'Logomarca selecionada — arraste pra mover ou pelas bordas pra redimensionar.' : 'O panfleto se atualiza conforme você edita.'}</span>
+              <span>
+                {logoSelecionada
+                  ? 'Logomarca selecionada — arraste pra mover ou pelas bordas pra redimensionar.'
+                  : cardSelecionado !== null
+                    ? 'Produto selecionado — arraste pra mover, pelas bordas redimensiona, duplo clique edita descrição e preço.'
+                    : 'Arraste os produtos pra mudar de lugar; pelas bordas, muda o tamanho. Duplo clique edita descrição e preço.'}
+              </span>
+              {cardsCaixas && (
+                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: '8px 0 0', fontSize: 12 }} onClick={() => { setCardsCaixas(null); setCardSelecionado(null); }}>
+                  ↺ Voltar produtos pra grade
+                </button>
+              )}
             </div>
             <div className="cartaz-canvas-frame cartaz-canvas-frame--panfleto">
               <div
@@ -1468,10 +1576,35 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     : undefined
                 }
                 onPointerDownCapture={(e) => {
-                  if (e.target === canvasRef.current) setLogoSelecionada(false);
+                  if (e.target === canvasRef.current) {
+                    setLogoSelecionada(false);
+                    setCardSelecionado(null);
+                  }
                 }}
               >
                 <canvas ref={canvasRef} className="cartaz-canvas cartaz-canvas--panfleto" />
+                {dimensaoPaginaAtual && guiasAlinhamento?.vertical !== undefined && <i className="story-alignment-guide story-alignment-guide--vertical" style={{ left: `${(guiasAlinhamento.vertical / dimensaoPaginaAtual.largura) * 100}%` }} aria-hidden="true" />}
+                {dimensaoPaginaAtual && guiasAlinhamento?.horizontal !== undefined && <i className="story-alignment-guide story-alignment-guide--horizontal" style={{ top: `${(guiasAlinhamento.horizontal / dimensaoPaginaAtual.altura) * 100}%` }} aria-hidden="true" />}
+                {dimensaoPaginaAtual?.cards?.map((card, i) => (
+                  <ElementoStoryEditavel
+                    key={`card-${i}`}
+                    frameRef={stageRef}
+                    caixa={{ ...card, larguraMinima: 60, alturaMinima: 60 }}
+                    caixasVizinhas={dimensaoPaginaAtual.cards!.filter((_, j) => j !== i).map((c) => ({ ...c, larguraMinima: 60, alturaMinima: 60 }))}
+                    selecionado={cardSelecionado === i}
+                    descricao={`Produto ${i + 1} do panfleto`}
+                    tamanho={1}
+                    tamanhoMinimo={1}
+                    tamanhoMaximo={1}
+                    controlaTipografia={false}
+                    larguraArte={dimensaoPaginaAtual.largura}
+                    alturaArte={dimensaoPaginaAtual.altura}
+                    onSelecionar={() => { setCardSelecionado(i); setLogoSelecionada(false); }}
+                    onAlterar={(nova) => handleMoverCard(i, nova, dimensaoPaginaAtual)}
+                    onDuploClique={() => setEditandoIdx(paginaAtual * itensPorPagina + i)}
+                    onGuiasAlinhadas={setGuiasAlinhamento}
+                  />
+                ))}
                 {imagemLogo && logoCaixa && dimensaoPaginaAtual && (
                   <ElementoStoryEditavel
                     frameRef={stageRef}
@@ -1484,7 +1617,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     controlaTipografia={false}
                     larguraArte={dimensaoPaginaAtual.largura}
                     alturaArte={dimensaoPaginaAtual.altura}
-                    onSelecionar={() => setLogoSelecionada(true)}
+                    caixasVizinhas={(dimensaoPaginaAtual.cards ?? []).map((c) => ({ ...c, larguraMinima: 60, alturaMinima: 60 }))}
+                    onGuiasAlinhadas={setGuiasAlinhamento}
+                    onSelecionar={() => { setLogoSelecionada(true); setCardSelecionado(null); }}
                     onAlterar={(caixa) => setLogoCaixa(caixaLogoRelativa(caixa, dimensaoPaginaAtual))}
                   />
                 )}
@@ -1511,6 +1646,19 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
             )}
           </div>
         </div>
+      )}
+
+      {projetoAtivo && (
+        <ArtesTabletPainel
+          produtos={produtos}
+          imagemLogo={imagemLogo}
+          cores={{ corFundoCard, corDescricao, corPreco, corFundoSelo, corTextoSelo }}
+          caixas={tabletCaixas}
+          onCaixas={setTabletCaixas}
+          logoCaixa={tabletLogoCaixa}
+          onLogoCaixa={setTabletLogoCaixa}
+          onAviso={setToast}
+        />
       )}
 
       {toast && <div className="toast">{toast}</div>}
