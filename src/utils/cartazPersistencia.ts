@@ -287,6 +287,8 @@ export interface ConfiguracoesPanfleto {
   /** Posição/tamanho personalizado dos cards do panfleto, por índice na página (fração da página) — null/ausente = grade. */
   cardsCaixas?: ({ x: number; y: number; largura: number; altura: number } | null)[] | null;
   tabletLogoCaixa?: CaixaTablet | null;
+  /** false = a logomarca do panfleto não aparece nas artes do tablet. Ausente = aparece. */
+  tabletMostrarLogo?: boolean;
 }
 
 export function carregarConfiguracoesPanfleto(): Partial<ConfiguracoesPanfleto> | null {

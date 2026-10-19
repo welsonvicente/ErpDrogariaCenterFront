@@ -28,6 +28,9 @@ interface ArtesTabletPainelProps {
   onCaixas: (caixas: CaixaTablet[] | null) => void;
   logoCaixa: CaixaTablet | null;
   onLogoCaixa: (caixa: CaixaTablet | null) => void;
+  /** A logo é a mesma do panfleto; aqui só dá pra esconder/mostrar nas artes do tablet. */
+  mostrarLogo: boolean;
+  onMostrarLogo: (mostrar: boolean) => void;
   onAviso: (mensagem: string) => void;
 }
 
@@ -37,7 +40,7 @@ interface ArtesTabletPainelProps {
  * mouse ou o dedo (ver ElementoStoryEditavel). As posições valem pra todas as
  * artes — muda uma vez, sai igual em todas.
  */
-export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixas, logoCaixa, onLogoCaixa, onAviso }: ArtesTabletPainelProps) {
+export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixas, logoCaixa, onLogoCaixa, mostrarLogo, onMostrarLogo, onAviso }: ArtesTabletPainelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const inputFundoRef = useRef<HTMLInputElement>(null);
@@ -52,7 +55,8 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
   const artes = construirArtesTablet(produtos);
   const indice = Math.min(arteAtual, artes.length - 1);
   const produtosDaArte = artes[indice] ?? [];
-  const logoEfetiva = imagemLogo ? logoCaixa ?? caixaLogoPadraoTablet(imagemLogo) : null;
+  const logoVisivel = mostrarLogo ? imagemLogo : null;
+  const logoEfetiva = logoVisivel ? logoCaixa ?? caixaLogoPadraoTablet(logoVisivel) : null;
 
   /** Posições usadas numa arte: as personalizadas, ou o padrão centralizado pra quantidade de produtos dela. */
   function caixasDaArte(quantidade: number) {
@@ -62,7 +66,7 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
   }
 
   function parametros(): ParametrosArteTablet {
-    return { imagemFundo, imagemLogo, logoCaixa: logoEfetiva, ...cores };
+    return { imagemFundo, imagemLogo: logoVisivel, logoCaixa: logoEfetiva, ...cores };
   }
 
   useEffect(() => {
@@ -76,7 +80,7 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
   useEffect(() => {
     if (canvasRef.current) renderizarArteTablet(canvasRef.current, produtosDaArte, caixasDaArte(produtosDaArte.length), parametros());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [produtos, indice, caixas, logoCaixa, imagemLogo, imagemFundo, cores.corFundoCard, cores.corDescricao, cores.corPreco, cores.corFundoSelo, cores.corTextoSelo, fontesProntas]);
+  }, [produtos, indice, caixas, logoCaixa, imagemLogo, mostrarLogo, imagemFundo, cores.corFundoCard, cores.corDescricao, cores.corPreco, cores.corFundoSelo, cores.corTextoSelo, fontesProntas]);
 
   /** Mover um card personaliza o layout inteiro: parte das posições atuais (padrão de 4) e troca só a deste card. */
   function moverCard(i: number, caixa: CaixaTablet) {
@@ -149,14 +153,32 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
         {imagemFundo && <button type="button" className="btn-ghost" onClick={() => setImagemFundo(null)}>Remover fundo</button>}
         <button type="button" className="btn-ghost" disabled={!caixas} onClick={() => caixas && onCaixas(alinharCaixasTablet(caixas))}>📐 Alinhar produtos</button>
         <button type="button" className="btn-ghost" disabled={!caixas && !logoCaixa} onClick={() => { onCaixas(null); onLogoCaixa(null); setSelecao(null); }}>↺ Posições padrão</button>
+        {imagemLogo && (mostrarLogo ? (
+          <button type="button" className="btn-ghost" onClick={() => { onMostrarLogo(false); setSelecao(null); }}>🗑️ Remover logo do tablet</button>
+        ) : (
+          <button type="button" className="btn-ghost" onClick={() => onMostrarLogo(true)}>➕ Mostrar logo do panfleto</button>
+        ))}
         <input ref={inputFundoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEscolherFundo} />
       </div>
 
+      {selecao === 'logo' && (
+        <p className="footnote" style={{ textAlign: 'left', margin: '0 0 8px' }}>
+          Essa é a <b>logomarca do panfleto</b> (em "Logomarca ou selo"). Arraste pra mover; pra tirar só do tablet, use "Remover logo do tablet" ou a tecla Delete.
+        </p>
+      )}
       <div className="tablet-stage-frame">
         <div
           className="tablet-stage"
           ref={stageRef}
           onPointerDownCapture={(e) => { if (e.target === canvasRef.current) setSelecao(null); }}
+          onKeyDown={(e) => {
+            // Delete/Backspace com a logo selecionada tira a logo das artes do tablet.
+            if (selecao === 'logo' && (e.key === 'Delete' || e.key === 'Backspace')) {
+              e.preventDefault();
+              onMostrarLogo(false);
+              setSelecao(null);
+            }
+          }}
         >
           <canvas ref={canvasRef} className="tablet-canvas" />
           {guias?.vertical !== undefined && <i className="story-alignment-guide story-alignment-guide--vertical" style={{ left: `${(guias.vertical / LARGURA_TABLET) * 100}%` }} aria-hidden="true" />}

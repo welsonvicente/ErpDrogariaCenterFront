@@ -18,6 +18,61 @@ import { NomeProdutoEditavel } from './NomeProdutoEditavel';
 const FUNDO_OFICIAL = '/oferta-background.png';
 const ROTULO_TAMANHO: Record<number, string> = { 1: '1 por folha · máximo', 2: '2 por folha · maior', 4: '4 por folha · grande', 6: '6 por folha · médio', 8: '8 por folha · pequeno', 9: '9 por folha', 10: '10 por folha · menor', 12: '12 por folha · compacto' };
 
+const CHAVE_RASCUNHO = 'cartazes_oferta_rascunho_v1';
+
+/** O que fica salvo neste navegador pra a prévia voltar igual ao recarregar a página. */
+interface RascunhoCartazOferta {
+  modo: 'individual' | 'lote';
+  oferta: OfertaCartaz;
+  quantidade: string;
+  porFolhaIndividual: number;
+  lote: OfertaLote[];
+  nomeArquivoLote: string;
+  porFolhaLote: number;
+  pagina: number;
+  /** Fundo personalizado (JPEG reduzido, dataURL) — ausente = modelo oficial. */
+  fundo?: { nome: string; dataUrl: string } | null;
+}
+
+function lerRascunho(): Partial<RascunhoCartazOferta> {
+  try {
+    return JSON.parse(localStorage.getItem(CHAVE_RASCUNHO) || '{}') ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function gravarRascunho(rascunho: RascunhoCartazOferta) {
+  try {
+    localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(rascunho));
+  } catch {
+    // Sem espaço (fundo grande demais): salva o resto, sem o fundo personalizado.
+    try {
+      localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({ ...rascunho, fundo: null }));
+    } catch {
+      /* armazenamento indisponível — a prévia só não volta depois do F5 */
+    }
+  }
+}
+
+/** Fundo escolhido pela pessoa vira um JPEG no tamanho do cartaz (1334 px de largura no máximo) pra caber no navegador. */
+function fundoComoDataUrl(img: HTMLImageElement): string | null {
+  try {
+    const escala = Math.min(1, 1334 / (img.naturalWidth || 1334));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round((img.naturalWidth || 1334) * escala);
+    canvas.height = Math.round((img.naturalHeight || 2000) * escala);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.88);
+  } catch {
+    return null;
+  }
+}
+
 function slug(texto: string) {
   return texto.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'oferta';
 }
@@ -38,17 +93,19 @@ interface CartazOfertaModoProps {
 export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazOfertaModoProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputFundoRef = useRef<HTMLInputElement>(null);
+  const [rascunhoInicial] = useState(lerRascunho);
   const [fundo, setFundo] = useState<HTMLImageElement | null>(null);
+  const [fundoSalvo, setFundoSalvo] = useState<RascunhoCartazOferta['fundo']>(rascunhoInicial.fundo ?? null);
   const [nomeFundo, setNomeFundo] = useState('Modelo oficial');
   const [erro, setErro] = useState('');
-  const [modo, setModo] = useState<'individual' | 'lote'>('individual');
-  const [oferta, setOferta] = useState<OfertaCartaz>({ produto: 'SONRIDOR RAPID+FORTE 4CP REV', precoAntigo: '7,99', preco: '1,99' });
-  const [quantidade, setQuantidade] = useState('2');
-  const [porFolhaIndividual, setPorFolhaIndividual] = useState(2);
-  const [lote, setLote] = useState<OfertaLote[]>([]);
-  const [nomeArquivoLote, setNomeArquivoLote] = useState('');
-  const [porFolhaLote, setPorFolhaLote] = useState(8);
-  const [pagina, setPagina] = useState(0);
+  const [modo, setModo] = useState<'individual' | 'lote'>(rascunhoInicial.modo ?? 'individual');
+  const [oferta, setOferta] = useState<OfertaCartaz>(rascunhoInicial.oferta ?? { produto: 'SONRIDOR RAPID+FORTE 4CP REV', precoAntigo: '7,99', preco: '1,99' });
+  const [quantidade, setQuantidade] = useState(rascunhoInicial.quantidade ?? '2');
+  const [porFolhaIndividual, setPorFolhaIndividual] = useState(rascunhoInicial.porFolhaIndividual ?? 2);
+  const [lote, setLote] = useState<OfertaLote[]>(rascunhoInicial.lote ?? []);
+  const [nomeArquivoLote, setNomeArquivoLote] = useState(rascunhoInicial.nomeArquivoLote ?? '');
+  const [porFolhaLote, setPorFolhaLote] = useState(rascunhoInicial.porFolhaLote ?? 8);
+  const [pagina, setPagina] = useState(rascunhoInicial.pagina ?? 0);
   const [gerando, setGerando] = useState('');
 
   function carregarFundo(src: string, nome: string, revogar = false) {
@@ -57,7 +114,12 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
       setFundo(img);
       setNomeFundo(nome);
       setErro('');
-      if (revogar) URL.revokeObjectURL(src);
+      if (revogar) {
+        // Imagem escolhida agora: guarda uma cópia pra continuar como fundo depois do F5.
+        const dataUrl = fundoComoDataUrl(img);
+        setFundoSalvo(dataUrl ? { nome, dataUrl } : null);
+        URL.revokeObjectURL(src);
+      }
     };
     img.onerror = () => {
       setErro(revogar ? 'Não foi possível abrir essa imagem. Use PNG, JPG ou WEBP.' : 'Não foi possível carregar o modelo oficial do cartaz.');
@@ -66,7 +128,21 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
     img.src = src;
   }
 
-  useEffect(() => carregarFundo(FUNDO_OFICIAL, 'Modelo oficial'), []);
+  // Volta com o fundo personalizado salvo, se houver; senão, o modelo oficial.
+  useEffect(() => {
+    if (rascunhoInicial.fundo) carregarFundo(rascunhoInicial.fundo.dataUrl, rascunhoInicial.fundo.nome);
+    else carregarFundo(FUNDO_OFICIAL, 'Modelo oficial');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Salva a prévia (dados, quantidades, lote, página e fundo) neste navegador — volta igual depois do F5.
+  useEffect(() => {
+    const timer = setTimeout(
+      () => gravarRascunho({ modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundo: fundoSalvo }),
+      400,
+    );
+    return () => clearTimeout(timer);
+  }, [modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundoSalvo]);
 
   useEffect(() => {
     if (!ofertasRecebidas || ofertasRecebidas.length === 0) return;
@@ -223,7 +299,7 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
         <p className="footnote" style={{ textAlign: 'left', marginTop: 0 }}>Usando: <b>{nomeFundo}</b></p>
         <div className="cartaz-oferta-acoes">
           <button type="button" className="btn-ghost" onClick={() => inputFundoRef.current?.click()}>🖼️ Usar outra imagem</button>
-          {nomeFundo !== 'Modelo oficial' && <button type="button" className="btn-ghost" onClick={() => carregarFundo(FUNDO_OFICIAL, 'Modelo oficial')}>Voltar ao modelo oficial</button>}
+          {nomeFundo !== 'Modelo oficial' && <button type="button" className="btn-ghost" onClick={() => { carregarFundo(FUNDO_OFICIAL, 'Modelo oficial'); setFundoSalvo(null); }}>Voltar ao modelo oficial</button>}
           <input ref={inputFundoRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={escolherFundo} />
         </div>
 

@@ -213,6 +213,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   const [tabletCaixas, setTabletCaixas] = useState<CaixaTablet[] | null>(null);
   const [tabletLogoCaixa, setTabletLogoCaixa] = useState<CaixaTablet | null>(null);
+  const [tabletMostrarLogo, setTabletMostrarLogo] = useState(true);
 
   const [imagemQr, setImagemQr] = useState<HTMLImageElement | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
@@ -356,6 +357,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       if (config.tabletCaixas !== undefined) setTabletCaixas(config.tabletCaixas);
       if (config.cardsCaixas !== undefined) setCardsCaixas(config.cardsCaixas);
       if (config.tabletLogoCaixa !== undefined) setTabletLogoCaixa(config.tabletLogoCaixa);
+      if (config.tabletMostrarLogo !== undefined) setTabletMostrarLogo(config.tabletMostrarLogo);
     }
     aplicarConfiguracoes();
     window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
@@ -398,6 +400,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         manterFaixaBranca,
         tabletCaixas,
         tabletLogoCaixa,
+        tabletMostrarLogo,
         cardsCaixas,
       });
     }, 400);
@@ -406,7 +409,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento, mostrarTextosCabecalho, mostrarTextosRodape,
     textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento, qrAlinhamento, link,
     itensPorPagina, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco, tamanhoBorda,
-    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca, tabletCaixas, tabletLogoCaixa, cardsCaixas,
+    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca, tabletCaixas, tabletLogoCaixa, tabletMostrarLogo, cardsCaixas,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -1657,6 +1660,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
           onCaixas={setTabletCaixas}
           logoCaixa={tabletLogoCaixa}
           onLogoCaixa={setTabletLogoCaixa}
+          mostrarLogo={tabletMostrarLogo}
+          onMostrarLogo={setTabletMostrarLogo}
           onAviso={setToast}
         />
       )}
