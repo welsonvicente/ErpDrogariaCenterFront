@@ -294,6 +294,11 @@ export interface ConfiguracoesPanfleto {
   tabletMostrarLogo?: boolean;
   /** Fundo das artes do tablet, guardado no R2 (vale em todos os aparelhos) — null/ausente = degradê padrão. */
   tabletFundo?: { nome: string; arquivoId: string } | null;
+  /** Cores dos textos do cabeçalho/rodapé — null/ausente = a padrão (cabeçalho segue a cor da logo). */
+  corNomeLoja?: string | null;
+  corTitulo?: string | null;
+  corRodape1?: string | null;
+  corRodape2?: string | null;
   /** Imagem de fundo do panfleto, guardada no R2 (vale em todos os aparelhos) — null/ausente = sem fundo. */
   panfletoFundo?: { nome: string; arquivoId: string } | null;
 }

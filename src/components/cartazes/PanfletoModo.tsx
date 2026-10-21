@@ -42,6 +42,8 @@ import {
   gradePadraoPanfleto,
   COR_FUNDO_SELO_PADRAO,
   COR_TEXTO_SELO_PADRAO,
+  COR_RODAPE1_PADRAO,
+  COR_RODAPE2_PADRAO,
   ESCALA_EXPORTACAO_PANFLETO,
   ITENS_POR_PAGINA_OPCOES,
   montarParametrosStoryProduto,
@@ -198,6 +200,11 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   const [itensPorPagina, setItensPorPagina] = useState(9);
   const [corLogo, setCorLogo] = useState('#436000');
+  /** Cor própria de cada texto do cabeçalho/rodapé — null = a padrão (cabeçalho segue a cor da logo). */
+  const [corNomeLoja, setCorNomeLoja] = useState<string | null>(null);
+  const [corTitulo, setCorTitulo] = useState<string | null>(null);
+  const [corRodape1, setCorRodape1] = useState<string | null>(null);
+  const [corRodape2, setCorRodape2] = useState<string | null>(null);
   const [corDescricao, setCorDescricao] = useState('#173C3A');
   const [corPreco, setCorPreco] = useState('#436000');
   const [corFundoCard, setCorFundoCard] = useState('#FBFDF9');
@@ -429,6 +436,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       if (config.link !== undefined) setLink(config.link);
       if (config.itensPorPagina) setItensPorPagina(config.itensPorPagina);
       if (config.corLogo) setCorLogo(config.corLogo);
+      if (config.corNomeLoja !== undefined) setCorNomeLoja(config.corNomeLoja);
+      if (config.corTitulo !== undefined) setCorTitulo(config.corTitulo);
+      if (config.corRodape1 !== undefined) setCorRodape1(config.corRodape1);
+      if (config.corRodape2 !== undefined) setCorRodape2(config.corRodape2);
       if (config.corDescricao) setCorDescricao(config.corDescricao);
       if (config.corPreco) setCorPreco(config.corPreco);
       if (config.corFundoCard) setCorFundoCard(config.corFundoCard);
@@ -476,6 +487,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         link,
         itensPorPagina,
         corLogo,
+        corNomeLoja,
+        corTitulo,
+        corRodape1,
+        corRodape2,
         corDescricao,
         corPreco,
         corFundoCard,
@@ -499,7 +514,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   }, [
     nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento, mostrarTextosCabecalho, mostrarTextosRodape,
     textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento, qrAlinhamento, link,
-    itensPorPagina, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco, tamanhoBorda,
+    itensPorPagina, corLogo, corNomeLoja, corTitulo, corRodape1, corRodape2, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco, tamanhoBorda,
     tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca, tabletCaixas, tabletLogoCaixa, tabletMostrarLogo, tabletFundo, panfletoFundo, cardsCaixas, cardsCaixasPagina,
   ]);
 
@@ -764,6 +779,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       qrAlinhamento,
       imagemQr,
       corLogo,
+      corNomeLoja,
+      corTitulo,
+      corRodape1,
+      corRodape2,
       corDescricao,
       corPreco,
       corFundoCard,
@@ -801,7 +820,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   }, [
     produtos, itensPorPagina, mostrarTextosCabecalho, nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento,
     mostrarTextosRodape, textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento,
-    qrAlinhamento, link, imagemQr, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco,
+    qrAlinhamento, link, imagemQr, corLogo, corNomeLoja, corTitulo, corRodape1, corRodape2, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco,
     tamanhoBorda, tamanhoSelo, corFundoSelo, corTextoSelo, imagemFundo, manterFaixaBranca, imagemLogo, logoCaixa, cardsCaixas, cardsCaixasPagina,
   ]);
 
@@ -1673,6 +1692,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                 <OpcoesAlinhamento value={tituloAlinhamento} onChange={setTituloAlinhamento} />
               </div>
             </div>
+            <div className="field-row">
+              <SeletorCor rotulo="Cor do nome da loja" valor={corNomeLoja ?? corLogo} onAlterar={setCorNomeLoja} canvasArte={canvasRef} />
+              <SeletorCor rotulo="Cor do título/chamada" valor={corTitulo ?? corLogo} onAlterar={setCorTitulo} canvasArte={canvasRef} />
+            </div>
 
             <h3 className="cartaz-titulo-secao" style={{ marginTop: 18 }}>
               Textos do rodapé
@@ -1700,6 +1723,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                 <label>Posição</label>
                 <OpcoesAlinhamento value={textoRodape2Alinhamento} onChange={setTextoRodape2Alinhamento} />
               </div>
+            </div>
+            <div className="field-row">
+              <SeletorCor rotulo="Cor da frase principal" valor={corRodape1 ?? COR_RODAPE1_PADRAO} onAlterar={setCorRodape1} canvasArte={canvasRef} />
+              <SeletorCor rotulo="Cor da frase secundária" valor={corRodape2 ?? COR_RODAPE2_PADRAO} onAlterar={setCorRodape2} canvasArte={canvasRef} />
             </div>
             <div className="field">
               <label>Posição do QR Code</label>

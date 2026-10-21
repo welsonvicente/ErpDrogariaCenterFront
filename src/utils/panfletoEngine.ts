@@ -15,6 +15,9 @@ export const TRANSFORM_PADRAO_PANFLETO: TransformImagem = { scale: 1, panX: 0.5,
 
 export const COR_FUNDO_SELO_PADRAO = '#FCEFD8';
 export const COR_TEXTO_SELO_PADRAO = '#C98A1D';
+/** Cores de sempre das frases do rodapé do panfleto. */
+export const COR_RODAPE1_PADRAO = '#173C3A';
+export const COR_RODAPE2_PADRAO = '#628B00';
 
 interface GuiaFaixa {
   y: number;
@@ -192,6 +195,12 @@ export interface ParametrosPaginaPanfleto {
   imagemQr: HTMLImageElement | null;
 
   corLogo: string;
+  /** Cores dos textos do cabeçalho — ausente = segue `corLogo` (como sempre foi). */
+  corNomeLoja?: string | null;
+  corTitulo?: string | null;
+  /** Cores das frases do rodapé — ausente = as fixas de antes. */
+  corRodape1?: string | null;
+  corRodape2?: string | null;
   corDescricao: string;
   corPreco: string;
   corFundoCard: string;
@@ -365,13 +374,13 @@ export function renderizarPaginaPanfleto(
   // cabeçalho
   if (p.mostrarTextosCabecalho) {
     const nomeLoja = p.nomeLoja.trim() || 'Drogaria Center';
-    ctx.fillStyle = p.corLogo;
+    ctx.fillStyle = p.corNomeLoja || p.corLogo;
     ctx.font = '700 34px "Space Grotesk"';
     ctx.textBaseline = 'alphabetic';
     desenharTextoAlinhado(ctx, nomeLoja, 56, p.nomeLojaAlinhamento, pad, W);
 
     const titulo = p.titulo || 'Ofertas';
-    ctx.fillStyle = p.corLogo;
+    ctx.fillStyle = p.corTitulo || p.corLogo;
     ctx.font = '600 22px Inter';
     let textoTitulo = titulo;
     if (totalPaginas > 1) textoTitulo += ` — parte ${paginaNum}/${totalPaginas}`;
@@ -494,11 +503,11 @@ export function renderizarPaginaPanfleto(
   }
 
   if (p.mostrarTextosRodape) {
-    ctx.fillStyle = '#173C3A';
+    ctx.fillStyle = p.corRodape1 || COR_RODAPE1_PADRAO;
     ctx.font = '600 16px Inter';
     if (p.textoRodape1) desenharTextoAlinhado(ctx, p.textoRodape1, footerY + 55, p.textoRodape1Alinhamento, pad, W);
 
-    ctx.fillStyle = '#628B00';
+    ctx.fillStyle = p.corRodape2 || COR_RODAPE2_PADRAO;
     ctx.font = '400 13px Inter';
     if (p.textoRodape2) desenharTextoAlinhado(ctx, p.textoRodape2, footerY + 78, p.textoRodape2Alinhamento, pad, W);
   }
