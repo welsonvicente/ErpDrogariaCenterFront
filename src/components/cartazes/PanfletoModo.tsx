@@ -910,16 +910,21 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   // Fundo salvo no servidor: baixa quando muda (ao abrir, ou trocado em outro aparelho).
   useEffect(() => {
     const id = panfletoFundo?.arquivoId ?? null;
-    if (fundoMostradoRef.current === id) return;
-    fundoMostradoRef.current = id;
+    // Só pula o download se ESTA imagem já está na tela (acabou de ser escolhida aqui). A marca é feita
+    // depois de baixar — marcar antes fazia um download cancelado (efeito rodando 2x ao abrir a tela)
+    // impedir o próximo, e o fundo salvo não aparecia.
+    if (id && fundoMostradoRef.current === id) return;
     if (!id) {
+      fundoMostradoRef.current = null;
       setImagemFundo(null);
       return;
     }
     let cancelado = false;
     carregarFundoDoServidor(id)
       .then((img) => {
-        if (!cancelado) setImagemFundo(img);
+        if (cancelado) return;
+        fundoMostradoRef.current = id;
+        setImagemFundo(img);
       })
       .catch(() => {
         if (!cancelado) setToast('Não foi possível baixar a imagem de fundo salva do panfleto.');

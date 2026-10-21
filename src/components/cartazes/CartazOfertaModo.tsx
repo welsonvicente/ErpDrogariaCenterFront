@@ -79,13 +79,19 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
   // Mostra o fundo da folha salva: o personalizado (baixado do R2) ou o modelo oficial.
   useEffect(() => {
     const id = fundoSalvo?.arquivoId ?? null;
-    if (fundoMostradoRef.current === id) return;
-    fundoMostradoRef.current = id;
-    if (!fundoSalvo) return carregarFundoOficial();
+    // Só pula o download se ESTA imagem já está na tela (acabou de ser escolhida aqui). A marca é feita
+    // depois de baixar — marcar antes fazia um download cancelado (efeito rodando 2x ao abrir a tela)
+    // impedir o próximo, e o fundo salvo não aparecia.
+    if (id && fundoMostradoRef.current === id) return;
+    if (!fundoSalvo) {
+      fundoMostradoRef.current = null;
+      return carregarFundoOficial();
+    }
     let cancelado = false;
     carregarFundoDoServidor(fundoSalvo.arquivoId)
       .then((img) => {
         if (cancelado) return;
+        fundoMostradoRef.current = id;
         setFundo(img);
         setNomeFundo(fundoSalvo.nome);
       })
@@ -337,10 +343,24 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
         )}
 
         <h3 className="cartaz-titulo-secao" style={{ marginTop: 18 }}>Fundo do cartaz</h3>
-        <p className="footnote" style={{ textAlign: 'left', marginTop: 0 }}>Usando: <b>{nomeFundo}</b></p>
+        <p className="footnote" style={{ textAlign: 'left', marginTop: 0 }}>
+          Usando: <b>{nomeFundo === 'Modelo oficial' ? 'Modelo oficial (padrão)' : nomeFundo}</b>
+          {fundoSalvo && ' — salva na conta, aparece em todos os aparelhos.'}
+        </p>
         <div className="cartaz-oferta-acoes">
           <button type="button" className="btn-ghost" disabled={enviandoFundo} onClick={() => inputFundoRef.current?.click()}>{enviandoFundo ? 'Enviando fundo…' : '🖼️ Usar outra imagem'}</button>
-          {nomeFundo !== 'Modelo oficial' && <button type="button" className="btn-ghost" onClick={() => setFundoSalvo(null)}>Voltar ao modelo oficial</button>}
+          {/* Sempre visível (apagado quando não há imagem própria) pra a pessoa saber onde fica. */}
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={enviandoFundo || !fundoSalvo}
+            title={fundoSalvo ? 'Apaga a imagem que você subiu e volta pro modelo oficial (em todos os aparelhos)' : 'Nenhuma imagem própria — já está usando o modelo oficial'}
+            onClick={() => {
+              if (window.confirm('Remover a imagem de fundo e voltar pro modelo oficial em todos os aparelhos?')) setFundoSalvo(null);
+            }}
+          >
+            🗑️ Remover imagem
+          </button>
           <input ref={inputFundoRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={escolherFundo} />
         </div>
 

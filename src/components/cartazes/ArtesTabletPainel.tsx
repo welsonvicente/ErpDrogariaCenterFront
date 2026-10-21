@@ -55,12 +55,21 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
   // Fundo salvo no servidor: baixa quando muda (ao abrir, ou trocado em outro aparelho).
   useEffect(() => {
     const id = fundoSalvo?.arquivoId ?? null;
-    if (fundoMostradoRef.current === id) return;
-    fundoMostradoRef.current = id;
-    if (!id) return setImagemFundo(null);
+    // Só pula o download se ESTA imagem já está na tela (acabou de ser escolhida aqui). A marca é feita
+    // depois de baixar — marcar antes fazia um download cancelado (efeito rodando 2x ao abrir a tela)
+    // impedir o próximo, e o fundo salvo não aparecia.
+    if (id && fundoMostradoRef.current === id) return;
+    if (!id) {
+      fundoMostradoRef.current = null;
+      return setImagemFundo(null);
+    }
     let cancelado = false;
     carregarFundoDoServidor(id)
-      .then((img) => { if (!cancelado) setImagemFundo(img); })
+      .then((img) => {
+        if (cancelado) return;
+        fundoMostradoRef.current = id;
+        setImagemFundo(img);
+      })
       .catch(() => { if (!cancelado) onAviso('Não foi possível baixar o fundo salvo das artes do tablet.'); });
     return () => { cancelado = true; };
     // Depende só do ID: a sincronização das preferências reaplica o mesmo fundo como objeto novo, e
