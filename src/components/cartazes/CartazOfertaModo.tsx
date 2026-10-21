@@ -21,7 +21,7 @@ import {
   type OfertaCartaz,
   type OfertaLote,
 } from '../../utils/cartazOfertaEngine';
-import { NomeProdutoEditavel } from './NomeProdutoEditavel';
+import { EditorProdutoPanfleto, precoParaExibir, type EdicaoProdutoPanfleto } from './EditorProdutoPanfleto';
 
 const FUNDO_OFICIAL = '/oferta-background.png';
 const ROTULO_TAMANHO: Record<number, string> = { 1: '1 por folha · máximo', 2: '2 por folha · maior', 4: '4 por folha · grande', 6: '6 por folha · médio', 8: '8 por folha · pequeno', 9: '9 por folha', 10: '10 por folha · menor', 12: '12 por folha · compacto' };
@@ -63,6 +63,8 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
   const [porFolhaLote, setPorFolhaLote] = useState(folhaInicial?.porFolhaLote ?? 8);
   const [pagina, setPagina] = useState(folhaInicial?.pagina ?? 0);
   const [gerando, setGerando] = useState('');
+  /** Oferta do lote aberta no editor de descrição/preços. */
+  const [editandoLote, setEditandoLote] = useState<number | null>(null);
 
   function carregarFundoOficial() {
     const img = new Image();
@@ -95,7 +97,10 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
     return () => {
       cancelado = true;
     };
-  }, [fundoSalvo]);
+    // Depende só do ID: a sincronização das preferências reaplica o mesmo fundo como objeto novo, e
+    // depender do objeto cancelava o download em andamento sem começar outro (o fundo não aparecia).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fundoSalvo?.arquivoId]);
 
   /** Aplica uma folha salva (cópia local ou a que veio do servidor). */
   function aplicarFolha(f: NonNullable<ReturnType<typeof carregarFolhaCartazOferta>>) {
@@ -239,6 +244,13 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
     }
   }
 
+  /** Descrição vai pro dicionário da farmácia; preços, só nesta oferta. */
+  function salvarEdicaoLote(i: number, edicao: EdicaoProdutoPanfleto) {
+    if (edicao.nome !== lote[i]?.produto) editarDescricaoLote(i, edicao.nome);
+    setLote((atual) => atual.map((o, j) => (j === i ? { ...o, precoAntigo: edicao.de, preco: edicao.por } : o)));
+    setEditandoLote(null);
+  }
+
   function editarDescricaoLote(i: number, novo: string) {
     const alvo = lote[i];
     salvarDescricaoProduto(alvo.produtoOriginal, alvo.ean, novo);
@@ -297,8 +309,25 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
                 {lote.map((o, i) => (
                   <div className="product-row" key={`${o.produtoOriginal}-${i}`}>
                     <div className="pinfo">
-                      <NomeProdutoEditavel className="pname" nome={o.produto} onSalvar={(novo) => editarDescricaoLote(i, novo)} />
-                      <div className="pprice">De R$ {String(o.precoAntigo)} · Por R$ {String(o.preco)}</div>
+                      {editandoLote === i ? (
+                        <EditorProdutoPanfleto
+                          inicial={{ nome: o.produto, de: String(o.precoAntigo ?? ''), por: String(o.preco ?? '') }}
+                          onSalvar={(edicao) => salvarEdicaoLote(i, edicao)}
+                          onCancelar={() => setEditandoLote(null)}
+                        />
+                      ) : (
+                        <>
+                          <div className="pname nome-produto-editavel">
+                            <span>{o.produto}</span>
+                            <button type="button" className="nome-produto-editar" title="Editar descrição e preços" aria-label={`Editar descrição e preços de ${o.produto}`} onClick={() => setEditandoLote(i)}>
+                              ✏️
+                            </button>
+                          </div>
+                          <div className="pprice">
+                            {[precoParaExibir(o.precoAntigo) && `De ${precoParaExibir(o.precoAntigo)}`, `Por ${precoParaExibir(o.preco) || '—'}`].filter(Boolean).join(' · ')}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}

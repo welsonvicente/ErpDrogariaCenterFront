@@ -10,9 +10,16 @@ export function normalizarPrecoDigitado(texto: string): string {
   return Number.isFinite(numero) ? String(numero) : '';
 }
 
-/** "9.99" → "9,99" pra mostrar no campo. */
-function paraCampo(valor: string) {
-  return valor ? fmtMoney(valor).replace(/\./g, '') : '';
+/** Qualquer preço guardado ("9.99", "54,99", 54.99) → "9,99" pra mostrar no campo. */
+function paraCampo(valor: string | number | null | undefined) {
+  const normalizado = normalizarPrecoDigitado(String(valor ?? ''));
+  return normalizado ? fmtMoney(normalizado).replace(/\./g, '') : '';
+}
+
+/** Preço pra exibir na lista ("R$ 9,99"), aceitando número ou texto com vírgula/ponto. Vazio = ''. */
+export function precoParaExibir(valor: string | number | null | undefined): string {
+  const normalizado = normalizarPrecoDigitado(String(valor ?? ''));
+  return normalizado ? `R$ ${fmtMoney(normalizado)}` : '';
 }
 
 export interface EdicaoProdutoPanfleto {
@@ -22,8 +29,10 @@ export interface EdicaoProdutoPanfleto {
 }
 
 /**
- * Editor rápido de um produto do panfleto — descrição, preço "De" e "Por" —
- * aberto pelo ✏️ da lista ou com duplo clique no card da prévia.
+ * Editor rápido de um produto — descrição, preço "De" e "Por". Usado no
+ * Panfleto (✏️ da lista ou duplo clique no card), no Importar planilha e no
+ * lote do Cartaz de oferta. A descrição vai pro dicionário da farmácia; os
+ * preços valem só pro produto editado.
  */
 export function EditorProdutoPanfleto({
   inicial,

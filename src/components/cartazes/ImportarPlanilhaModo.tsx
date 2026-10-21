@@ -44,7 +44,7 @@ import { useFilaUploadImagens } from '../../hooks/useFilaUploadImagens';
 import type { OfertaLote } from '../../utils/cartazOfertaEngine';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
-import { NomeProdutoEditavel } from './NomeProdutoEditavel';
+import { EditorProdutoPanfleto, type EdicaoProdutoPanfleto } from './EditorProdutoPanfleto';
 import { SeletorCor } from './SeletorCor';
 
 /** Troca o nome que veio da planilha pela descrição que a equipe já editou (dicionário da farmácia), quando houver. */
@@ -126,6 +126,8 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
   const idxParaIdLocalRef = useRef<Map<number, string>>(new Map());
 
   const [produtos, setProdutos] = useState<ProdutoImportado[]>([]);
+  /** Produto aberto no editor de descrição/preços (✏️ na lista). */
+  const [editandoIdx, setEditandoIdx] = useState<number | null>(null);
   // Paleta do seletor de cor: a primeira foto já escolhida (aqui não há prévia única de arte pra usar).
   const fotoParaPaleta = produtos.find((p) => p.imagem)?.imagem ?? null;
   const [statusImportacao, setStatusImportacao] = useState(
@@ -529,6 +531,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
 
   function handleRemoverProduto(idx: number) {
     setProdutos((atual) => atual.filter((_, i) => i !== idx));
+    setEditandoIdx(null);
   }
 
   function handleRemoverTodos() {
@@ -597,6 +600,16 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
     );
     const semPreco = produtos.length - comPreco.length;
     setToast(`${comPreco.length} cartaz(es) de oferta prontos${semPreco ? ` — ${semPreco} sem preço de promoção ficaram de fora` : ''}.`);
+  }
+
+  /** Descrição vai pro dicionário da farmácia (vale no panfleto, tablet e cartaz); preços, só neste produto. */
+  function handleSalvarEdicao(idx: number, edicao: EdicaoProdutoPanfleto) {
+    const alvo = produtos[idx];
+    if (!alvo) return;
+    if (edicao.nome !== alvo.descricao) handleEditarDescricao(idx, edicao.nome);
+    else setToast('Produto atualizado.');
+    setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, normal: edicao.de ? Number(edicao.de) : null, promo: Number(edicao.por) } : p)));
+    setEditandoIdx(null);
   }
 
   function handleUsarNoPanfleto() {
@@ -824,12 +837,27 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
                     <div className="batch-row" key={`${p.descricao}-${idx}`}>
                       <div className="thumb">{p.imagem ? <img src={p.imagem.src} alt="" /> : '💊'}</div>
                       <div className="binfo">
-                        <NomeProdutoEditavel className="bname" nome={p.descricao} onSalvar={(novo) => handleEditarDescricao(idx, novo)} />
-                        <div className="bprice">
-                          {p.normal ? `De R$${fmtMoney(p.normal)} · ` : ''}
-                          {p.promo ? `Por R$${fmtMoney(p.promo)}` : 'sem preço promo'}
-                          {p.ean ? ` · EAN ${p.ean}` : ''}
-                        </div>
+                        {editandoIdx === idx ? (
+                          <EditorProdutoPanfleto
+                            inicial={{ nome: p.descricao, de: p.normal !== null ? String(p.normal) : '', por: p.promo !== null ? String(p.promo) : '' }}
+                            onSalvar={(edicao) => handleSalvarEdicao(idx, edicao)}
+                            onCancelar={() => setEditandoIdx(null)}
+                          />
+                        ) : (
+                          <>
+                            <div className="bname nome-produto-editavel">
+                              <span>{p.descricao}</span>
+                              <button type="button" className="nome-produto-editar" title="Editar descrição e preços" aria-label={`Editar descrição e preços de ${p.descricao}`} onClick={() => setEditandoIdx(idx)}>
+                                ✏️
+                              </button>
+                            </div>
+                            <div className="bprice">
+                              {p.normal ? `De R${fmtMoney(p.normal)} · ` : ''}
+                              {p.promo ? `Por R${fmtMoney(p.promo)}` : 'sem preço promo'}
+                              {p.ean ? ` · EAN ${p.ean}` : ''}
+                            </div>
+                          </>
+                        )}
                         <span className={`bstatus ${p.status}`}>{ROTULO_STATUS[p.status]}</span>
                         {statusUpload?.estado === 'enviando' && <span className="bstatus searching"> · Enviando foto {statusUpload.progresso}%</span>}
                         {statusUpload?.estado === 'erro' && (

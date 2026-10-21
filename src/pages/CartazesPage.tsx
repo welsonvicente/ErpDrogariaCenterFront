@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CartazOfertaModo } from '../components/cartazes/CartazOfertaModo';
+import { GuiaFundosModal } from '../components/cartazes/GuiaFundosModal';
 import { ImportarPlanilhaModo } from '../components/cartazes/ImportarPlanilhaModo';
 import { PanfletoModo } from '../components/cartazes/PanfletoModo';
 import { StoryModo } from '../components/cartazes/StoryModo';
@@ -30,6 +31,7 @@ export function CartazesPage() {
   const [modo, setModo] = useState<Modo>('story');
   const [produtosParaPanfleto, setProdutosParaPanfleto] = useState<ProdutoPanfleto[] | null>(null);
   const [ofertasParaCartaz, setOfertasParaCartaz] = useState<OfertaLote[] | null>(null);
+  const [mostrarGuiaFundos, setMostrarGuiaFundos] = useState(false);
 
   // Cores, letras, tamanhos e posições padrão vêm do servidor (por organização), pra valerem em
   // qualquer navegador — os três modos reaplicam quando chegam (ver cartazPersistencia.ts).
@@ -41,6 +43,11 @@ export function CartazesPage() {
     <FerramentaShell titulo="Cartazes e panfletos">
       <div className="cartazes-page">
         <p className="cartazes-lead">Escolha o formato, personalize a oferta e acompanhe o resultado em tempo real.</p>
+        <div className="cartazes-guia-fundos">
+          <button type="button" className="btn-ghost" onClick={() => setMostrarGuiaFundos(true)}>
+            🎨 Criar fundo com ChatGPT <span>textos prontos e modelos</span>
+          </button>
+        </div>
 
         <div className="mode-tabs" role="tablist" aria-label="Formato do material">
           <button type="button" id="cartazes-tab-story" role="tab" aria-selected={modo === 'story'} aria-controls="cartazes-panel-story" className={`mode-tab${modo === 'story' ? ' active' : ''}`} onClick={() => setModo('story')}>
@@ -83,6 +90,7 @@ export function CartazesPage() {
           <CartazOfertaModo ofertasRecebidas={ofertasParaCartaz} aoReceberOfertas={() => setOfertasParaCartaz(null)} />
         </div>
       </div>
+      {mostrarGuiaFundos && <GuiaFundosModal onFechar={() => setMostrarGuiaFundos(false)} />}
     </FerramentaShell>
   );
 }

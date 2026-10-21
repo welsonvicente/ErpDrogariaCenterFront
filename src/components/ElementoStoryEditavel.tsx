@@ -33,6 +33,7 @@ export function ElementoStoryEditavel({
   onAlterar,
   onGuiasAlinhadas,
   onDuploClique,
+  onClique,
 }: {
   frameRef: RefObject<HTMLDivElement | null>;
   caixa: CaixaStory | null;
@@ -46,13 +47,19 @@ export function ElementoStoryEditavel({
   larguraArte?: number;
   alturaArte?: number;
   caixasVizinhas?: CaixaStory[];
-  onSelecionar: () => void;
+  /** `aditivo` = clicou segurando Ctrl/Shift/Cmd (adicionar/tirar da seleção, quando quem usa suporta vários). */
+  onSelecionar: (opcoes?: { aditivo: boolean }) => void;
   onAlterar: (caixa: CaixaStory, tamanho?: number) => void;
   onGuiasAlinhadas?: (guias: GuiasAlinhamentoStory | null) => void;
   /** Duplo clique/toque no elemento (ex.: abrir a edição do produto do card). */
   onDuploClique?: () => void;
+  /** Apertou e soltou sem arrastar (ex.: desmarcar um item da seleção). Recebe o mesmo `aditivo` do aperto. */
+  onClique?: (opcoes: { aditivo: boolean }) => void;
 }) {
   const inicio = useRef<Inicio | null>(null);
+  /** Se o gesto atual virou arraste (mexeu mais que alguns px) — senão, ao soltar é um clique. */
+  const arrastou = useRef(false);
+  const aditivoNoAperto = useRef(false);
   const [arrastando, setArrastando] = useState(false);
 
   if (!caixa) return null;
@@ -78,8 +85,14 @@ export function ElementoStoryEditavel({
       : 'move';
     inicio.current = { clientX: e.clientX, clientY: e.clientY, caixa: caixaAtiva, lado, tamanho };
     setArrastando(true);
-    onSelecionar();
-    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastou.current = false;
+    aditivoNoAperto.current = e.ctrlKey || e.metaKey || e.shiftKey;
+    onSelecionar({ aditivo: aditivoNoAperto.current });
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* ponteiro já solto — o arraste segue enquanto estiver sobre o elemento */
+    }
     e.preventDefault();
   }
 
@@ -89,6 +102,9 @@ export function ElementoStoryEditavel({
     if (!estado || !frame) return;
     const escalaX = frame.clientWidth / larguraArte;
     const escalaY = frame.clientHeight / alturaArte;
+    // Tremidinha do dedo/mouse num clique não conta como arraste (nem mexe o item).
+    if (!arrastou.current && Math.abs(e.clientX - estado.clientX) + Math.abs(e.clientY - estado.clientY) <= 3) return;
+    arrastou.current = true;
     const dx = (e.clientX - estado.clientX) / escalaX;
     const dy = (e.clientY - estado.clientY) / escalaY;
     const minLargura = estado.caixa.larguraMinima;
@@ -159,7 +175,9 @@ export function ElementoStoryEditavel({
   }
 
   function encerrar() {
+    const eraClique = inicio.current !== null && !arrastou.current;
     inicio.current = null;
+    if (eraClique) onClique?.({ aditivo: aditivoNoAperto.current });
     setArrastando(false);
     onGuiasAlinhadas?.(null);
   }

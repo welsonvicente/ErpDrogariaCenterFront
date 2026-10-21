@@ -37,6 +37,8 @@ import {
   caixaLogoPadrao,
   caixaLogoRelativa,
   construirPaginasPanfleto,
+  escalarGrupoCards,
+  moverGrupoCards,
   gradePadraoPanfleto,
   COR_FUNDO_SELO_PADRAO,
   COR_TEXTO_SELO_PADRAO,
@@ -57,9 +59,22 @@ import {
 import { gerarImagemQr } from '../../utils/qrCode';
 import type { CaixaTablet } from '../../utils/tabletEngine';
 import { ArtesTabletPainel } from './ArtesTabletPainel';
+import { carregarFundoDoServidor, enviarFundoParaServidor, type FundoNoServidor } from '../../utils/fundoNoServidor';
 import { EditorProdutoPanfleto, type EdicaoProdutoPanfleto } from './EditorProdutoPanfleto';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
 import { SeletorCor } from './SeletorCor';
+
+/** Aplica `transformar` só nos cards de `indices` (como um grupo) e devolve o layout completo. */
+function aplicarNosSelecionados(layout: CaixaCardPanfleto[], indices: number[], transformar: (grupo: CaixaCardPanfleto[]) => CaixaCardPanfleto[]) {
+  const validos = indices.filter((i) => layout[i]);
+  if (validos.length === 0) return layout;
+  const transformados = transformar(validos.map((i) => layout[i]));
+  const resultado = [...layout];
+  validos.forEach((i, k) => {
+    resultado[i] = transformados[k];
+  });
+  return resultado;
+}
 
 type DestinoCamera = 'pendente' | number | null;
 
@@ -201,7 +216,28 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [logoSelecionada, setLogoSelecionada] = useState(false);
   /** Cards arrastados/redimensionados (valem pra todas as páginas) — null = grade padrão. */
   const [cardsCaixas, setCardsCaixas] = useState<(CaixaCardPanfleto | null)[] | null>(null);
-  const [cardSelecionado, setCardSelecionado] = useState<number | null>(null);
+  /** Cards selecionados (índices na página) — arrastar um deles move todos; setas e −/+ agem neles. */
+  const [selecionados, setSelecionados] = useState<number[]>([]);
+  /** Modo toque: cada toque marca/desmarca um produto (no mouse, Ctrl/Shift + clique ou caixa de seleção). */
+  const [selecionarVarios, setSelecionarVarios] = useState(false);
+  /** Se o card apertado já estava selecionado — decide, ao soltar sem arrastar, se o clique desmarca. */
+  const jaEstavaSelecionadoRef = useRef(false);
+
+  // ---- Desfazer/refazer (Ctrl+Z / Ctrl+Y) das posições dos produtos e da logo ----
+  type FotoLayout = { cardsCaixas: (CaixaCardPanfleto | null)[] | null; cardsCaixasPagina: Record<string, (CaixaCardPanfleto | null)[]>; logoCaixa: CaixaLogoPanfleto | null };
+  const historicoRef = useRef<{ desfazer: FotoLayout[]; refazer: FotoLayout[] }>({ desfazer: [], refazer: [] });
+  const [tamanhoHistorico, setTamanhoHistorico] = useState({ desfazer: 0, refazer: 0 });
+  /** Um arraste inteiro vira UM passo: a foto é tirada só na primeira mudança depois de apertar. */
+  const gestoNovoRef = useRef(false);
+  const layoutAtualRef = useRef<FotoLayout>({ cardsCaixas: null, cardsCaixasPagina: {}, logoCaixa: null });
+  /** Caixa de seleção desenhada com o mouse na prévia (px da página). */
+  const [caixaSelecao, setCaixaSelecao] = useState<{ x0: number; y0: number; x1: number; y1: number; aditivo: boolean } | null>(null);
+  /** Ajuste próprio de uma página (índice → posições), que vale por cima do ajuste de todas as páginas. */
+  const [cardsCaixasPagina, setCardsCaixasPagina] = useState<Record<string, (CaixaCardPanfleto | null)[]>>({});
+  /** Onde valem o arraste e os botões de mover/escalar: o panfleto inteiro ou só a página aberta. */
+  const [escopoCards, setEscopoCards] = useState<'todas' | 'pagina'>('todas');
+  /** Passo das setas de "Mover todos", em px da página (lógicos). */
+  const [passoMover, setPassoMover] = useState(10);
   /** Produto aberto no editor de descrição/preço (✏️ na lista ou duplo clique no card da prévia). */
   const [editandoIdx, setEditandoIdx] = useState<number | null>(null);
   /** Régua: linha que aparece enquanto um card/logo arrastado fica alinhado com outro ou com o centro da página. */
@@ -215,6 +251,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   const [tabletLogoCaixa, setTabletLogoCaixa] = useState<CaixaTablet | null>(null);
   const [tabletMostrarLogo, setTabletMostrarLogo] = useState(true);
   const [tabletFundo, setTabletFundo] = useState<{ nome: string; arquivoId: string } | null>(null);
+  /** Referência do fundo do panfleto no R2 (salva nas preferências) — a imagem em si fica em `imagemFundo`. */
+  const [panfletoFundo, setPanfletoFundo] = useState<FundoNoServidor | null>(null);
+  const [enviandoFundo, setEnviandoFundo] = useState(false);
+  const fundoMostradoRef = useRef<string | null | undefined>(undefined);
 
   const [imagemQr, setImagemQr] = useState<HTMLImageElement | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
@@ -304,6 +344,50 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [produtosRecebidos, projetoAtivo?.id]);
 
+  useEffect(() => {
+    function aoTeclar(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && (alvo.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName))) return;
+      // Os modos de Cartazes ficam montados ao mesmo tempo (só escondidos) — age só se o Panfleto estiver na tela.
+      if (!stageRef.current || stageRef.current.offsetParent === null) return;
+      const tecla = e.key.toLowerCase();
+      if (tecla === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        desfazer();
+      } else if (tecla === 'y' || (tecla === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        refazer();
+      }
+    }
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+    // desfazer/refazer só leem refs — não precisam ser recriados
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Clique fora do panfleto (e da barra "Ajustar produtos") ou Esc tira a seleção dos produtos e da logo.
+  useEffect(() => {
+    function aoApertarFora(e: PointerEvent) {
+      const alvo = e.target as Node | null;
+      if (!alvo || stageRef.current?.contains(alvo)) return;
+      if ((alvo as Element).closest?.('.panfleto-ajustes')) return;
+      setSelecionados((atual) => (atual.length ? [] : atual));
+      setLogoSelecionada(false);
+    }
+    function aoTeclarEsc(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setSelecionados((atual) => (atual.length ? [] : atual));
+      setLogoSelecionada(false);
+    }
+    document.addEventListener('pointerdown', aoApertarFora);
+    document.addEventListener('keydown', aoTeclarEsc);
+    return () => {
+      document.removeEventListener('pointerdown', aoApertarFora);
+      document.removeEventListener('keydown', aoTeclarEsc);
+    };
+  }, []);
+
   // Gera o QR (async) quando o link muda — cacheado por texto em utils/qrCode.ts.
   useEffect(() => {
     const linkTrim = link.trim();
@@ -357,9 +441,11 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       if (config.manterFaixaBranca !== undefined) setManterFaixaBranca(config.manterFaixaBranca);
       if (config.tabletCaixas !== undefined) setTabletCaixas(config.tabletCaixas);
       if (config.cardsCaixas !== undefined) setCardsCaixas(config.cardsCaixas);
+      if (config.cardsCaixasPagina !== undefined) setCardsCaixasPagina(config.cardsCaixasPagina ?? {});
       if (config.tabletLogoCaixa !== undefined) setTabletLogoCaixa(config.tabletLogoCaixa);
       if (config.tabletMostrarLogo !== undefined) setTabletMostrarLogo(config.tabletMostrarLogo);
       if (config.tabletFundo !== undefined) setTabletFundo(config.tabletFundo);
+      if (config.panfletoFundo !== undefined) setPanfletoFundo(config.panfletoFundo);
     }
     aplicarConfiguracoes();
     window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
@@ -404,7 +490,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         tabletLogoCaixa,
         tabletMostrarLogo,
         tabletFundo,
+        panfletoFundo,
         cardsCaixas,
+        cardsCaixasPagina,
       });
     }, 400);
     return () => clearTimeout(timer);
@@ -412,7 +500,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento, mostrarTextosCabecalho, mostrarTextosRodape,
     textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento, qrAlinhamento, link,
     itensPorPagina, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco, tamanhoBorda,
-    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca, tabletCaixas, tabletLogoCaixa, tabletMostrarLogo, tabletFundo, cardsCaixas,
+    tamanhoSelo, corFundoSelo, corTextoSelo, manterFaixaBranca, tabletCaixas, tabletLogoCaixa, tabletMostrarLogo, tabletFundo, panfletoFundo, cardsCaixas, cardsCaixasPagina,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -695,7 +783,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     const dimensoes: DimensaoPaginaPanfleto[] = [];
     paginasCanvasRef.current = paginas.map((produtosDaPagina, i) => {
       const canvas = document.createElement('canvas');
-      dimensoes.push(renderizarPaginaPanfleto(canvas, produtosDaPagina, sizing, i + 1, paginas.length, parametros, itensPorPagina));
+      // Página com ajuste próprio usa o dela; as outras, o ajuste de todas as páginas.
+      const parametrosDaPagina = { ...parametros, cardsCaixas: cardsCaixasPagina[i] ?? cardsCaixas };
+      dimensoes.push(renderizarPaginaPanfleto(canvas, produtosDaPagina, sizing, i + 1, paginas.length, parametrosDaPagina, itensPorPagina));
       return canvas;
     });
     dimensoesPaginasRef.current = dimensoes;
@@ -712,7 +802,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     produtos, itensPorPagina, mostrarTextosCabecalho, nomeLoja, nomeLojaAlinhamento, titulo, tituloAlinhamento,
     mostrarTextosRodape, textoRodape1, textoRodape1Alinhamento, textoRodape2, textoRodape2Alinhamento,
     qrAlinhamento, link, imagemQr, corLogo, corDescricao, corPreco, corFundoCard, tamanhoNome, tamanhoPreco,
-    tamanhoBorda, tamanhoSelo, corFundoSelo, corTextoSelo, imagemFundo, manterFaixaBranca, imagemLogo, logoCaixa, cardsCaixas,
+    tamanhoBorda, tamanhoSelo, corFundoSelo, corTextoSelo, imagemFundo, manterFaixaBranca, imagemLogo, logoCaixa, cardsCaixas, cardsCaixasPagina,
   ]);
 
   useEffect(() => {
@@ -817,11 +907,49 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   }
 
   /** Fundo do panfleto — nunca persistido (mesmo comportamento de antes), continua usando o carregador simples em memória. */
+  // Fundo salvo no servidor: baixa quando muda (ao abrir, ou trocado em outro aparelho).
+  useEffect(() => {
+    const id = panfletoFundo?.arquivoId ?? null;
+    if (fundoMostradoRef.current === id) return;
+    fundoMostradoRef.current = id;
+    if (!id) {
+      setImagemFundo(null);
+      return;
+    }
+    let cancelado = false;
+    carregarFundoDoServidor(id)
+      .then((img) => {
+        if (!cancelado) setImagemFundo(img);
+      })
+      .catch(() => {
+        if (!cancelado) setToast('Não foi possível baixar a imagem de fundo salva do panfleto.');
+      });
+    return () => {
+      cancelado = true;
+    };
+    // Depende só do ID: a sincronização das preferências reaplica o mesmo fundo como objeto novo, e
+    // depender do objeto cancelava o download em andamento sem começar outro (o fundo não aparecia).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panfletoFundo?.arquivoId]);
+
+  /** Mostra na hora e envia pro servidor — o fundo passa a valer em todos os aparelhos da conta. */
   async function handleEscolherImagemFundo(event: ChangeEvent<HTMLInputElement>) {
     const arquivo = event.target.files?.[0];
     event.target.value = '';
     if (!arquivo) return;
-    setImagemFundo(await carregarImagemDeArquivo(arquivo));
+    setEnviandoFundo(true);
+    try {
+      const img = await carregarImagemDeArquivo(arquivo);
+      setImagemFundo(img);
+      // Panfleto sai até ~3300 px de largura (ver PRESETS × ESCALA_EXPORTACAO_PANFLETO).
+      const arquivoId = await enviarFundoParaServidor(img, 3300);
+      fundoMostradoRef.current = arquivoId; // já está na tela
+      setPanfletoFundo({ nome: arquivo.name, arquivoId });
+    } catch {
+      setToast('Não foi possível salvar a imagem de fundo no servidor. Confira a conexão e tente de novo.');
+    } finally {
+      setEnviandoFundo(false);
+    }
   }
 
   /**
@@ -911,11 +1039,163 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
    * Mover/redimensionar um card personaliza a posição DAQUELE índice em todas
    * as páginas; os outros continuam onde estavam (grade padrão, na primeira vez).
    */
-  function handleMoverCard(indice: number, caixa: { x: number; y: number; largura: number; altura: number }, pagina: DimensaoPaginaPanfleto) {
+  layoutAtualRef.current = { cardsCaixas, cardsCaixasPagina, logoCaixa };
+
+  function atualizarContagemHistorico() {
+    setTamanhoHistorico({ desfazer: historicoRef.current.desfazer.length, refazer: historicoRef.current.refazer.length });
+  }
+
+  /** Guarda como estava ANTES de uma mudança (até 50 passos); uma mudança nova apaga o "refazer". */
+  function guardarParaDesfazer() {
+    const h = historicoRef.current;
+    h.desfazer.push(layoutAtualRef.current);
+    if (h.desfazer.length > 50) h.desfazer.shift();
+    h.refazer = [];
+    atualizarContagemHistorico();
+  }
+
+  function aplicarFoto(foto: FotoLayout) {
+    setCardsCaixas(foto.cardsCaixas);
+    setCardsCaixasPagina(foto.cardsCaixasPagina);
+    setLogoCaixa(foto.logoCaixa);
+  }
+
+  function desfazer() {
+    const h = historicoRef.current;
+    const anterior = h.desfazer.pop();
+    if (!anterior) return;
+    h.refazer.push(layoutAtualRef.current);
+    aplicarFoto(anterior);
+    atualizarContagemHistorico();
+  }
+
+  function refazer() {
+    const h = historicoRef.current;
+    const proximo = h.refazer.pop();
+    if (!proximo) return;
+    h.desfazer.push(layoutAtualRef.current);
+    aplicarFoto(proximo);
+    atualizarContagemHistorico();
+  }
+
+  /** Primeira mudança de um arraste: guarda o "antes" uma vez só. */
+  function guardarSeGestoNovo() {
+    if (!gestoNovoRef.current) return;
+    gestoNovoRef.current = false;
+    guardarParaDesfazer();
+  }
+
+  /** Posições completas (todos os índices da página) que o escopo escolhido está usando agora. */
+  function layoutDoEscopo(): CaixaCardPanfleto[] {
     const sizing = PRESETS_TAMANHO_PANFLETO[itensPorPagina] || PRESETS_TAMANHO_PANFLETO[9];
     const grade = gradePadraoPanfleto(itensPorPagina, sizing, tamanhoBorda, link.trim().length > 0);
+    const daPagina = escopoCards === 'pagina' ? cardsCaixasPagina[paginaAtual] : undefined;
+    return grade.map((padrao, j) => daPagina?.[j] ?? cardsCaixas?.[j] ?? padrao);
+  }
+
+  function gravarLayoutDoEscopo(layout: CaixaCardPanfleto[]) {
+    if (escopoCards === 'pagina') setCardsCaixasPagina((atual) => ({ ...atual, [paginaAtual]: layout }));
+    else setCardsCaixas(layout);
+  }
+
+  function handleMoverCard(indice: number, caixa: { x: number; y: number; largura: number; altura: number }, pagina: DimensaoPaginaPanfleto) {
     const nova: CaixaCardPanfleto = { x: caixa.x / pagina.largura, y: caixa.y / pagina.altura, largura: caixa.largura / pagina.largura, altura: caixa.altura / pagina.altura };
-    setCardsCaixas((atual) => grade.map((padrao, j) => (j === indice ? nova : atual?.[j] ?? padrao)));
+    guardarSeGestoNovo();
+    const layout = layoutDoEscopo();
+    if (selecionados.length > 1 && selecionados.includes(indice) && layout[indice]) {
+      const atual = layout[indice];
+      // Mesma largura = arrastou pelo meio (move os selecionados); mudou = puxou a borda (escala os selecionados juntos).
+      const redimensionou = Math.abs(nova.largura - atual.largura) > 1e-6 || Math.abs(nova.altura - atual.altura) > 1e-6;
+      gravarLayoutDoEscopo(
+        aplicarNosSelecionados(layout, selecionados, (grupo) =>
+          redimensionou ? escalarGrupoCards(grupo, nova.largura / atual.largura) : moverGrupoCards(grupo, nova.x - atual.x, nova.y - atual.y),
+        ),
+      );
+      return;
+    }
+    gravarLayoutDoEscopo(layout.map((atual, j) => (j === indice ? nova : atual)));
+  }
+
+  /** Move todos os produtos juntos (setas) — `dx`/`dy` em px da página. */
+  /** Índices em que as setas e o −/+ agem: os selecionados, ou todos quando nada está selecionado. */
+  function indicesAlvo(layout: CaixaCardPanfleto[]) {
+    return selecionados.length > 0 ? selecionados.filter((i) => i < layout.length) : layout.map((_, i) => i);
+  }
+
+  function handleMoverTodos(dx: number, dy: number) {
+    if (!dimensaoPaginaAtual) return;
+    guardarParaDesfazer();
+    const layout = layoutDoEscopo();
+    gravarLayoutDoEscopo(aplicarNosSelecionados(layout, indicesAlvo(layout), (grupo) => moverGrupoCards(grupo, dx / dimensaoPaginaAtual.largura, dy / dimensaoPaginaAtual.altura)));
+  }
+
+  function handleEscalarTodos(fator: number) {
+    guardarParaDesfazer();
+    const layout = layoutDoEscopo();
+    gravarLayoutDoEscopo(aplicarNosSelecionados(layout, indicesAlvo(layout), (grupo) => escalarGrupoCards(grupo, fator)));
+  }
+
+  /** Clique num card: com Ctrl/Shift ou no modo "Selecionar vários" marca/desmarca; sem isso, seleciona só ele (ou mantém o grupo, pra arrastar). */
+  function handleSelecionarCard(i: number, aditivo: boolean) {
+    setLogoSelecionada(false);
+    // Ao APERTAR nunca desmarca — senão apertar um selecionado pra arrastar o grupo tirava ele do grupo
+    // e só ele se mexia. Desmarcar fica pro clique sem arrastar (handleCliqueCard).
+    jaEstavaSelecionadoRef.current = selecionados.includes(i);
+    gestoNovoRef.current = true;
+    setSelecionados((atual) => {
+      if (atual.includes(i)) return atual;
+      return aditivo || selecionarVarios ? [...atual, i] : [i];
+    });
+  }
+
+  /** Apertou e soltou sem arrastar: no modo de vários, desmarca quem já estava marcado; sem ele, fica só este selecionado. */
+  function handleCliqueCard(i: number, aditivo: boolean) {
+    if (aditivo || selecionarVarios) {
+      if (jaEstavaSelecionadoRef.current) setSelecionados((atual) => atual.filter((j) => j !== i));
+      return;
+    }
+    setSelecionados([i]);
+  }
+
+  /** Converte a posição do mouse na prévia pra px da página. */
+  function pontoNaPagina(clientX: number, clientY: number) {
+    const stage = stageRef.current;
+    if (!stage || !dimensaoPaginaAtual) return null;
+    const r = stage.getBoundingClientRect();
+    return { x: ((clientX - r.left) / r.width) * dimensaoPaginaAtual.largura, y: ((clientY - r.top) / r.height) * dimensaoPaginaAtual.altura };
+  }
+
+  /** Solta a caixa de seleção: seleciona os produtos que ela toca (com Ctrl/Shift, soma aos já selecionados). */
+  function finalizarCaixaSelecao() {
+    const c = caixaSelecao;
+    setCaixaSelecao(null);
+    if (!c || !dimensaoPaginaAtual?.cards) return;
+    const esq = Math.min(c.x0, c.x1);
+    const dir = Math.max(c.x0, c.x1);
+    const topo = Math.min(c.y0, c.y1);
+    const base = Math.max(c.y0, c.y1);
+    if (dir - esq < 4 && base - topo < 4) return; // foi só um clique no vazio
+    const tocados = dimensaoPaginaAtual.cards
+      .map((card, i) => ({ card, i }))
+      .filter(({ card }) => card.x < dir && card.x + card.largura > esq && card.y < base && card.y + card.altura > topo)
+      .map(({ i }) => i);
+    setSelecionados((atual) => (c.aditivo ? Array.from(new Set([...atual, ...tocados])) : tocados));
+  }
+
+  /** "Todas as páginas" volta tudo pra grade (inclusive ajustes de página); "Só esta página" tira só o ajuste dela. */
+  function handleVoltarParaGrade() {
+    guardarParaDesfazer();
+    if (escopoCards === 'pagina') {
+      setCardsCaixasPagina((atual) => {
+        const resto = { ...atual };
+        delete resto[paginaAtual];
+        return resto;
+      });
+    } else {
+      setCardsCaixas(null);
+      setCardsCaixasPagina({});
+    }
+    setSelecionados([]);
   }
 
   /** Descrição vai pro dicionário da farmácia (vale no tablet e no importar); preços, só neste produto. */
@@ -1436,7 +1716,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                   setItensPorPagina(Number(e.target.value));
                   // Outra quantidade por página muda a grade inteira — as posições arrastadas não servem mais.
                   setCardsCaixas(null);
-                  setCardSelecionado(null);
+                  setCardsCaixasPagina({});
+                  setSelecionados([]);
                 }}
               >
                 {ITENS_POR_PAGINA_OPCOES.map((n) => (
@@ -1495,11 +1776,11 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                 <label
                   className="upload-box"
                   style={{ display: 'block', cursor: 'pointer', flex: 1, margin: 0, fontSize: 12, padding: 14 }}
-                  onClick={() => inputFundoRef.current?.click()}
+                  onClick={() => !enviandoFundo && inputFundoRef.current?.click()}
                 >
-                  {imagemFundo ? '🖼️ Trocar imagem de fundo' : '🖼️ Escolher imagem de fundo'}
+                  {enviandoFundo ? 'Enviando imagem de fundo…' : imagemFundo ? '🖼️ Trocar imagem de fundo' : '🖼️ Escolher imagem de fundo'}
                 </label>
-                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} onClick={() => setImagemFundo(null)}>
+                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: 0 }} disabled={enviandoFundo || !imagemFundo} onClick={() => setPanfletoFundo(null)}>
                   Remover
                 </button>
               </div>
@@ -1558,15 +1839,77 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
               <strong>Prévia em tempo real</strong>
               <span>
                 {logoSelecionada
-                  ? 'Logomarca selecionada — arraste pra mover ou pelas bordas pra redimensionar.'
-                  : cardSelecionado !== null
-                    ? 'Produto selecionado — arraste pra mover, pelas bordas redimensiona, duplo clique edita descrição e preço.'
-                    : 'Arraste os produtos pra mudar de lugar; pelas bordas, muda o tamanho. Duplo clique edita descrição e preço.'}
+                  ? 'Logomarca selecionada — arraste pra mover; pelas bordas, muda o tamanho.'
+                  : selecionados.length > 1
+                    ? `${selecionados.length} produtos selecionados — arraste qualquer um pra mover todos juntos.`
+                    : 'Arraste um produto pra mover. Pra vários: faça uma caixa no espaço vazio ou Ctrl + clique. Ctrl + Z desfaz.'}
               </span>
-              {cardsCaixas && (
-                <button type="button" className="btn-ghost" style={{ width: 'auto', margin: '8px 0 0', fontSize: 12 }} onClick={() => { setCardsCaixas(null); setCardSelecionado(null); }}>
-                  ↺ Voltar produtos pra grade
-                </button>
+            </div>
+            <div className="panfleto-ajustes" aria-label="Ajustar produtos">
+              <div className="panfleto-ajustes-linha">
+                <div className="panfleto-mover-escopo" role="radiogroup" aria-label="Onde aplicar">
+                  <button type="button" role="radio" aria-checked={escopoCards === 'todas'} className={escopoCards === 'todas' ? 'active' : ''} onClick={() => setEscopoCards('todas')}>
+                    Todas as páginas
+                  </button>
+                  <button type="button" role="radio" aria-checked={escopoCards === 'pagina'} className={escopoCards === 'pagina' ? 'active' : ''} onClick={() => setEscopoCards('pagina')}>
+                    Só esta página ({paginaAtual + 1})
+                  </button>
+                </div>
+                <div className="panfleto-ajustes-grupo">
+                  <button type="button" className="panfleto-icone" disabled={tamanhoHistorico.desfazer === 0} title="Desfazer (Ctrl+Z)" aria-label="Desfazer" onClick={desfazer}>↶</button>
+                  <button type="button" className="panfleto-icone" disabled={tamanhoHistorico.refazer === 0} title="Refazer (Ctrl+Y)" aria-label="Refazer" onClick={refazer}>↷</button>
+                  {(cardsCaixas || Object.keys(cardsCaixasPagina).length > 0) && (
+                    <button type="button" className="panfleto-chip" onClick={handleVoltarParaGrade}>
+                      ↺ {escopoCards === 'pagina' ? 'Tirar ajuste da página' : 'Voltar pra grade'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="panfleto-ajustes-linha">
+                <div className="panfleto-ajustes-grupo">
+                  <span className="panfleto-rotulo">Selecionar</span>
+                  <button
+                    type="button"
+                    className={`panfleto-chip${selecionarVarios ? ' active' : ''}`}
+                    aria-pressed={selecionarVarios}
+                    title="Ligado: cada toque/clique marca ou desmarca um produto (bom pro celular)"
+                    onClick={() => setSelecionarVarios((v) => !v)}
+                  >
+                    ☑ Vários
+                  </button>
+                  <button type="button" className="panfleto-chip" onClick={() => setSelecionados((dimensaoPaginaAtual?.cards ?? []).map((_, i) => i))}>
+                    Todos
+                  </button>
+                  {selecionados.length > 0 && (
+                    <button type="button" className="panfleto-chip" onClick={() => setSelecionados([])}>
+                      Limpar ({selecionados.length})
+                    </button>
+                  )}
+                </div>
+                <div className="panfleto-ajustes-grupo">
+                  <span className="panfleto-rotulo">{selecionados.length > 0 ? `Mover (${selecionados.length})` : 'Mover todos'}</span>
+                  <button type="button" className="panfleto-icone" title="Pra cima" aria-label="Mover pra cima" onClick={() => handleMoverTodos(0, -passoMover)}>↑</button>
+                  <button type="button" className="panfleto-icone" title="Pra baixo" aria-label="Mover pra baixo" onClick={() => handleMoverTodos(0, passoMover)}>↓</button>
+                  <button type="button" className="panfleto-icone" title="Pra esquerda" aria-label="Mover pra esquerda" onClick={() => handleMoverTodos(-passoMover, 0)}>←</button>
+                  <button type="button" className="panfleto-icone" title="Pra direita" aria-label="Mover pra direita" onClick={() => handleMoverTodos(passoMover, 0)}>→</button>
+                  <select className="panfleto-passo" value={passoMover} onChange={(e) => setPassoMover(Number(e.target.value))} aria-label="Tamanho do passo">
+                    <option value={2}>fino</option>
+                    <option value={10}>médio</option>
+                    <option value={30}>grande</option>
+                  </select>
+                </div>
+                <div className="panfleto-ajustes-grupo">
+                  <span className="panfleto-rotulo">Tamanho</span>
+                  <button type="button" className="panfleto-icone" title="Diminuir" aria-label="Diminuir produtos" onClick={() => handleEscalarTodos(0.95)}>−</button>
+                  <button type="button" className="panfleto-icone" title="Aumentar" aria-label="Aumentar produtos" onClick={() => handleEscalarTodos(1.05)}>+</button>
+                </div>
+              </div>
+              {cardsCaixasPagina[paginaAtual] && (
+                <small className="panfleto-mover-aviso">
+                  {escopoCards === 'todas'
+                    ? `A página ${paginaAtual + 1} tem ajuste próprio — mudanças em "Todas as páginas" não alteram ela.`
+                    : `Ajustando só a página ${paginaAtual + 1}.`}
+                </small>
               )}
             </div>
             <div className="cartaz-canvas-frame cartaz-canvas-frame--panfleto">
@@ -1584,11 +1927,45 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                 onPointerDownCapture={(e) => {
                   if (e.target === canvasRef.current) {
                     setLogoSelecionada(false);
-                    setCardSelecionado(null);
+                    if (!(e.ctrlKey || e.metaKey || e.shiftKey)) setSelecionados([]);
                   }
                 }}
               >
-                <canvas ref={canvasRef} className="cartaz-canvas cartaz-canvas--panfleto" />
+                <canvas
+                  ref={canvasRef}
+                  className="cartaz-canvas cartaz-canvas--panfleto"
+                  onPointerDown={(e) => {
+                    // Caixa de seleção só no mouse — no toque, arrastar no vazio continua rolando a tela.
+                    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+                    const p = pontoNaPagina(e.clientX, e.clientY);
+                    if (!p) return;
+                    setCaixaSelecao({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, aditivo: e.ctrlKey || e.metaKey || e.shiftKey });
+                    try {
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                    } catch {
+                      /* sem captura, a caixa ainda funciona enquanto o mouse estiver sobre a prévia */
+                    }
+                  }}
+                  onPointerMove={(e) => {
+                    if (!caixaSelecao) return;
+                    const p = pontoNaPagina(e.clientX, e.clientY);
+                    if (p) setCaixaSelecao({ ...caixaSelecao, x1: p.x, y1: p.y });
+                  }}
+                  onPointerUp={finalizarCaixaSelecao}
+                  onPointerCancel={() => setCaixaSelecao(null)}
+                />
+                {caixaSelecao && dimensaoPaginaAtual && (
+                  <i
+                    className="panfleto-caixa-selecao"
+                    aria-hidden="true"
+                    style={{
+                      left: `${(Math.min(caixaSelecao.x0, caixaSelecao.x1) / dimensaoPaginaAtual.largura) * 100}%`,
+                      top: `${(Math.min(caixaSelecao.y0, caixaSelecao.y1) / dimensaoPaginaAtual.altura) * 100}%`,
+                      width: `${(Math.abs(caixaSelecao.x1 - caixaSelecao.x0) / dimensaoPaginaAtual.largura) * 100}%`,
+                      height: `${(Math.abs(caixaSelecao.y1 - caixaSelecao.y0) / dimensaoPaginaAtual.altura) * 100}%`,
+                    }}
+                  />
+                )}
                 {dimensaoPaginaAtual && guiasAlinhamento?.vertical !== undefined && <i className="story-alignment-guide story-alignment-guide--vertical" style={{ left: `${(guiasAlinhamento.vertical / dimensaoPaginaAtual.largura) * 100}%` }} aria-hidden="true" />}
                 {dimensaoPaginaAtual && guiasAlinhamento?.horizontal !== undefined && <i className="story-alignment-guide story-alignment-guide--horizontal" style={{ top: `${(guiasAlinhamento.horizontal / dimensaoPaginaAtual.altura) * 100}%` }} aria-hidden="true" />}
                 {dimensaoPaginaAtual?.cards?.map((card, i) => (
@@ -1596,8 +1973,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     key={`card-${i}`}
                     frameRef={stageRef}
                     caixa={{ ...card, larguraMinima: 60, alturaMinima: 60 }}
-                    caixasVizinhas={dimensaoPaginaAtual.cards!.filter((_, j) => j !== i).map((c) => ({ ...c, larguraMinima: 60, alturaMinima: 60 }))}
-                    selecionado={cardSelecionado === i}
+                    caixasVizinhas={selecionados.length > 1 && selecionados.includes(i) ? [] : dimensaoPaginaAtual.cards!.filter((_, j) => j !== i).map((c) => ({ ...c, larguraMinima: 60, alturaMinima: 60 }))}
+                    selecionado={selecionados.includes(i)}
                     descricao={`Produto ${i + 1} do panfleto`}
                     tamanho={1}
                     tamanhoMinimo={1}
@@ -1605,7 +1982,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     controlaTipografia={false}
                     larguraArte={dimensaoPaginaAtual.largura}
                     alturaArte={dimensaoPaginaAtual.altura}
-                    onSelecionar={() => { setCardSelecionado(i); setLogoSelecionada(false); }}
+                    onSelecionar={(opcoes) => handleSelecionarCard(i, !!opcoes?.aditivo)}
+                    onClique={(opcoes) => handleCliqueCard(i, opcoes.aditivo)}
                     onAlterar={(nova) => handleMoverCard(i, nova, dimensaoPaginaAtual)}
                     onDuploClique={() => setEditandoIdx(paginaAtual * itensPorPagina + i)}
                     onGuiasAlinhadas={setGuiasAlinhamento}
@@ -1625,8 +2003,11 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     alturaArte={dimensaoPaginaAtual.altura}
                     caixasVizinhas={(dimensaoPaginaAtual.cards ?? []).map((c) => ({ ...c, larguraMinima: 60, alturaMinima: 60 }))}
                     onGuiasAlinhadas={setGuiasAlinhamento}
-                    onSelecionar={() => { setLogoSelecionada(true); setCardSelecionado(null); }}
-                    onAlterar={(caixa) => setLogoCaixa(caixaLogoRelativa(caixa, dimensaoPaginaAtual))}
+                    onSelecionar={() => { setLogoSelecionada(true); setSelecionados([]); gestoNovoRef.current = true; }}
+                    onAlterar={(caixa) => {
+                      guardarSeGestoNovo();
+                      setLogoCaixa(caixaLogoRelativa(caixa, dimensaoPaginaAtual));
+                    }}
                   />
                 )}
               </div>

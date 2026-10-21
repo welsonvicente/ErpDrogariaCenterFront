@@ -63,8 +63,10 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
       .then((img) => { if (!cancelado) setImagemFundo(img); })
       .catch(() => { if (!cancelado) onAviso('Não foi possível baixar o fundo salvo das artes do tablet.'); });
     return () => { cancelado = true; };
+    // Depende só do ID: a sincronização das preferências reaplica o mesmo fundo como objeto novo, e
+    // depender do objeto cancelava o download em andamento sem começar outro (o fundo não aparecia).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fundoSalvo]);
+  }, [fundoSalvo?.arquivoId]);
   const [arteAtual, setArteAtual] = useState(0);
   const [selecao, setSelecao] = useState<Selecao>(null);
   const [baixando, setBaixando] = useState(false);

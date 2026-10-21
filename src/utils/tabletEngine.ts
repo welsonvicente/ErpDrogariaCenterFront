@@ -94,9 +94,10 @@ export function centralizarNaLargura(caixas: CaixaTablet[]): CaixaTablet[] {
 export function caixaLogoPadraoTablet(logo: FonteImagem): CaixaTablet {
   const { w, h } = tamanhoOrigem(logo);
   const proporcao = h / w || 1;
-  const altura = 150;
-  const largura = Math.min(520, altura / proporcao);
-  return { x: MARGEM, y: 40, largura, altura: largura * proporcao };
+  // Cabe na faixa acima dos cards (que começam em TOPO_CARDS = 145): de 28 a 118 px.
+  const altura = 90;
+  const largura = Math.min(420, altura / proporcao);
+  return { x: MARGEM, y: 28, largura, altura: largura * proporcao };
 }
 
 /** Quebra as palavras em até `maxLinhas`, com "…" se o texto não couber. */

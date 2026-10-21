@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { normalizarPrecoDigitado } from './EditorProdutoPanfleto';
+import { normalizarPrecoDigitado, precoParaExibir } from './EditorProdutoPanfleto';
+
+describe('precoParaExibir', () => {
+  it.each([
+    [54.99, 'R$ 54,99'],
+    ['54,99', 'R$ 54,99'],
+    ['9.99', 'R$ 9,99'],
+    ['', ''],
+    [null, ''],
+  ])('%s → "%s"', (valor, esperado) => {
+    // toLocaleString usa espaço comum ou não separável conforme o ambiente — compara sem distinguir.
+    expect(precoParaExibir(valor).replace(/\s/g, ' ')).toBe(esperado);
+  });
+});
 
 describe('normalizarPrecoDigitado', () => {
   it.each([

@@ -287,11 +287,15 @@ export interface ConfiguracoesPanfleto {
   tabletCaixas?: CaixaTablet[] | null;
   /** Posição/tamanho personalizado dos cards do panfleto, por índice na página (fração da página) — null/ausente = grade. */
   cardsCaixas?: ({ x: number; y: number; largura: number; altura: number } | null)[] | null;
+  /** Ajuste próprio de uma página (índice da página → posições), por cima de `cardsCaixas`. */
+  cardsCaixasPagina?: Record<string, ({ x: number; y: number; largura: number; altura: number } | null)[]>;
   tabletLogoCaixa?: CaixaTablet | null;
   /** false = a logomarca do panfleto não aparece nas artes do tablet. Ausente = aparece. */
   tabletMostrarLogo?: boolean;
   /** Fundo das artes do tablet, guardado no R2 (vale em todos os aparelhos) — null/ausente = degradê padrão. */
   tabletFundo?: { nome: string; arquivoId: string } | null;
+  /** Imagem de fundo do panfleto, guardada no R2 (vale em todos os aparelhos) — null/ausente = sem fundo. */
+  panfletoFundo?: { nome: string; arquivoId: string } | null;
 }
 
 export function carregarConfiguracoesPanfleto(): Partial<ConfiguracoesPanfleto> | null {

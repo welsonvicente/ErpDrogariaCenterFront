@@ -533,6 +533,54 @@ export function gradePadraoPanfleto(itensPorPagina: number, sizing: DimensaoCard
   }));
 }
 
+/** Retângulo que envolve todos os cards (em fração da página). */
+function limitesDoGrupo(caixas: CaixaCardPanfleto[]) {
+  const esquerda = Math.min(...caixas.map((c) => c.x));
+  const topo = Math.min(...caixas.map((c) => c.y));
+  const direita = Math.max(...caixas.map((c) => c.x + c.largura));
+  const base = Math.max(...caixas.map((c) => c.y + c.altura));
+  return { esquerda, topo, direita, base };
+}
+
+/**
+ * Move TODOS os cards juntos (`dx`/`dy` em fração da página) — pra encaixar os
+ * produtos num fundo com destaque em cima ou embaixo. O grupo inteiro para na
+ * borda da página (nenhum card sai, e o espaçamento entre eles não muda).
+ */
+export function moverGrupoCards(caixas: CaixaCardPanfleto[], dx: number, dy: number): CaixaCardPanfleto[] {
+  if (caixas.length === 0) return caixas;
+  const g = limitesDoGrupo(caixas);
+  const passoX = Math.max(-g.esquerda, Math.min(1 - g.direita, dx));
+  const passoY = Math.max(-g.topo, Math.min(1 - g.base, dy));
+  return caixas.map((c) => ({ ...c, x: c.x + passoX, y: c.y + passoY }));
+}
+
+/**
+ * Aumenta/diminui TODOS os cards juntos (`fator` 1.05 = +5%), a partir do
+ * centro do grupo — espaçamentos crescem na mesma proporção. Se ficar maior
+ * que a página, limita o fator; se encostar na borda, empurra o grupo pra dentro.
+ */
+export function escalarGrupoCards(caixas: CaixaCardPanfleto[], fator: number): CaixaCardPanfleto[] {
+  if (caixas.length === 0) return caixas;
+  const g = limitesDoGrupo(caixas);
+  const larguraGrupo = g.direita - g.esquerda;
+  const alturaGrupo = g.base - g.topo;
+  const f = Math.max(0.2, Math.min(fator, 1 / larguraGrupo, 1 / alturaGrupo));
+  const cx = (g.esquerda + g.direita) / 2;
+  const cy = (g.topo + g.base) / 2;
+  const escaladas = caixas.map((c) => ({
+    x: cx + (c.x - cx) * f,
+    y: cy + (c.y - cy) * f,
+    largura: c.largura * f,
+    altura: c.altura * f,
+  }));
+  // Encostou na borda ao crescer: traz o grupo de volta pra dentro (move "0" já aplica o limite).
+  const ng = limitesDoGrupo(escaladas);
+  const empurraX = ng.esquerda < 0 ? -ng.esquerda : ng.direita > 1 ? 1 - ng.direita : 0;
+  const empurraY = ng.topo < 0 ? -ng.topo : ng.base > 1 ? 1 - ng.base : 0;
+  return escaladas.map((c) => ({ ...c, x: c.x + empurraX, y: c.y + empurraY }));
+}
+
 /** Quebra a lista de produtos em páginas de `itensPorPagina` cada. */
 export function construirPaginasPanfleto(produtos: ProdutoPanfleto[], itensPorPagina: number): ProdutoPanfleto[][] {
   const total = Math.max(1, Math.ceil(produtos.length / itensPorPagina));
