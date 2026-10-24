@@ -21,6 +21,11 @@ export const perfilService = {
    * O próprio funcionário define o PIN que libera o Painel do Gerente. Exige o
    * PIN atual — é o que prova que é ele, e não quem pegou o terminal aberto.
    */
+  /** O próprio usuário troca o PIN do login rápido (código + PIN). Exige o PIN atual. */
+  async trocarPin(pinAtual: string, novoPin: string) {
+    await api.put('/perfil/pin', { pinAtual, novoPin });
+  },
+
   async definirPinGestor(pinAtual: string, novoPin: string) {
     await api.put('/perfil/pin-gerente', { pinAtual, novoPin });
   },

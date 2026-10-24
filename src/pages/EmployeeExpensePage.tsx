@@ -1,5 +1,6 @@
 import { BrandLogo } from '../components/BrandLogo';
 import { DefinirPinGestorModal } from '../components/DefinirPinGestorModal';
+import { TrocarPinModal } from '../components/TrocarPinModal';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -44,6 +45,7 @@ export function EmployeeExpensePage() {
 
   const [aba, setAba] = useState<'lancar' | 'meus'>('lancar');
   const [definindoPinGestor, setDefinindoPinGestor] = useState(false);
+  const [trocandoPin, setTrocandoPin] = useState(false);
   useDocumentTitle(aba === 'lancar' ? 'Lançar gasto' : 'Meus lançamentos');
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -209,6 +211,9 @@ export function EmployeeExpensePage() {
               🔐 Painel do Gerente — Gastos
             </button>
           )}
+          <button className="btn-ghost" onClick={() => setTrocandoPin(true)}>
+            🔑 Trocar meu PIN
+          </button>
           <button className="btn-ghost" onClick={handleTrocarFuncionario}>
             Trocar funcionário
           </button>
@@ -431,6 +436,17 @@ export function EmployeeExpensePage() {
             Só o gerente pode editar ou excluir um lançamento.
           </p>
         </div>
+      )}
+
+      {trocandoPin && (
+        <TrocarPinModal
+          ehGestao={usuario.perfil !== 'FUNCIONARIO'}
+          onClose={() => setTrocandoPin(false)}
+          onTrocado={() => {
+            setTrocandoPin(false);
+            setToast('PIN trocado! Use o novo PIN no próximo login.');
+          }}
+        />
       )}
 
       {definindoPinGestor && (
