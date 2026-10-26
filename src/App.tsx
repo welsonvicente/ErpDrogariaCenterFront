@@ -14,6 +14,7 @@ import { ManagerCategoriesPage } from './pages/ManagerCategoriesPage';
 import { ManagerDashboardPage } from './pages/ManagerDashboardPage';
 import { ManagerFuncionariosPage } from './pages/ManagerFuncionariosPage';
 import { ManagerLoginPage } from './pages/ManagerLoginPage';
+import { ManagerPrecoVendaPage } from './pages/ManagerPrecoVendaPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { OrganizationRequiredPage } from './pages/OrganizationRequiredPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -132,6 +133,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <ManagerCategoriesPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* Gestão — aplicativo de preço de venda (ferramenta estática embutida). */}
+          <Route
+            path="gerente/preco-de-venda"
+            element={
+              <ProtectedRoute>
+                <ManagerPrecoVendaPage />
               </ProtectedRoute>
             }
           />

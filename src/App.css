@@ -657,6 +657,11 @@ table.data-table th {
   min-height: 420px;
 }
 /* Cabeçalho simples do funcionário — mais baixo que o do gerente. */
+.ferramenta-embutida--gestao {
+  /* Ferramenta longa (planilhas, filtros, tabela) — usa quase toda a altura; rola por dentro. */
+  height: calc(100vh - 120px);
+  min-height: 520px;
+}
 .ferramenta-embutida--funcionario {
   height: calc(100vh - 200px);
   min-height: 420px;

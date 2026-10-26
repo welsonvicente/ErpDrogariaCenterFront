@@ -1,0 +1,1660 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Preço de Venda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+html,body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+
+/* Layout: abas Lote / Um produto; resumo clicável no topo; painel de regras à esquerda e tabela à direita; empilha no celular */
+:root{
+  --bg:#F3F6F4; --surface:#FFFFFF; --sunk:#E8EEEA; --line:#D3DDD7; --ink:#14201B; --muted:#5B6B63;
+  --accent:#0E6B50; --accent-ink:#FFFFFF; --accent-soft:#D9EEE6;
+  --up:#0E6B50; --down:#B4462F; --warn:#9A6200; --warn-soft:#FBEFD5; --crit:#B4302F; --crit-soft:#F8DEDB;
+  --cap:#2F5DA8; --cap-soft:#DDE7F7; --cheap:#6B4BB0; --cheap-soft:#ECE5F8;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif; --f-num:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1613; --surface:#16201C; --sunk:#1D2924; --line:#2C3A34; --ink:#E4ECE8; --muted:#94A69D;
+  --accent:#3DBB8E; --accent-ink:#06130E; --accent-soft:#163B2E;
+  --up:#4FCB9C; --down:#F08A72; --warn:#E8B04B; --warn-soft:#3A2D12; --crit:#F07C78; --crit-soft:#3F1C1B;
+  --cap:#86A9EC; --cap-soft:#1C2A44; --cheap:#B79CF0; --cheap-soft:#2A2140; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1613; --surface:#16201C; --sunk:#1D2924; --line:#2C3A34; --ink:#E4ECE8; --muted:#94A69D;
+  --accent:#3DBB8E; --accent-ink:#06130E; --accent-soft:#163B2E;
+  --up:#4FCB9C; --down:#F08A72; --warn:#E8B04B; --warn-soft:#3A2D12; --crit:#F07C78; --crit-soft:#3F1C1B;
+  --cap:#86A9EC; --cap-soft:#1C2A44; --cheap:#B79CF0; --cheap-soft:#2A2140; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.brand{display:flex;flex-direction:column;gap:2px;min-width:0}
+.brand h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em;text-wrap:balance}
+.brand h1 span{color:var(--accent)}
+.store{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+.store input{border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--ink);font:inherit;font-weight:600;padding:2px 0;width:220px;max-width:60vw}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+button,.btn{font:inherit;font-weight:600;font-size:13px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+button:hover,.btn:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.small{padding:5px 9px;font-size:12px}
+button:focus-visible,input:focus-visible,select:focus-visible,.btn:focus-within,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:10px 14px;font-size:14px;color:var(--muted)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.sumbar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.sum{background:var(--surface);padding:10px 14px;display:flex;flex-direction:column;gap:2px;cursor:pointer;text-align:left;border:0;border-radius:0;align-items:flex-start}
+.sum[aria-pressed="true"]{background:var(--accent-soft)}
+.sum .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.sum .v{font-family:var(--f-num);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.sum.up .v{color:var(--up)} .sum.down .v{color:var(--down)} .sum.cap .v{color:var(--cap)} .sum.low .v,.sum.loss .v,.sum.exp .v{color:var(--crit)} .sum.miss .v,.sum.sug .v{color:var(--warn)} .sum.cheap .v{color:var(--cheap)} .sum.traf .v{color:var(--cap)} .sum.marg .v{color:var(--accent)}
+.grid{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;align-items:start}
+/* Painel lateral recolhível: a tabela ganha a largura toda */
+.painel-toggle{display:flex;justify-content:flex-end;padding:8px 10px 0}
+.painel-toggle button{padding:5px 9px;font-size:12px}
+.painel-abrir{display:none;flex-direction:column;align-items:center;gap:10px;width:100%;padding:12px 4px;border:0;border-radius:var(--r);background:var(--surface);cursor:pointer}
+.painel-abrir .seta{font-size:14px;font-weight:700;color:var(--accent)}
+.painel-abrir .rot{writing-mode:vertical-rl;transform:rotate(180deg);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.grid.painel-recolhido{grid-template-columns:46px minmax(0,1fr)}
+.grid.painel-recolhido aside.panel>*{display:none}
+.grid.painel-recolhido aside.panel>.painel-abrir{display:flex}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);display:flex;flex-direction:column;min-width:0}
+.panel h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin:0;color:var(--muted);font-weight:700}
+.sec{padding:14px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line)}
+.sec:first-child{border-top:0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.row label{color:var(--ink);font-size:13px}
+.hint{color:var(--muted);font-size:12px;margin:0}
+.hint a{color:var(--accent)}
+input[type=number],input[type=text],input[type=search],select{font:inherit;font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0}
+input[type=number]{font-family:var(--f-num);width:76px;text-align:right}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:6px 10px;font-size:12px;background:var(--bg)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.cats{display:grid;grid-template-columns:minmax(0,1fr) 76px;gap:6px 8px;align-items:center}
+.cats .h{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;text-align:right}
+.cats .h:first-child{text-align:left}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.check input{margin-top:3px;accent-color:var(--accent)}
+details.map summary{cursor:pointer;font-weight:600;font-size:13px}
+.mapgrid{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 8px;align-items:center;margin-top:8px}
+.mapgrid label{font-size:12px;color:var(--muted)}
+.catmap{display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:6px 8px;align-items:center;margin-top:8px;max-height:260px;overflow:auto}
+.catmap span{font-size:12px;overflow-wrap:anywhere}
+.drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:12px;text-align:center;display:flex;flex-direction:column;gap:4px;align-items:center;background:var(--bg);cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{font-size:13px}
+.status{font-size:12px;color:var(--muted)}
+.status b{color:var(--ink)}
+.status.ok b{color:var(--accent)}
+/* Regras */
+.rules{display:flex;flex-direction:column;gap:4px;max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px;background:var(--bg)}
+.rules details{background:var(--surface);border-radius:5px}
+.rules summary{cursor:pointer;padding:6px 8px;display:flex;justify-content:space-between;gap:8px;font-size:13px;list-style:none}
+.rules summary::-webkit-details-marker{display:none}
+.rules summary .mk{font-family:var(--f-num);color:var(--muted);font-size:12px;white-space:nowrap}
+.rbody{padding:4px 8px 10px;display:flex;flex-direction:column;gap:6px}
+.rbody label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.rbody input[type=text]{width:100%}
+.brand-row{display:grid;grid-template-columns:minmax(0,1fr) 64px 28px;gap:4px;align-items:center}
+.brand-row .kw{grid-column:1/-1;font-size:12px;margin-bottom:4px}
+.brand-row button{padding:4px;justify-content:center}
+.ruletest{display:flex;flex-direction:column;gap:4px}
+.ruletest .res{font-size:12px;min-height:18px}
+/* Tabela */
+.tablebox{display:flex;flex-direction:column;min-width:0}
+.tbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+.tbar input[type=search]{width:280px;max-width:100%}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:1280px;font-size:13px}
+th{position:sticky;top:0;background:var(--sunk);text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:8px 10px;white-space:nowrap}
+td{padding:7px 10px;border-top:1px solid var(--line);vertical-align:middle}
+td.num,th.num{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.desc{max-width:280px}
+td.desc .d{font-weight:600;overflow-wrap:anywhere}
+td.desc .m{color:var(--muted);font-size:12px;display:flex;gap:8px;flex-wrap:wrap}
+td.desc .m a{color:var(--accent);text-decoration:none;font-weight:600}
+td.rule{max-width:190px;font-size:12px}
+td.rule .r1{font-weight:600;font-size:13px;overflow-wrap:anywhere}
+td.rule .r2{color:var(--muted);overflow-wrap:anywhere}
+td.new input{width:88px;font-family:var(--f-num);text-align:right;font-weight:600}
+td.new input.edited{border-color:var(--accent);background:var(--accent-soft)}
+.delta.up{color:var(--up)} .delta.down{color:var(--down)}
+.mkt.exp{color:var(--crit)} .mkt.cheap{color:var(--cheap)}
+.sub{display:block;color:var(--muted);font-size:11px}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;margin:1px 0}
+.pill.cap{background:var(--cap-soft);color:var(--cap)}
+.pill.low,.pill.loss,.pill.exp{background:var(--crit-soft);color:var(--crit)}
+.pill.miss,.pill.sug{background:var(--warn-soft);color:var(--warn)}
+.pill.cheap{background:var(--cheap-soft);color:var(--cheap)}
+.pill.keep{background:var(--sunk);color:var(--muted)}
+.pill.man,.pill.ai{background:var(--accent-soft);color:var(--accent)}
+.pill.traf{background:var(--cap-soft);color:var(--cap)}
+.pill.marg{background:var(--accent-soft);color:var(--accent)}
+select.papel{font-size:12px;padding:4px 6px;font-weight:600}
+select.papel.traf{color:var(--cap);border-color:var(--cap)}
+select.papel.marg{color:var(--accent);border-color:var(--accent)}
+.balance{display:flex;flex-direction:column;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.balance .bl{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.balance .bl b{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.balance .neg{color:var(--crit)} .balance .pos{color:var(--up)}
+.balance .tot{border-top:1px solid var(--line);padding-top:6px;font-weight:700}
+.acts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.act{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);text-align:left;border-left-width:4px}
+.act .ak{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.act .av{font-family:var(--f-num);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.act .as{font-size:12px;color:var(--muted);min-height:16px}
+.act.subir{border-left-color:var(--up)} .act.subir .av{color:var(--up)}
+.act.baixar{border-left-color:var(--down)} .act.baixar .av{color:var(--down)}
+.act.revisar{border-left-color:var(--warn)} .act.revisar .av{color:var(--warn)}
+.act.manter{border-left-color:var(--line)}
+.act[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters input[type=search]{flex:1 1 240px;min-width:0}
+.filters select{flex:0 1 auto;max-width:100%}
+.filters select.on{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
+.tlabel{font-weight:700;font-size:14px}
+/* Colunas da tabela: minimizar (–/+), mudar de lugar (arrastar o cabeçalho ou ◀ ▶) */
+th .colh{display:flex;flex-direction:column;gap:4px}
+th.num .colh{align-items:flex-end}
+th .colt{cursor:grab;user-select:none}
+th .colacts{display:inline-flex;gap:2px}
+th .colacts button,th .colbtn{padding:0 5px;font-size:11px;line-height:16px;min-width:18px;border-radius:4px;justify-content:center;font-weight:700}
+th .colacts button:disabled{opacity:.35;cursor:default}
+th.colmin,td.colmin{width:30px;min-width:30px;max-width:30px;padding:6px 3px;text-align:center}
+td.colmin{background:var(--sunk)}
+th.colmin .colv{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;margin-top:6px;font-size:10px;white-space:nowrap;cursor:grab}
+th.dragover{box-shadow:inset 3px 0 0 var(--accent)}
+th.dragging{opacity:.45}
+td.todo{max-width:260px}
+td.todo .t1{font-weight:700;font-size:13px}
+td.todo .t1.subir{color:var(--up)} td.todo .t1.baixar{color:var(--down)} td.todo .t1.revisar{color:var(--warn)} td.todo .t1.manter{color:var(--muted)}
+td.todo .t2{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+aside.panel details.sec>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:8px}
+aside.panel details.sec>summary::-webkit-details-marker{display:none}
+aside.panel details.sec>summary::after{content:"+";font-family:var(--f-num);font-size:16px;color:var(--muted)}
+aside.panel details.sec[open]>summary::after{content:"–"}
+aside.panel details.sec>.secb{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+aside.panel details.sec{display:block}
+.pill.ok{background:transparent;color:var(--muted);font-weight:500}
+tr.example td.desc .d::after{content:"exemplo";margin-left:6px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--warn)}
+.more{padding:12px;display:flex;justify-content:center;border-top:1px solid var(--line)}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.banner{background:var(--warn-soft);color:var(--ink);border-radius:var(--r);padding:10px 14px;font-size:13px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:var(--r);font-weight:600;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+textarea.copy{width:100%;height:140px;font-family:var(--f-num);font-size:12px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px}
+/* Um produto */
+.single{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:16px;align-items:start}
+.form{display:flex;flex-direction:column;gap:10px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;color:var(--muted);font-weight:600}
+.field input,.field select{width:100%;font-size:15px;padding:9px 10px}
+.field input.money{font-family:var(--f-num)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.result{display:flex;flex-direction:column;gap:14px;padding:18px}
+.bigprice{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.bigprice .lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;width:100%}
+.bigprice .val{font-family:var(--f-num);font-size:44px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.bigprice .note{color:var(--muted);font-size:13px}
+.bar{display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--sunk)}
+.bar span{display:block;height:100%}
+.bar .c{background:var(--muted)} .bar .d{background:var(--warn)} .bar .l{background:var(--accent)} .bar .n{background:var(--crit)}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.legend div{display:flex;flex-direction:column;gap:1px;padding:8px 10px;background:var(--bg);border-radius:6px}
+.legend .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.legend .v{font-family:var(--f-num);font-size:16px;font-weight:600}
+.alert{border-radius:6px;padding:10px 12px;font-size:13px;font-weight:600}
+.alert.crit{background:var(--crit-soft);color:var(--crit)}
+.alert.cap{background:var(--cap-soft);color:var(--cap)}
+.alert.okay{background:var(--accent-soft);color:var(--accent)}
+.alert.warn{background:var(--warn-soft);color:var(--warn)}
+.how{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.how ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+@media (max-width:1040px){.grid,.grid.painel-recolhido{grid-template-columns:minmax(0,1fr)}.painel-abrir{flex-direction:row;justify-content:center}.painel-abrir .rot{writing-mode:horizontal-tb;transform:none}.sumbar{grid-template-columns:repeat(4,minmax(0,1fr))}.single{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:700px){.acts{grid-template-columns:repeat(2,minmax(0,1fr))}.act .av{font-size:24px}.filters select{flex:1 1 45%}.sumbar{grid-template-columns:repeat(2,minmax(0,1fr))}.brand h1{font-size:22px}.bigprice .val{font-size:36px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Preço <span>de Venda</span></h1>
+      <div class="store"><label for="loja">Loja:</label><input id="loja" type="text" placeholder="Nome da farmácia"></div>
+    </div>
+    <div class="actions" id="topActions">
+      <button id="btnExport" class="primary" type="button">Exportar preços para o Trier</button>
+      <button id="btnExportAll" type="button">Exportar a lista da tela</button>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tabLote" aria-selected="true">Planilha da loja</button>
+    <button type="button" role="tab" id="tabUm" aria-selected="false">Calcular um produto</button>
+  </div>
+
+  <!-- ===== LOTE ===== -->
+  <div id="viewLote" style="display:flex;flex-direction:column;gap:16px">
+    <div id="exampleBanner" class="banner">Você está vendo <b>produtos e preços de mercado de exemplo</b>, com valores fictícios. Importe a planilha do Trier para analisar o seu estoque.</div>
+
+    <div class="acts" id="acts" role="group" aria-label="O que fazer">
+      <button class="act subir" type="button" data-a="subir"><span class="ak">Aumentar preço</span><span class="av" id="a_subir">0</span><span class="as" id="ai_subir"></span></button>
+      <button class="act baixar" type="button" data-a="baixar"><span class="ak">Baixar preço</span><span class="av" id="a_baixar">0</span><span class="as" id="ai_baixar"></span></button>
+      <button class="act revisar" type="button" data-a="revisar"><span class="ak">Revisar</span><span class="av" id="a_revisar">0</span><span class="as" id="ai_revisar"></span></button>
+      <button class="act manter" type="button" data-a="manter"><span class="ak">Manter</span><span class="av" id="a_manter">0</span><span class="as" id="ai_manter"></span></button>
+    </div>
+
+    <div class="filters" id="filters">
+      <input id="busca" type="search" placeholder="Buscar produto, EAN ou laboratório" aria-label="Buscar">
+      <select id="fTipo" aria-label="Tipo"><option value="">Todos os tipos</option><option value="med">Medicamentos</option><option value="nmed">Não medicamentos</option></select>
+      <select id="fPapel" aria-label="Papel"><option value="">Todos os papéis</option><option value="traf">Tráfego</option><option value="eq">Equilíbrio</option><option value="marg">Margem</option></select>
+      <select id="fMkt" aria-label="Mercado"><option value="">Mercado: todos</option><option value="exp">Caro vs mercado</option><option value="cheap">Barato vs mercado</option><option value="ok">Alinhado ao mercado</option><option value="none">Sem preço de mercado</option></select>
+      <select id="fCurva" aria-label="Curva na região" hidden><option value="">Curva região: todas</option><option value="A">Curva A</option><option value="B">Curva B</option><option value="C">Curva C</option><option value="D">Curva D</option><option value="none">Fora do mix DSG</option></select>
+      <select id="fGrupo" aria-label="Grupo"><option value="">Todos os grupos</option></select>
+      <select id="fCat" aria-label="Categoria"><option value="">Todas as categorias</option></select>
+      <select id="fLab" aria-label="Laboratório"><option value="">Todos os laboratórios</option></select>
+      <select id="fSort" aria-label="Ordenar"><option value="imp">Ordenar: maior impacto no lucro</option><option value="var">Maior variação de preço</option><option value="mkt">Mais caro vs mercado</option><option value="cheap">Mais barato vs mercado</option><option value="az">Nome A–Z</option></select>
+      <button type="button" class="small" id="fClear" hidden>Limpar filtros</button>
+    </div>
+
+    <div class="grid" id="gridMain">
+      <aside class="panel">
+        <div class="painel-toggle"><button type="button" id="painelRecolher" title="Esconde o painel e deixa a tabela com a largura toda">◀ Recolher painel</button></div>
+        <button type="button" class="painel-abrir" id="painelAbrir" title="Mostrar o painel (planilha, mercado, regras)" aria-label="Mostrar o painel lateral"><span class="seta">▶</span><span class="rot">Planilha · mercado · regras</span></button>
+        <div class="sec">
+          <h2>1 · Planilha do Trier</h2>
+          <label class="drop" id="drop">
+            <strong>Arraste aqui ou toque para escolher</strong>
+            <span class="hint">.xlsx, .xls ou .csv com código, EAN, descrição, grupo, custo e preço atual.</span>
+            <input id="file" type="file" accept=".xlsx,.xls,.xlsb,.csv,.txt" hidden>
+          </label>
+          <div class="status" id="fileInfo">Nenhum arquivo importado.</div>
+          <div class="actions"><button type="button" class="small" id="btnTrierClear" hidden>Remover planilha salva</button></div>
+          <details class="map" id="mapBox">
+            <summary>Colunas da planilha</summary>
+            <div class="mapgrid" id="mapGrid"></div>
+          </details>
+          <details class="map" id="catBox">
+            <summary>Grupos do Trier → categorias</summary>
+            <p class="hint" style="margin-top:6px">Os grupos de medicamento não usam a tabela de markup. Usam o padrão da categoria e o PMC.</p>
+            <div class="catmap" id="catMap"></div>
+          </details>
+        </div>
+
+        <div class="sec">
+          <h2>2 · Preços do mercado</h2>
+          <label class="drop" id="dropMkt">
+            <strong>Importar preços da concorrência</strong>
+            <span class="hint">Uma linha por produto, com EAN ou código e uma coluna de preço para cada concorrente.</span>
+            <input id="fileMkt" type="file" accept=".xlsx,.xls,.xlsb,.csv,.txt" hidden>
+          </label>
+          <div class="status" id="mktInfo"></div>
+          <label class="drop" id="dropDsg">
+            <strong>Importar Mix de produtos (DSG)</strong>
+            <span class="hint">O arquivo .xlsb do associativismo: preço médio da região, curva da região e vendas da loja em 90 dias.</span>
+            <input id="fileDsg" type="file" accept=".xlsb,.xlsx" hidden>
+          </label>
+          <div class="status" id="dsgInfo"></div>
+          <label class="check" id="dsgOpts" hidden><input id="usarDsg" type="checkbox"> <span>Usar o preço médio da região como preço de mercado</span></label>
+          <label class="check" id="dsgOpts2" hidden><input id="curvaTraf" type="checkbox"> <span>Produtos curva A na região viram tráfego</span></label>
+          <div class="actions">
+            <button type="button" class="small" id="btnColeta">Gerar planilha de coleta</button>
+            <button type="button" class="small" id="btnMktClear" hidden>Remover preços de mercado</button>
+          </div>
+          <div class="row"><label for="mktRef">Comparar com</label>
+            <select id="mktRef"><option value="med">média do mercado</option><option value="mdn">mediana</option><option value="min">menor preço</option></select>
+          </div>
+          <div class="row"><label for="mktTol">Caro ou barato acima de</label><span><input id="mktTol" type="number" step="1" min="0"> %</span></div>
+          <label class="check"><input id="usarMkt" type="checkbox"> <span>Precificar pelo mercado: preço = referência <input id="mktPos" type="number" step="0.5" style="width:60px"> %, nunca abaixo do markup mínimo nem acima do PMC.</span></label>
+          <details class="map">
+            <summary>Como descobrir os preços do mercado</summary>
+            <div class="how" style="margin-top:8px">
+              <ol>
+                <li><b>Sites das redes:</b> Drogasil, Droga Raia, Pague Menos, Panvel e Drogaria São Paulo mostram preço de balcão online. Busque pelo EAN.</li>
+                <li><b>Comparadores:</b> Google Shopping, Consulta Remédios e CliqueFarma juntam várias farmácias numa busca. Cada produto da tabela tem um link “Pesquisar preço”.</li>
+                <li><b>Concorrentes do bairro:</b> gere a planilha de coleta, leve no celular e anote os preços de 2 ou 3 farmácias próximas.</li>
+                <li><b>Comece pela curva A:</b> os 100 a 200 itens que mais vendem decidem a imagem de preço da loja. O resto pode seguir o markup.</li>
+                <li><b>PMC como teto:</b> medicamentos vendidos a 100% do PMC costumam estar caros. Redes grandes praticam descontos sobre o PMC.</li>
+              </ol>
+            </div>
+          </details>
+        </div>
+
+        <div class="sec">
+          <h2>3 · Tabela CMED</h2>
+          <label class="drop" id="dropCmed">
+            <strong>Importar lista de preços da CMED</strong>
+            <span class="hint">Baixe a planilha “Preço máximo ao consumidor” no <a href="https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos" target="_blank" rel="noopener">site da Anvisa</a> e solte aqui.</span>
+            <input id="fileCmed" type="file" accept=".xlsx,.xls,.csv" hidden>
+          </label>
+          <div class="status" id="cmedInfo">Nenhuma tabela CMED carregada.</div>
+          <div class="row" id="cmedColRow" hidden><label for="cmedCol">Alíquota de ICMS</label><select id="cmedCol"></select></div>
+          <p class="hint">A CMED informa PMC, tipo do medicamento (genérico, similar, novo) e tarja pelo EAN. Fica salva neste navegador.</p>
+        </div>
+
+        <div class="sec">
+          <h2>4 · Markup mínimo por produto</h2>
+          <div class="status" id="rulesInfo"></div>
+          <div class="ruletest">
+            <input id="ruleTest" type="search" placeholder="Teste: digite uma descrição, ex. SHAMPOO SEDA 325ML">
+            <div class="res" id="ruleTestRes"></div>
+          </div>
+          <input id="ruleSearch" type="search" placeholder="Buscar categoria ou marca na tabela">
+          <div class="rules" id="rules"></div>
+          <div class="actions">
+            <button type="button" class="small" id="ruleAdd">Nova categoria</button>
+            <label class="btn small" style="padding:5px 9px;font-size:12px">Importar tabela .xlsx<input id="fileRules" type="file" accept=".xlsx,.xls,.xlsb,.csv" hidden></label>
+            <button type="button" class="small" id="ruleReset">Restaurar padrão</button>
+          </div>
+          <p class="hint">Cada categoria casa pelas palavras da descrição. Use * para início de palavra (DESOD* pega DESODORANTE e DESOD). Marcas sem regra recebem uma sugestão.</p>
+        </div>
+
+        <div class="sec">
+          <h2>5 · Medicamentos e itens fora da tabela</h2>
+          <div class="cats" id="cats"></div>
+          <p class="hint">Markup padrão usado para medicamentos e para produtos que não casam com a tabela.</p>
+          <div class="row" id="aiRow" hidden>
+            <button type="button" class="small" id="btnAI">Sugerir markup com IA</button>
+            <span class="hint" id="aiInfo"></span>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h2>6 · Imagem de preço</h2>
+          <label class="check"><input id="papelOn" type="checkbox"> <span>Precificar por papel: tráfego, equilíbrio e margem.</span></label>
+          <p class="hint"><b>Tráfego:</b> marcas conhecidas e uso contínuo, que o cliente compara. Preço competitivo, sem descer do markup mínimo. <b>Margem:</b> itens que o cliente quase não pesquisa (teste de gravidez, dor, impulso). Recebem markup extra para repor o lucro do tráfego.</p>
+          <div class="row"><label for="trafPos">Tráfego: preço vs mercado</label><span><input id="trafPos" type="number" step="0.5"> %</span></div>
+          <div class="row"><label for="trafMaxMk">Tráfego automático se markup mínimo até</label><span><input id="trafMaxMk" type="number" step="1" min="0"> %</span></div>
+          <div class="row"><label for="margPP">Margem: markup extra</label><span>+<input id="margPP" type="number" step="1" min="0"> p.p.</span></div>
+          <div class="row"><label for="margMaxAcima">Margem: até acima do mercado</label><span><input id="margMaxAcima" type="number" step="1" min="0"> %</span></div>
+          <details class="map">
+            <summary>Palavras que definem o papel</summary>
+            <div class="field" style="margin-top:8px"><label for="trafKws">Tráfego (uso contínuo, marcas líderes)</label><textarea id="trafKws" class="copy" style="height:90px"></textarea></div>
+            <div class="field"><label for="margKws">Margem (baixa pesquisa de preço)</label><textarea id="margKws" class="copy" style="height:90px"></textarea></div>
+            <p class="hint">Você também pode trocar o papel de qualquer produto direto na tabela.</p>
+          </details>
+          <div class="balance" id="balance"></div>
+        </div>
+
+        <div class="sec">
+          <h2>Regras de preço</h2>
+          <div class="row"><label for="despesas">Custos sobre a venda</label><span><input id="despesas" type="number" step="0.1" min="0" max="60"> %</span></div>
+          <p class="hint">Simples, taxa média de cartão, comissão. Servem para mostrar o lucro real e o alerta de prejuízo.</p>
+          <div class="row"><label for="folga">Folga sobre o mínimo</label><span>+<input id="folga" type="number" step="1" min="0"> p.p.</span></div>
+          <div class="row"><label for="arred">Arredondar para</label>
+            <select id="arred"><option value="99">final ,99</option><option value="90">final ,90</option><option value="49">final ,49 ou ,99</option><option value="10">próximos 10 centavos</option><option value="none">não arredondar</option></select>
+          </div>
+          <label class="check"><input id="travaPMC" type="checkbox"> <span>Nunca passar do PMC. Se passar, usa o PMC.</span></label>
+          <label class="check"><input id="naoBaixar" type="checkbox"> <span>Não baixar preço sozinho. Mantém o atual quando o cálculo der menor.</span></label>
+          <label class="check"><input id="soAcima" type="checkbox"> <span>Ignorar variações menores que <input id="minVar" type="number" step="0.5" min="0" style="width:56px"> %</span></label>
+        </div>
+
+        <div class="sec">
+          <h2>Configuração da loja</h2>
+          <p class="hint">Regras, tabela de markup e ajustes ficam neste navegador. Exporte para levar a outro computador ou outra farmácia.</p>
+          <div class="actions">
+            <button type="button" class="small" id="cfgExport">Exportar configuração</button>
+            <label class="btn small" style="padding:5px 9px;font-size:12px">Importar configuração<input id="cfgFile" type="file" accept=".json" hidden></label>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel tablebox">
+        <div class="tbar">
+          <span class="tlabel" id="tLabel">Todos os produtos</span>
+          <span class="row" style="gap:12px"><span class="hint" id="countInfo"></span><button type="button" class="small" id="colReset" title="Volta a ordem e mostra todas as colunas">↺ Restaurar colunas</button></span>
+        </div>
+        <div class="scroll">
+          <table id="tbl">
+            <thead><tr id="thead"></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="more" id="moreBox" hidden><button type="button" id="btnMore">Mostrar mais</button></div>
+        <div class="sec" id="copyBox" hidden>
+          <h2>Copiar exportação</h2>
+          <p class="hint">O download não está disponível aqui. Copie o texto abaixo e cole num arquivo .csv.</p>
+          <textarea class="copy" id="copyText" readonly></textarea>
+          <div class="actions"><button type="button" id="btnCopy">Copiar</button><button type="button" id="btnCloseCopy">Fechar</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===== UM PRODUTO ===== -->
+  <div id="viewUm" hidden>
+    <div class="single">
+      <div class="panel"><div class="sec form">
+        <div class="seg" id="segModo" style="align-self:flex-start">
+          <button type="button" data-v="vender" aria-pressed="true">Por quanto vender</button>
+          <button type="button" data-v="pagar" aria-pressed="false">Quanto posso pagar</button>
+        </div>
+        <div class="field"><label for="u_desc">Descrição do produto</label><input id="u_desc" type="text" placeholder="Ex.: SHAMPOO SEDA CERAMIDAS 325ML"></div>
+        <div class="two">
+          <div class="field"><label for="u_ean">EAN (opcional)</label><input id="u_ean" type="text" inputmode="numeric" placeholder="789..."></div>
+          <div class="field"><label for="u_cat">Categoria</label><select id="u_cat"></select></div>
+        </div>
+        <div class="two">
+          <div class="field" id="f_custo"><label for="u_custo">Custo de compra (R$)</label><input id="u_custo" class="money" type="text" inputmode="decimal" placeholder="0,00"></div>
+          <div class="field" id="f_preco"><label for="u_preco">Preço de venda (R$)</label><input id="u_preco" class="money" type="text" inputmode="decimal" placeholder="0,00"></div>
+        </div>
+        <div class="two">
+          <div class="field"><label for="u_mk">Markup mínimo (%)</label><input id="u_mk" class="money" type="text" inputmode="decimal" placeholder="automático"></div>
+          <div class="field"><label for="u_mkt">Preço do mercado (R$)</label><input id="u_mkt" class="money" type="text" inputmode="decimal" placeholder="opcional"></div>
+        </div>
+        <p class="hint" id="u_rule"></p>
+      </div></div>
+      <div class="panel"><div class="result" id="u_out"></div></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+/* ================= Dados base ================= */
+const CATS=[
+  {id:"ref",nome:"Referência",mk:35,med:true,kw:["REFER","ETICO","ÉTICO","MARCA"]},
+  {id:"gen",nome:"Genérico",mk:80,med:true,kw:["GENER","GENÉR"]},
+  {id:"sim",nome:"Similar",mk:60,med:true,kw:["SIMIL"]},
+  {id:"otc",nome:"OTC / MIP",mk:45,med:true,kw:["OTC","MIP","ISENTO","LIVRE"]},
+  {id:"hpc",nome:"Perfumaria / HPC",mk:40,med:false,kw:["PERFUM","HIGIEN","COSM","HPC","BELEZA","DERMO","INFANTIL","FRALDA","CONVENIENCIA","CORRELAT","NUTRI","SUPLEM"]},
+  {id:"out",nome:"Outros",mk:40,med:false,kw:[]}
+];
+const FIELDS=[
+  {id:"codigo",nome:"Código",kw:["CODIGO","CÓDIGO","COD","CÓD","ID PROD"]},
+  {id:"ean",nome:"EAN",kw:["EAN","CODIGO DE BARRA","CÓDIGO DE BARRA","COD BARRA","BARRA","GTIN"]},
+  {id:"descricao",nome:"Descrição",kw:["DESCRI","NOME","PRODUTO"]},
+  {id:"categoria",nome:"Grupo",kw:["GRUPO","CATEG","CLASSE","SEÇÃO","SECAO","DEPART","TIPO"]},
+  {id:"fabricante",nome:"Fabricante",kw:["FABRIC","LABORAT","MARCA"]},
+  {id:"custo",nome:"Custo",kw:["P CUSTO","P. CUSTO","PRECO CUSTO","PREÇO CUSTO","CUSTO"]},
+  {id:"preco",nome:"Preço atual",kw:["P VENDA","P. VENDA","PREÇO VENDA","PRECO VENDA","PR VENDA","PVENDA","PRECO","PREÇO","VENDA"]},
+  {id:"pmc",nome:"PMC",kw:["PMC","MAXIMO","MÁXIMO"]},
+  {id:"vendas",nome:"Qtd. vendida",kw:["QTD VEND","QTDE VEND","QUANT VEND","VENDIDA","VENDAS","GIRO","QTD","QTDE","QUANTIDADE"]}
+];
+const TRAF_KWS="LOSARTANA, ENALAPRIL, CAPTOPRIL, ANLODIPINO, HIDROCLOROTIAZIDA, ATENOLOL, PROPRANOLOL, METFORMINA, GLIFAGE, GLIBENCLAMIDA, GLICLAZIDA, SINVASTATINA, ATORVASTATINA, ROSUVASTATINA, LEVOTIROXINA, PURAN, SYNTHROID, OMEPRAZOL, PANTOPRAZOL, CLOPIDOGREL, AAS, SELOZOK, ANTICONCEPCIONAL*, FRALDA*, LEITE, NINHO, APTAMIL, NAN, DIPIRONA, PARACETAMOL";
+const MARG_KWS="TESTE DE GRAVIDEZ, TESTE GRAV*, NEOSALDINA, CEFALIV, TORSILAX, DORALGINA, TESTE DE OVULACAO, PRESERVATIVO*, LUBRIFICANTE*, RELAXANTE MUSCULAR, POMADA*, ANTIACIDO*, ENJOO, PASTILHA*, GARGANTA, ANTIGRIPAL*, DESCONGESTIONANTE*, COLIRIO*, CURATIVO*, TERMOMETRO*, REPELENTE*, ESCOVA*, FIO DENTAL, ACESSORIO*, MEIA*, TOUCA*, PENTE*, LIXA*, PALITO*";
+/* Tabela de markup mínimo (da planilha Markup_por_categoria). Formato: Categoria|palavras|opções|Marca[=palavras/…]:markup;… */
+const RULES_SRC=`Leites|LEITE,FORMULA INFANTIL,COMPOSTO LACTEO,SUPLEMENTO|b|Aptamil:15;Ensure:15;Ninho:15;Milnutri:15;Nan:15;Nutren:15;Pediasure:15;Sustagen:15
+Fraldas|FRALDA*,FRALD||Bigfral:15;Hipopó=HIPOPO:15;Mônica=MONICA:15;Pampers:15;MamyPoko=MAMYPOKO/MAMY POKO:15;Plenitude:25
+Fralda de piscina|PISCINA,FRALDA PISCINA|p,mk=30|
+Acetona|ACETONA,REMOVEDOR DE ESMALTE,REMOVEDOR ESMALTE|mk=25|
+Tinturas|TINTURA*,TINT,COLORACAO|mk=30|Imédia=IMEDIA:25;Koleston:25;Masculinas=MASCULIN*/MEN/HOMEM/MASC:40;Demais marcas:30
+Bloqueador solar|PROTETOR SOLAR,PROT SOLAR,PROT SOL,FOTOPROTETOR,BLOQUEADOR*,FPS*||Nivea:25;Banana Boat=BANANA BOAT:25;L'Oréal=LOREAL/L OREAL:25;Sundown:25;Cenoura e Bronze=CENOURA:30;Coppertone=COPPERTONE/COOPERTONE:30
+Sabonete íntimo|SABONETE INTIMO,SAB INTIMO,SAB LIQ INTIMO,SABONETE LIQUIDO INTIMO,INTIMO||Dermacyd:25;Nivea:30;Demais marcas:40
+Recarga Gillette|CARGA,RECARGA,CARTUCHO||Gillette=GILLETTE/GILETTE:25
+Umidificador|UMIDIFICADOR*|mk=25|
+Alicate|ALICATE*||Mundial aço=MUNDIAL:30;Demais marcas:40
+Absorvente geriátrico|ABSORVENTE GERIATRICO,ABS GERIATR*,ABSORVENTE GERIATR*|p,mk=30|
+Creme de assadura|ASSADURA*,ASSAD*,HIPOGLOS|mk=30|
+Lenços e toalhas baby|LENCO UMEDECIDO,LENCOS UMEDECIDOS,LENCO UMED*,TOALHA UMED*,TOALHINHA*,LENCO BABY|mk=30|
+Lenços e toalhas mulher|LENCO INTIMO,LENCOS INTIMOS,TOALHA INTIMA,TOALHAS INTIMAS,LENCO DEMAQUILANTE,LENCO FEMININO|p,mk=40|
+Inalador|INALADOR*,NEBULIZADOR*|mk=25|
+Corega|COREGA|mk=30|
+Esmaltes|ESMALTE*,ESM||Colorama:30;Impala:30;Risqué=RISQUE:30;Demais marcas:40
+Bronzeador|BRONZEADOR*,BRONZ|mk=30|
+Desodorantes|DESODORANTE*,DESOD*,DES AER,DES ROLL,DES ROL,ANTITRANSPIRANTE*||Dove:30;Nivea:30;Rexona:30;Clinicals=CLINICAL*:35;Axe:40;Garnier:40;Giovanna Baby=GIOVANNA*:40;Johnson's=JOHNSON*/JOHSON*:40;Gillette=GILLETTE/GILETTE:40;Above:40
+Dental tratamento|ENXAGUANTE*,ANTISSEPTICO BUCAL|b|Periogard:40;Sensodyne:40
+Hidratante|HIDRATANTE*,HIDRAT*,LOCAO HIDRATANTE,LOCAO,CREME CORPORAL||Johnson's=JOHNSON*/JOHSON*:40;Dove:40;Dove Baby=DOVE BABY:40;Johnson's Baby=JOHNSON* BABY/JOHSON* BABY:40;Vasenol:40;Davene:40;Nivea:40;Corpo a Corpo=CORPO A CORPO:40;Giovanna Baby=GIOVANNA*:40;Monange:40;Skala:40;Paixão=PAIXAO:40
+Shampoo|SHAMPOO*,SHAMP*,SH||Seda:30;Tresemmé=TRESEMME:30;Johnson's Baby=JOHNSON* BABY/JOHSON* BABY:40;Pantene:40;Dove:40;Elseve:40;Fructis:40;Garnier:40;Bio Extratus=BIO EXTRATUS/BIOEXTRATUS:40;Clear:40;Barbie / Bob Esponja=BARBIE/BOB ESPONJA:40;Niely Gold=NIELY*:40;Haskell:40;Head & Shoulders=HEAD SHOULDERS/HEAD & SHOULDERS/HEADSHOULDERS/H&S:40;Revitah:40;Salon Line=SALON LINE:40;Turma da Mônica=MONICA:40;Vita Brilho=VITA BRILHO:40
+Hastes flexíveis|HASTE*,COTONETE*||Johnson's=JOHNSON*/JOHSON*:40;York:50;Cotonela:50;Palinetes:50;Apolo:60;Cremer:60
+Asepxia|ASEPXIA|mk=40|
+Aspirador nasal|ASPIRADOR NASAL,ASPIRADOR|mk=40|
+BCAA|BCAA|mk=40|
+Biomassa|BIOMASSA,BIO MASSA|mk=40|
+Albumina|ALBUMINA|mk=40|
+Balança digital|BALANCA*|mk=40|
+Colágeno|COLAGENO|mk=40|
+Maltodextrina|MALTODEXTRINA,MALTO DEXTRINA|mk=40|
+Whey protein|WHEY*|mk=40|
+Antisséptico|ANTISSEPTICO,ANTISEPTICO|mk=40|
+Alisante|ALISANTE*|mk=40|
+Amolecedor de cutículas|AMOLECEDOR*,CUTICULA*|mk=40|
+Ampola de cabelo|AMPOLA CAPILAR,AMPOLA CAB*,AMPOLA DE TRATAMENTO,AMP CAPILAR|mk=40|
+Aparelho de pressão|APARELHO DE PRESSAO,APARELHO PRESSAO,APAR PRESSAO,MEDIDOR DE PRESSAO,MONITOR DE PRESSAO,ESFIGMO*|p,mk=40|
+BB Cream|BB CREAM,BB||Solar Expertise=SOLAR EXPERTISE/EXPERTISE:30;L'Oréal=LOREAL/L OREAL:40
+Condicionadores|CONDICIONADOR*,CONDIC*,COND||Johnson's Baby=JOHNSON* BABY/JOHSON* BABY:40;Pantene:40;Seda:40;Tresemmé=TRESEMME:40;Dove:40;Elseve:40;Garnier:40;Bio Extratus=BIO EXTRATUS/BIOEXTRATUS:40;Clear:40;Haskell:40;Neutrox:40;Niely Gold=NIELY*:40;Revitah:40;Turma da Mônica=MONICA:40;Wella:40
+Creme de tratamento|CREME DE TRATAMENTO,CREME TRATAMENTO,CR TRAT*|mk=40|Seda:40;Tresemmé=TRESEMME:40;Bio Extratus=BIO EXTRATUS/BIOEXTRATUS:40;Novex:40;Wella:40
+Creatina|CREATINA|mk=40|
+Escova dental|ESCOVA DENTAL,ESCOVA DENT*,ESC DENT*,ESC DENTAL|mk=40|
+Fio dental|FIO DENTAL,FITA DENTAL|mk=40|
+Creme dental|CREME DENTAL,CR DENTAL,GEL DENTAL,PASTA DENTAL|mk=40|
+Lubrificante|LUBRIFICANTE*,GEL LUBRIF*|mk=40|
+Escova de cabelo / pente|ESCOVA DE CABELO,ESCOVA CABELO,ESCOVA CAB*,PENTE|mk=40|
+Creme de pentear|CREME DE PENTEAR,CREME PENTEAR,CR PENT*||Seda:40;Tresemmé=TRESEMME:40;Dove:40;Elseve:40;Vita Brilho=VITA BRILHO:40;Wella:40;Galinha Pintadinha=GALINHA PINTADINHA:40;Johnson's=JOHNSON*/JOHSON*:40;Pantene:40
+Máscara de hidratação|MASCARA DE HIDRATACAO,MASCARA HIDRAT*,MASC HIDRAT*,MASCARA CAPILAR,MASCARA DE TRATAMENTO||Pantene:40;Seda:40;Tresemmé=TRESEMME:40;Dove:40;Elseve:40;Haskell:40;Novex:40;Vita Brilho=VITA BRILHO:40
+Mamadeira|MAMADEIRA*|mk=40|
+Bicos / chupetas|CHUPETA*,BICO*|mk=40|
+Óleo capilar|OLEO CAPILAR,OLEO CAB*,OLEO EXTRAORDINARIO||Garnier:40;Elseve:40
+Óleo corporal|OLEO CORPORAL,OLEO CORP*,OLEO HIDRATANTE,OLEO DE AMENDOAS,OLEO AMENDOAS||Paixão=PAIXAO:40;Muriel:40
+Óleo de coco|OLEO DE COCO,OLEO COCO|p,mk=40|
+Óleo de banana|OLEO DE BANANA,OLEO BANANA|p,mk=50|
+Óleo de rosa mosqueta|ROSA MOSQUETA|p,mk=50|
+Meias|MEIA,MEIAS|mk=40|
+Ômega 3|OMEGA 3,OMEGA3,OMEGA|mk=40|
+Polvilho antisséptico|POLVILHO|mk=40|
+Protetor e brilho labial|PROTETOR LABIAL,PROT LABIAL,BRILHO LABIAL,HIDRATANTE LABIAL,LABIAL|p,mk=40|
+Roupa íntima geriátrica|ROUPA INTIMA|p,mk=40|
+Sabonetes|SABONETE*,SAB,SAB LIQ||Granado:40;Dove:40;Clean & Clear=CLEAN CLEAR/CLEAN & CLEAR:40;Johnson's=JOHNSON*/JOHSON*:40;Turma da Mônica=MONICA:40;Johnson's Baby=JOHNSON* BABY/JOHSON* BABY:40;Nivea:40;Protex:40;Vita Brilho=VITA BRILHO:40;Suave:40;Palmolive=PALMOLIVE/PLAMOLIVE:40;Pom Pom=POM POM/POMPOM:40
+Saboneteira|SABONETEIRA*|p,mk=50|
+Talco|TALCO||Granado Baby=GRANADO:40;Johnson's Baby=JOHNSON*/JOHSON*:40
+Tenys Pé|TENYS*|mk=40|
+Tonalizante masculino|TONALIZANTE*|mk=40|
+Soro fisiológico|SORO FISIOLOGICO,SORO FISIOL*,SORO FIS*|mk=40|
+Absorventes|ABSORVENTE*,ABS||Always:40;Intimus:40;Carefree:40;OB=OB/O B:40;Sempre Livre=SEMPRE LIVRE:40;Sym:40
+Absorvente para seios|ABSORVENTE PARA SEIOS,ABSORVENTE P SEIOS,ABSORVENTE SEIO*,ABS SEIO*,PROTETOR DE SEIO*,DISCO DE AMAMENTACAO|p,mk=40|
+Aparelho para barbear|APARELHO DE BARBEAR,APARELHO BARBEAR,APAR BARB*,APARELHO,PRESTOBARBA,LAMINA*,CARGA,RECARGA|mk=40|Carga=CARGA/RECARGA/CARTUCHO:40;Masculinas=MASC*/MEN/HOMEM:40;Femininas=FEM*/WOMAN/VENUS:40
+Creme / espuma de barbear|ESPUMA DE BARBEAR,ESPUMA BARBEAR,CREME DE BARBEAR,CREME BARBEAR,GEL DE BARBEAR,GEL BARBEAR,ESP BARB*|p,mk=40|
+Sérum|SERUM|mk=40|
+Adoçante|ADOCANTE*|mk=40|
+Barra de cereal|BARRA DE CEREAL,BARRA CEREAL,BARRA DE PROTEINA,BARRA PROTEINA,BARRINHA|mk=40|
+Bolsa térmica|BOLSA TERMICA,BOLSA DE AGUA QUENTE,BOLSA GEL|mk=40|
+Bucha vegetal|BUCHA*|mk=40|
+Adstringente|ADSTRINGENTE|mk=40|
+Maquiagem|MAQUIAGEM,BASE LIQUIDA,PO COMPACTO,BATOM,RIMEL,MASCARA DE CILIOS,DELINEADOR,CORRETIVO,BLUSH,LAPIS DE OLHO|mk=40|
+Bala de gengibre|BALA DE GENGIBRE,BALA GENGIBRE,GENGIBRE|mk=40|
+Bicarbonato|BICARBONATO|mk=40|
+Caneca|CANECA|mk=40|
+Cera depilatória|CERA DEPILATORIA,CERA DEPIL*,CERA|mk=40|
+Copos|COPO,COPOS|mk=40|
+Cortadores|CORTADOR*|mk=40|
+Curativos|CURATIVO*,BAND AID,BANDAID|mk=40|
+Descolorantes|DESCOLORANTE*,PO DESCOLORANTE|mk=40|
+Coletores|COLETOR*|mk=40|
+Folhas depilatórias|FOLHA DEPILATORIA,FOLHAS DEPILATORIAS,FOLHA* DEPIL*|p,mk=40|
+Deo colônia / leite de colônia|DEO COLONIA,LEITE DE COLONIA,COLONIA|mk=40|
+Fixador|FIXADOR*|mk=40|
+Fortalecedor / fortificante|FORTALECEDOR*,FORTIFICANTE*|mk=40|
+Leave-in|LEAVE IN|mk=40|
+Luvas|LUVA*|mk=40|
+Gel de cabelo|GEL DE CABELO,GEL CABELO,GEL CAPILAR,GEL FIXADOR,GEL||Bozzano:40;Kanechom:40;Look:40;Nylooks:40
+Mousse capilar|MOUSSE*|mk=40|
+Manteiga de cacau|MANTEIGA DE CACAU,MANTEIGA CACAU|p,mk=40|
+Mordedor|MORDEDOR*|mk=40|
+Papinha|PAPINHA*|mk=40|
+Reparador de pontas|REPARADOR DE PONTAS,REPARADOR*|mk=40|
+Preservativos|PRESERVATIVO*,PRESERV*,CAMISINHA*|b|Blowtex:40;Durex:40;Jontex:40;Olla:40;Prudence:40
+Repelente|REPELENTE*,REPEL*||Turma da Mônica=MONICA:40;Off=OFF:40;No Inset=NO INSET/NOINSET:40;Repelex:40
+Máscaras|MASCARA*|mk=40|
+Pasta d'água|PASTA D AGUA,PASTA DAGUA|p,mk=60|
+Ortopédicos|ORTOPEDIC*,JOELHEIRA*,TORNOZELEIRA*,MUNHEQUEIRA*,TIPOIA*,COLAR CERVICAL,PALMILHA*|mk=40|
+Tesoura|TESOURA*|mk=40|
+Água oxigenada / boricada|AGUA OXIGENADA,AGUA OXIG*,AGUA BORICADA|mk=50|
+Álcool|ALCOOL|mk=50|
+Ataduras|ATADURA*|mk=50|
+Algodão|ALGODAO||Cremer:50;Apolo:50;York:50
+Esparadrapo|ESPARADRAPO*,FITA MICROPOROSA,MICROPORE,FITA CIRURGICA||Cremer:50;Missner:50;Micropore:50
+Grampo|GRAMPO*|mk=50|
+Lixa|LIXA*|mk=50|
+Palito|PALITO*|mk=50|
+Seringa|SERINGA*|mk=50|
+Termômetro|TERMOMETRO*|mk=50|
+Vaselina|VASELINA*|mk=50|
+Chá|CHA|mk=60|
+Touca|TOUCA*|mk=60|
+Pente fino / masculino|PENTE FINO,PENTE MASCULINO,PENTE MASC*|p,mk=60|
+Agulha|AGULHA*|mk=60|`;
+
+function parseRulesSrc(src){
+  return src.trim().split("\n").map(line=>{
+    const [cat,kws,opts,brands]=line.split("|");
+    const r={cat:cat.trim(),kws:kws.split(",").map(s=>s.trim()).filter(Boolean),mk:null,brandOnly:false,prio:false,brands:[]};
+    (opts||"").split(",").forEach(o=>{o=o.trim();if(o==="b")r.brandOnly=true;else if(o==="p")r.prio=true;else if(o.startsWith("mk="))r.mk=+o.slice(3)});
+    (brands||"").split(";").map(s=>s.trim()).filter(Boolean).forEach(b=>{
+      const m=b.match(/^(.*?)(?:=(.*))?:(\d+(?:\.\d+)?)$/);if(!m)return;
+      const nome=m[1].trim();const demais=/^demais/i.test(nome);
+      r.brands.push({nome,kws:demais?[]:(m[2]?m[2].split("/"):[nome]).map(s=>s.trim()),mk:+m[3],demais});
+    });
+    return r;
+  });
+}
+const DEFAULT_RULES=()=>parseRulesSrc(RULES_SRC);
+
+const DEF={loja:"",despesas:8,folga:0,cats:Object.fromEntries(CATS.map(c=>[c.id,c.mk])),arred:"99",travaPMC:true,naoBaixar:true,soAcima:true,minVar:1,catMap:{},
+  mktRef:"med",mktTol:8,usarMkt:false,mktPos:-2,cmedCol:"",ruleVer:1,
+  usarDsg:true,curvaTraf:true,papelOn:true,trafPos:-3,trafMaxMk:20,margPP:10,margMaxAcima:15,trafKws:TRAF_KWS,margKws:MARG_KWS};
+
+/* ================= Estado ================= */
+const $=id=>document.getElementById(id);
+function lsGet(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+let cfg=Object.assign(structuredClone(DEF),lsGet("pdv_cfg2")||{});
+cfg.cats=Object.assign(structuredClone(DEF.cats),cfg.cats||{});
+let RULES=lsGet("pdv_rules2")||DEFAULT_RULES();
+let AISUG=lsGet("pdv_ai")||{};
+let ROLES=lsGet("pdv_roles")||{};
+let state={headers:[],rows:[],map:{},isExample:true,fileName:"",acao:"",fl:{tipo:"",papel:"",mkt:"",curva:"",grupo:"",cat:"",lab:"",sort:"imp"},visible:[],q:"",limit:200,overrides:{}};
+let MKT={byEan:new Map(),byCod:new Map(),comps:[],file:"",isExample:false};
+let CMED={labels:[],byEan:new Map(),file:"",n:0};
+let DSG={byEan:new Map(),file:"",n:0,nVend:0};
+/* Sugestão de markup da DSG por categoria: combate de preço / intermediário / rentável */
+const DSG_SUG=`Absorvente|ABSORVENTE*,ABS|25|30|40
+Aparelho depilatório|APARELHO DEPIL*,DEPILADOR*,LAMINA*|25|30|38
+Cabelo (outros)|CREME DE PENTEAR,CR PENT*,MASCARA CAPILAR,LEAVE IN,OLEO CAPILAR,GEL,MOUSSE*,FINALIZADOR*|30|36|40
+Condicionador|CONDICIONADOR*,COND|30|36|40
+Cosmético facial|FACIAL,SERUM,HIDRATANTE FACIAL,DEMAQUILANTE*,AGUA MICELAR,TONICO FACIAL|35|40|45
+Desodorante|DESODORANTE*,DESOD*,ANTITRANSPIRANTE*|25|30|40
+Fragrância feminina|COLONIA FEM*,PERFUME FEM*,DEO COLONIA|35|40|45
+Fragrância masculina|COLONIA MASC*,PERFUME MASC*|35|40|45
+Fralda geriátrica|FRALDA GERIATR*,FRALDA ADULT*,ROUPA INTIMA|10|15|30
+Fralda infantil|FRALDA*,FR INF*|10|15|30
+Higiene infantil|LENCO UMEDECIDO,TOALHA UMED*,COTONETE*,HASTE*,TALCO,BABY,INFANTIL|30|35|40
+Higiene íntima|INTIMO,INTIMA,SABONETE INTIMO|25|30|40
+Higiene oral|CREME DENTAL,ESCOVA DENT*,FIO DENTAL,ENXAGUANTE*,ANTISSEPTICO BUCAL|25|30|40
+Leite|LEITE,FORMULA INFANTIL,COMPOSTO LACTEO|10|15|20
+Linha homem (outros)|BARBEAR,POS BARBA,MASCULIN*,MEN|35|40|45
+Linha mulher (outros)|DESCOLORANTE*,CERA DEPIL*,FOLHA* DEPIL*,FEMININ*|35|40|45
+Mãos e pés|ALICATE*,LIXA*,CUTICULA*,MAOS,PES|35|40|45
+Maquiagem / esmalte|ESMALTE*,BATOM,RIMEL,BASE LIQUIDA,PO COMPACTO,MAQUIAGEM,REMOVEDOR|25|30|40
+Preservativos|PRESERVATIVO*,CAMISINHA*|35|40|45
+Proteção solar|PROTETOR SOLAR,PROT SOLAR,FPS*,FOTOPROTETOR|25|30|40
+Repelente|REPELENTE*|35|40|45
+Sabonete|SABONETE*,SAB|30|38|40
+Shampoo|SHAMPOO*,SHAMP*,SH|30|36|40
+Tintura|TINTURA*,COLORACAO,TONALIZANTE*|18|20|28`.split("\n").map(l=>{const [cat,kws,c,i,r]=l.split("|");return {cat,kws:kws.split(","),c:+c,i:+i,r:+r}});
+function dsgSug(text){const T=normText(text);let best=null,bl=0;for(const d of DSG_SUG){const l=hit(d.kws,T);if(l>bl){bl=l;best=d}}return best}
+let computed=[];
+const save=()=>lsSet("pdv_cfg2",cfg);
+const saveRules=()=>{lsSet("pdv_rules2",RULES);compileRules()};
+
+/* ================= Utilidades ================= */
+const norm=s=>String(s??"").normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().trim();
+const normText=s=>" "+norm(s).replace(/[^A-Z0-9&]+/g," ").trim()+" ";
+const digits=s=>String(s??"").replace(/\D/g,"").replace(/^0+/,"");
+function num(v){if(v===null||v===undefined||v==="")return NaN;if(typeof v==="number")return v;let s=String(v).replace(/[R$\s%]/g,"");if(!s)return NaN;if(s.includes(",")){s=s.replace(/\./g,"").replace(",",".")}const n=parseFloat(s);return isNaN(n)?NaN:n}
+const brl=n=>isFinite(n)?n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}):"—";
+const pc=(n,d=1)=>isFinite(n)?(n*100).toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d})+"%":"—";
+const pcs=n=>isFinite(n)?(n>0?"+":"")+pc(n):"—";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,3000)}
+function eanToStr(v){if(typeof v==="number")return digits(Math.round(v).toString());return digits(v)}
+
+/* ================= Casamento de regras ================= */
+const RX=new Map();
+function kwRx(kw){
+  if(RX.has(kw))return RX.get(kw);
+  const parts=kw.trim().split(/\s+/).map(t=>{const w=t.endsWith("*");const n=normText(t.replace(/\*+$/,"")).trim();if(!n)return null;return n.split(" ").map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join(" ")+(w?"[A-Z0-9&]*":"")}).filter(Boolean);
+  const rx=parts.length?new RegExp(" "+parts.join(" ")+"(?= )"):null;
+  const o={rx,len:kw.replace(/\*/g,"").length};RX.set(kw,o);return o;
+}
+function hit(kws,text){let best=0;for(const k of kws){const o=kwRx(k);if(o.rx&&o.rx.test(text)&&o.len>best)best=o.len}return best}
+function compileRules(){RX.clear()}
+function modeMk(r){const v=r.brands.filter(b=>!b.demais).map(b=>b.mk);if(r.mk!=null)v.push(r.mk);if(!v.length)return null;const c={};v.forEach(x=>c[x]=(c[x]||0)+1);return +Object.keys(c).sort((a,b)=>c[b]-c[a]||b-a)[0]}
+/* Retorna {mk, cat, brand, kind:"tabela"|"sugerido"} ou null */
+function matchRule(desc,fab,grupo){
+  const T=normText(desc+" "+fab);
+  let best=null;
+  const consider=(c)=>{if(!best||c.score>best.score||(c.score===best.score&&c.len>best.len))best=c};
+  for(const r of RULES){
+    const ch=hit(r.kws,T);
+    let brandHit=null,bl=0;
+    for(const b of r.brands){if(b.demais)continue;const l=hit(b.kws,T);if(l>bl){bl=l;brandHit=b}}
+    const pr=r.prio?1:0;
+    if(ch&&brandHit)consider({score:3+pr,len:ch+bl,mk:brandHit.mk,cat:r.cat,brand:brandHit.nome,kind:"tabela"});
+    else if(ch){
+      const dm=r.brands.find(b=>b.demais);
+      if(dm)consider({score:2+pr*1.6,len:ch,mk:dm.mk,cat:r.cat,brand:"Demais marcas",kind:"tabela"});
+      else if(r.mk!=null)consider({score:2+pr*1.6,len:ch,mk:r.mk,cat:r.cat,brand:"",kind:"tabela"});
+      else{const m=modeMk(r);if(m!=null)consider({score:1.2,len:ch,mk:m,cat:r.cat,brand:"marca fora da lista",kind:"sugerido"})}
+    }else if(brandHit){
+      if(r.brandOnly)consider({score:2.5,len:bl,mk:brandHit.mk,cat:r.cat,brand:brandHit.nome,kind:"tabela"});
+      else consider({score:1,len:bl,mk:brandHit.mk,cat:r.cat,brand:brandHit.nome+" (pela marca)",kind:"sugerido"});
+    }
+  }
+  return best;
+}
+
+/* ================= Arredondamento ================= */
+function roundPrice(p){
+  if(!isFinite(p)||p<=0)return p;
+  const m=cfg.arred,eps=1e-9;
+  if(m==="none")return Math.round(p*100)/100;
+  if(m==="10")return Math.ceil(p*10-eps)/10;
+  if(m==="99"||m==="90"){const end=m==="99"?.99:.90;let r=Math.floor(p)+end;if(r<p-eps)r+=1;return Math.round(r*100)/100}
+  if(m==="49"){const b=Math.floor(p);for(const e of [.49,.99]){if(b+e>=p-eps)return Math.round((b+e)*100)/100}return b+1.49}
+  return p;
+}
+
+/* ================= CMED ================= */
+function cmedCat(rec){
+  if(!rec)return null;
+  const t=norm(rec.tipo),tj=norm(rec.tarja);
+  if(t.includes("GENERIC"))return "gen";
+  if(t.includes("SIMILAR"))return "sim";
+  if(tj.includes("SEM TARJA")||tj.includes("VENDA LIVRE")||tj.includes("LIVRE"))return "otc";
+  if(t.includes("NOVO")||t.includes("REFERENCIA")||t.includes("BIOLOG"))return "ref";
+  if(t.includes("ESPECIFIC")||t.includes("FITOTER"))return "otc";
+  return "ref";
+}
+function cmedPMC(rec){
+  if(!rec)return NaN;
+  const i=CMED.labels.indexOf(cfg.cmedCol);
+  return i>=0?num(rec.pmc[i]):NaN;
+}
+function idb(){return new Promise((res,rej)=>{try{const r=indexedDB.open("pdv",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
+async function idbSet(k,v){try{const db=await idb();await new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}}
+async function idbDel(k){try{const db=await idb();await new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").delete(k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}}
+/* Planilha do Trier (com as colunas escolhidas e os preços digitados à mão) e preços de mercado ficam salvos
+   neste navegador, como a CMED e a DSG: recarregar a página não volta mais para o exemplo. */
+function saveTrier(){
+  if(state.isExample)return;
+  idbSet("trier",{headers:state.headers,rows:state.rows,map:state.map,fileName:state.fileName,overrides:state.overrides,date:new Date().toISOString()});
+}
+function saveMkt(){
+  if(MKT.isExample)return;
+  idbSet("mkt",{comps:MKT.comps,file:MKT.file,byEan:[...MKT.byEan],byCod:[...MKT.byCod],date:new Date().toISOString()});
+}
+async function idbGet(k){try{const db=await idb();return await new Promise((res,rej)=>{const q=db.transaction("kv").objectStore("kv").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}catch(e){return null}}
+function cmedFromStored(o){
+  CMED={labels:o.labels,byEan:new Map(),file:o.file,n:o.list.length,date:o.date};
+  for(const r of o.list){const rec={n:r[1],lab:r[2],tipo:r[3],reg:r[4],tarja:r[5],pmc:r[6]};for(const e of r[0])if(e)CMED.byEan.set(e,rec)}
+}
+async function handleCmed(file){
+  if(!window.XLSX){toast("O leitor de planilhas não carregou. Verifique a internet e tente de novo.");return}
+  $("cmedInfo").textContent="Lendo a tabela CMED…";
+  try{
+    await new Promise(r=>setTimeout(r,30));
+    const wb=XLSX.read(await file.arrayBuffer(),{type:"array",dense:true});
+    let aoa=null,hr=-1;
+    for(const name of wb.SheetNames){
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:""});
+      for(let i=0;i<Math.min(rows.length,120);i++){const H=(rows[i]||[]).map(norm);if(H.some(h=>h.startsWith("EAN"))&&H.some(h=>h.startsWith("PMC"))){hr=i;break}}
+      if(hr>=0){aoa=rows;break}
+    }
+    if(hr<0)throw new Error("Cabeçalho da CMED não encontrado");
+    const H=aoa[hr].map(h=>String(h).trim()),HN=H.map(norm);
+    const idx=f=>HN.findIndex(f);
+    const eanIdx=HN.map((h,i)=>h.startsWith("EAN")?i:-1).filter(i=>i>=0);
+    const iProd=idx(h=>h==="PRODUTO"),iApr=idx(h=>h.startsWith("APRESENTA")),iLab=idx(h=>h.startsWith("LABORATORIO")),
+          iTipo=idx(h=>h.startsWith("TIPO DE PRODUTO")),iReg=idx(h=>h.startsWith("REGIME")),iTarja=idx(h=>h.startsWith("TARJA"));
+    const pmcIdx=HN.map((h,i)=>h.startsWith("PMC")&&!/\bALC\b/.test(h)?i:-1).filter(i=>i>=0);
+    const labels=pmcIdx.map(i=>H[i].replace(/\s+/g," ").trim());
+    const list=[];
+    for(let r=hr+1;r<aoa.length;r++){
+      const row=aoa[r];if(!row)continue;
+      const eans=eanIdx.map(i=>eanToStr(row[i])).filter(e=>e.length>=8);
+      if(!eans.length)continue;
+      list.push([eans,[row[iProd],row[iApr]].filter(Boolean).join(" "),iLab>=0?row[iLab]:"",iTipo>=0?row[iTipo]:"",iReg>=0?row[iReg]:"",iTarja>=0?row[iTarja]:"",pmcIdx.map(i=>{const n=num(row[i]);return isFinite(n)?n:null})]);
+    }
+    if(!list.length)throw new Error("Nenhum produto com EAN");
+    const stored={labels,list,file:file.name,date:new Date().toISOString()};
+    cmedFromStored(stored);
+    if(!labels.includes(cfg.cmedCol)){cfg.cmedCol=labels.find(l=>/20[,.]5/.test(l))||labels.find(l=>/ 18/.test(l))||labels.find(l=>!/ 0 ?%|SEM/i.test(l))||labels[0];save()}
+    await idbSet("cmed",stored);
+    renderCmed();refresh();renderSingle();
+    toast(list.length.toLocaleString("pt-BR")+" medicamentos da CMED carregados.");
+  }catch(e){console.error(e);$("cmedInfo").textContent="Não consegui ler essa tabela. Use a planilha de PMC (consumidor) baixada do site da Anvisa.";}
+}
+function renderCmed(){
+  const has=CMED.n>0;
+  $("cmedInfo").className="status"+(has?" ok":"");
+  $("cmedInfo").innerHTML=has?`<b>${CMED.n.toLocaleString("pt-BR")} medicamentos</b> · ${esc(CMED.file)}`:"Nenhuma tabela CMED carregada.";
+  $("cmedColRow").hidden=!has;
+  if(has){$("cmedCol").innerHTML=CMED.labels.map(l=>`<option>${esc(l)}</option>`).join("");$("cmedCol").value=cfg.cmedCol}
+}
+
+/* ================= Mercado ================= */
+function mktStats(prices){
+  const v=prices.filter(p=>p>0).sort((a,b)=>a-b);if(!v.length)return null;
+  const med=v.reduce((a,b)=>a+b,0)/v.length;const m=v.length>>1;const mdn=v.length%2?v[m]:(v[m-1]+v[m])/2;
+  return {med,mdn,min:v[0],max:v[v.length-1],n:v.length};
+}
+function mktRef(s){if(!s)return NaN;return cfg.mktRef==="min"?s.min:cfg.mktRef==="mdn"?s.mdn:s.med}
+async function handleMkt(file){
+  try{
+    const aoa=await readSheet(file);
+    const hr=findHeaderRow(aoa,["EAN","BARRA","CODIGO","COD","DESCRI","PRODUTO"]);
+    const H=(aoa[hr]||[]).map((h,i)=>String(h||"Coluna "+(i+1)).trim());const HN=H.map(norm);
+    const rows=aoa.slice(hr+1).filter(r=>r.some(c=>String(c).trim()!==""));
+    const iE=HN.findIndex(h=>h.includes("EAN")||h.includes("BARRA")||h.includes("GTIN"));
+    const iC=HN.findIndex(h=>h.startsWith("COD"));
+    const skip=new Set([iE,iC]);
+    HN.forEach((h,i)=>{if(/DESCRI|PRODUTO|NOME|FABRIC|LABORAT|GRUPO|CATEG|CUSTO|NOSSO|ATUAL|DATA|OBS|PMC/.test(h))skip.add(i)});
+    const comps=[];
+    H.forEach((h,i)=>{if(skip.has(i))return;const vals=rows.slice(0,200).map(r=>num(r[i]));const ok=vals.filter(v=>v>0).length;if(ok>=Math.max(1,rows.slice(0,200).filter(r=>String(r[i]).trim()!=="").length*0.6))comps.push(i)});
+    if(iE<0&&iC<0)throw new Error("Sem coluna de EAN ou código");
+    if(!comps.length)throw new Error("Sem colunas de preço");
+    MKT={byEan:new Map(),byCod:new Map(),comps:comps.map(i=>H[i]),file:file.name,isExample:false};
+    rows.forEach(r=>{const prices=comps.map(i=>num(r[i]));const rec={prices};if(iE>=0){const e=eanToStr(r[iE]);if(e)MKT.byEan.set(e,rec)}if(iC>=0){const c=String(r[iC]).trim();if(c)MKT.byCod.set(c,rec)}});
+    renderMkt();refresh();saveMkt();
+    toast(`Preços de ${MKT.comps.length} concorrente(s) para ${rows.length} produtos.`);
+  }catch(e){console.error(e);toast("Não consegui ler os preços de mercado. A planilha precisa de uma coluna EAN ou Código e colunas de preço.")}
+}
+function renderMkt(){
+  const n=MKT.byEan.size+MKT.byCod.size;
+  $("mktInfo").className="status"+(n?" ok":"");
+  $("mktInfo").innerHTML=n?`<b>${MKT.comps.length} concorrente(s):</b> ${esc(MKT.comps.join(", "))}${MKT.isExample?" · exemplo":""}`:"Nenhum preço de mercado carregado.";
+  $("btnMktClear").hidden=!n;
+}
+
+/* ================= DSG (Mix de produtos) ================= */
+async function handleDsg(file){
+  if(!window.XLSX){toast("O leitor de planilhas não carregou. Verifique a internet e tente de novo.");return}
+  $("dsgInfo").textContent="Lendo o arquivo da DSG… pode levar alguns segundos.";
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    const buf=await file.arrayBuffer();
+    const names=XLSX.read(buf,{type:"array",bookSheets:true}).SheetNames;
+    const skip=["INICIO","ESTOQUE","ESTOQUE VALIDACAO","BASE IQVIA","ASSERTIVIDADE","ASSERTIVIDADE - ATUALIZACAO","SUGESTAO %","PBM (BUSSOLA)"];
+    const target=names.filter(n=>!skip.includes(norm(n)));
+    const wb=XLSX.read(buf,{type:"array",sheets:target,dense:true});
+    const map=new Map();let nVend=0;
+    for(const name of target){
+      const ws=wb.Sheets[name];if(!ws)continue;
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:""});
+      let hr=-1;
+      for(let i=0;i<Math.min(aoa.length,15);i++){const H=(aoa[i]||[]).map(norm);if((H.includes("EAN")||H.includes("BARRAS"))&&H.some(h=>h.startsWith("PRECO MEDIO")||h==="QTD VENDIDA"||h==="CURVA REGIAO")){hr=i;break}}
+      if(hr<0)continue;
+      const H=aoa[hr].map(norm);const ix=f=>H.findIndex(f);
+      const iE=ix(h=>h==="EAN"||h==="BARRAS"),iP=ix(h=>h.startsWith("PRECO MEDIO")),iU=ix(h=>h==="UNIDADES"||h==="UNIDADES REGIAO"),
+            iC=ix(h=>h==="CURVA REGIAO"),iV=ix(h=>h==="QTD VENDIDA"||h==="VENDA LOJA 90 DIAS"),iA=ix(h=>h.startsWith("NEC ABERTO")||h==="CATEGORIA"),
+            iCl=norm(name).startsWith("MIX")?ix(h=>h==="CLASSIFICACAO"):-1,iN=ix(h=>h==="PRODUTO");
+      const isVend=norm(name).startsWith("VENDAS");
+      for(let r=hr+1;r<aoa.length;r++){
+        const row=aoa[r];if(!row)continue;const e=eanToStr(row[iE]);if(!e||e.length<7)continue;
+        const rec=map.get(e)||{};
+        const pm=iP>=0?num(row[iP]):NaN;if(pm>0)rec.pm=Math.round(pm*100)/100;
+        const un=iU>=0?num(row[iU]):NaN;if(un>0)rec.un=un;
+        if(iC>=0&&row[iC])rec.curva=String(row[iC]).trim().toUpperCase().slice(0,1);
+        const vl=iV>=0?num(row[iV]):NaN;if(vl>0){if(isVend||!rec.vl)rec.vl=vl}
+        if(iA>=0&&row[iA]&&/_/.test(String(row[iA])))rec.ag=String(row[iA]).trim();
+        if(iCl>=0&&row[iCl]&&row[iCl]!=="-")rec.cls=String(row[iCl]).trim();
+        if(iN>=0&&!rec.n)rec.n=String(row[iN]).trim();
+        map.set(e,rec);
+      }
+    }
+    map.forEach(v=>{if(v.vl>0)nVend++});
+    if(!map.size)throw new Error("vazio");
+    const stored={file:file.name,date:new Date().toISOString(),list:[...map.entries()]};
+    dsgFromStored(stored);await idbSet("dsg",stored);
+    renderDsg();refresh();
+    toast(`DSG: ${DSG.n.toLocaleString("pt-BR")} produtos da região carregados.`);
+  }catch(e){console.error(e);$("dsgInfo").textContent="Não consegui ler esse arquivo. Use o arquivo Mix de produtos enviado pela DSG (.xlsb)."}
+}
+function dsgFromStored(o){DSG={byEan:new Map(o.list),file:o.file,n:o.list.length,nVend:o.list.filter(x=>x[1].vl>0).length,nPm:o.list.filter(x=>x[1].pm>0).length}}
+function renderDsg(){
+  const has=DSG.n>0;
+  $("dsgInfo").className="status"+(has?" ok":"");
+  $("dsgInfo").innerHTML=has?`<b>${DSG.nPm.toLocaleString("pt-BR")} preços médios da região</b> · ${DSG.nVend.toLocaleString("pt-BR")} itens com venda da loja · ${esc(DSG.file)}`:"";
+  $("dsgOpts").hidden=$("dsgOpts2").hidden=!has;
+  $("usarDsg").checked=!!cfg.usarDsg;$("curvaTraf").checked=!!cfg.curvaTraf;
+}
+
+/* ================= Leitura de planilhas ================= */
+async function readSheet(file){
+  if(!window.XLSX)throw new Error("XLSX ausente");
+  let wb;
+  if(/\.(csv|txt)$/i.test(file.name)){
+    const buf=await file.arrayBuffer();
+    let text=new TextDecoder("utf-8").decode(buf);
+    if(text.includes(String.fromCharCode(0xFFFD)))text=new TextDecoder("windows-1252").decode(buf);
+    wb=XLSX.read(text,{type:"string",raw:true});
+  }else wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""});
+}
+function findHeaderRow(aoa,kws){
+  kws=kws||FIELDS.flatMap(f=>f.kw);
+  let best=0,bs=-1;
+  for(let i=0;i<Math.min(aoa.length,25);i++){let s=0;(aoa[i]||[]).forEach(c=>{const h=norm(c);if(!h||!isNaN(num(c)))return;kws.forEach(k=>{if(h.includes(norm(k)))s++})});if(s>bs){bs=s;best=i}}
+  return best;
+}
+function autoMap(headers){
+  const used=new Set(),m={};const H=headers.map(norm);
+  for(const f of FIELDS){
+    let best=-1,bs=0;
+    H.forEach((h,i)=>{if(used.has(i))return;if(f.id==="preco"&&(h.includes("CUSTO")||h.includes("LUCRO")||h.includes("TOTAL")))return;if(f.id==="codigo"&&(h.includes("BARRA")||h.includes("EAN")))return;if(f.id==="vendas"&&(h.includes("ESTOQUE")||h.includes("LUCRO")))return;if(f.id==="custo"&&(h.includes("TOTAL")||h.includes("MEDIO")&&H.some(x=>x==="P CUSTO"||x==="P. CUSTO")))return;for(let k=0;k<f.kw.length;k++){const kw=norm(f.kw[k]);if(h.includes(kw)){const s=100-k+(h===kw?50:0);if(s>bs){bs=s;best=i}}}});
+    m[f.id]=best;if(best>=0)used.add(best);
+  }
+  return m;
+}
+async function handleFile(file){
+  try{
+    const aoa=await readSheet(file);
+    const hr=findHeaderRow(aoa);
+    state.headers=(aoa[hr]||[]).map((h,i)=>String(h||"Coluna "+(i+1)).trim());
+    state.rows=aoa.slice(hr+1).filter(r=>r.some(c=>String(c).trim()!==""));
+    state.map=autoMap(state.headers);
+    state.isExample=false;state.fileName=file.name;state.overrides={};state.limit=200;
+    if(MKT.isExample){MKT={byEan:new Map(),byCod:new Map(),comps:[],file:"",isExample:false};renderMkt()}
+    autoCatMap();
+    const miss=["descricao","custo"].filter(k=>state.map[k]<0);
+    if(miss.length){$("mapBox").open=true;toast("Confira as colunas: não achei "+miss.map(k=>FIELDS.find(f=>f.id===k).nome).join(" e ")+".")}
+    else toast(state.rows.length+" produtos importados.");
+    renderAll();
+    saveTrier();
+  }catch(e){console.error(e);toast("Não consegui ler esse arquivo. Exporte do Trier em .xlsx ou .csv e tente de novo.")}
+}
+function guessCat(v){const h=norm(v);for(const c of CATS){if(c.kw.some(k=>h.includes(norm(k))))return c.id}return "out"}
+function autoCatMap(){
+  const ci=state.map.categoria;if(ci<0)return;
+  new Set(state.rows.map(r=>String(r[ci]??"").trim())).forEach(v=>{const k=norm(v)||"(SEM GRUPO)";if(!cfg.catMap[k])cfg.catMap[k]=guessCat(v)});
+  save();
+}
+
+/* ================= Tabela de markup: importação ================= */
+async function handleRulesFile(file){
+  try{
+    const aoa=await readSheet(file);
+    const cur=new Map(RULES.map(r=>[norm(r.cat),r]));
+    const out=[];let header=null;
+    const kwFrom=name=>{const n=norm(name).replace(/[^A-Z0-9 ]/g," ").trim();if(!n)return [];const w=n.split(/\s+/);if(w.length===1)return [n.replace(/E?S$/,"")+"*"];return [n]};
+    for(const row of aoa){
+      const name=String(row[0]??"").trim();if(!name)continue;
+      const raw=row[1];const v=num(raw);
+      if(/classifica/i.test(name)&&/markup/i.test(String(raw)))continue;
+      if(!isFinite(v)){
+        const base=cur.get(norm(name));
+        header={cat:name,kws:base?base.kws.slice():kwFrom(name),mk:null,brandOnly:false,prio:false,brands:[]};out.push(header);continue;
+      }
+      const mk=v<=3?Math.round(v*1000)/10:v;
+      if(header){
+        const demais=/^demais/i.test(name);
+        const base=cur.get(norm(header.cat));const bb=base&&base.brands.find(b=>norm(b.nome)===norm(name));
+        header.brands.push({nome:name,kws:demais?[]:(bb?bb.kws.slice():kwFrom(name).map(k=>k.replace(/\*$/,""))),mk,demais});
+      }else{
+        const base=cur.get(norm(name));
+        out.push({cat:name,kws:base?base.kws.slice():kwFrom(name),mk,brandOnly:false,prio:base?base.prio:false,brands:[]});
+      }
+    }
+    const valid=out.filter(r=>r.mk!=null||r.brands.length);
+    if(!valid.length)throw new Error("vazia");
+    RULES=valid;saveRules();renderRules();refresh();renderSingle();
+    toast(`Tabela importada: ${valid.length} categorias. Confira as palavras de cada uma.`);
+  }catch(e){console.error(e);toast("Não consegui ler a tabela. Use duas colunas: Classificação e Markup mínimo.")}
+}
+
+/* ================= Cálculo ================= */
+function classify(desc,fab,grupo,ean){
+  const cm=ean?CMED.byEan.get(ean):null;
+  const gCat=cfg.catMap[norm(grupo)||"(SEM GRUPO)"]||null;
+  let isMed=!!cm||(gCat&&CATS.find(c=>c.id===gCat).med);
+  let guessMed=false;
+  const dg=ean?DSG.byEan.get(ean):null;
+  if(!isMed&&!gCat&&dg&&dg.ag){const A=norm(dg.ag);
+    const m=A.startsWith("RX_GENERICO")?"gen":A.startsWith("RX_PROMOVIDO")?"ref":A.startsWith("RX_TRADE")?"sim":A.startsWith("MIP_GENERICO")?"gen":A.startsWith("MIP_")?"otc":null;
+    if(m)return {isMed:true,catId:m,mk:cfg.cats[m],label:CATS.find(c=>c.id===m).nome,detail:"DSG: "+dg.ag.replace(/_/g," ").toLowerCase(),kind:"padrao",cm};}
+  if(!isMed&&!gCat&&MED_RX.test(normText(desc))&&!matchRule(desc,fab,grupo)?.kind?.startsWith("tab")){isMed=true;guessMed=true}
+  if(guessMed)return {isMed:true,catId:"otc",mk:cfg.cats.otc,label:"Medicamento (provável)",detail:"pela descrição · importe a CMED para confirmar",kind:"padrao",cm};
+  if(isMed){
+    const id=cmedCat(cm)||gCat||"ref";
+    return {isMed:true,catId:id,mk:cfg.cats[id],label:CATS.find(c=>c.id===id).nome,detail:cm?"CMED: "+(cm.tipo||"medicamento"):"Grupo: "+grupo,kind:"padrao",cm};
+  }
+  const r=matchRule(desc,fab,grupo);
+  if(r&&r.kind==="tabela")return {isMed:false,catId:gCat||"hpc",mk:r.mk,label:r.cat,detail:r.brand||"categoria",kind:"tabela",cm};
+  const ai=AISUG[norm(desc)];
+  if(ai)return {isMed:false,catId:gCat||"hpc",mk:ai.mk,label:ai.cat||"Sugestão IA",detail:"sugestão da IA",kind:"ai",cm};
+  if(r)return {isMed:false,catId:gCat||"hpc",mk:r.mk,label:r.cat,detail:r.brand,kind:"sugerido",cm};
+  const ds=dsgSug(desc);
+  if(ds)return {isMed:false,catId:gCat||"hpc",mk:ds.i,label:ds.cat,detail:`sugestão DSG (combate ${ds.c}% · interm. ${ds.i}% · rentável ${ds.r}%)`,kind:"sugerido",cm,dsg:ds};
+  const id=gCat||"hpc";
+  return {isMed:false,catId:id,mk:cfg.cats[id],label:CATS.find(c=>c.id===id).nome,detail:"padrão da categoria",kind:"sugerido",cm};
+}
+const kwList=s=>String(s||"").split(",").map(x=>x.trim()).filter(Boolean);
+function autoPapel(text,mkMin,cl,dg){
+  const T=normText(text);
+  if(hit(kwList(cfg.margKws),T))return "marg";
+  if(hit(kwList(cfg.trafKws),T))return "traf";
+  if(cfg.curvaTraf&&dg&&dg.curva==="A")return "traf";
+  if(cl.kind==="tabela"&&mkMin*100<=(cfg.trafMaxMk||0)+0.001)return "traf";
+  return "eq";
+}
+const MED_RX=/ \d+([.,]\d+)? ?(MG|MCG|UI|G ML|MG ML)( |\/)| (CPR|COMP|CP|CPS|CAPS|CAP|DRG|GTS|XPE|XAROPE|SUSP|AMP|INJ|COMPRIMIDO|COMPRIMIDOS|CAPSULA|CAPSULAS|DRAGEA|DRAGEAS|SOL ORAL|GOTAS) /;
+function rowKey(r,i){const c=state.map.codigo,e=state.map.ean;if(c>=0&&String(r[c]).trim()!=="")return "c"+String(r[c]).trim();if(e>=0&&eanToStr(r[e]))return "e"+eanToStr(r[e]);return "i"+i}
+function compute(){
+  const M=state.map,d=(cfg.despesas||0)/100;
+  computed=state.rows.map((r,i)=>{
+    const get=k=>M[k]>=0?r[M[k]]:"";
+    const codigo=String(get("codigo")??"").trim(),ean=eanToStr(get("ean")),desc=String(get("descricao")??"").trim(),fab=String(get("fabricante")??"").trim(),grupo=String(get("categoria")??"").trim();
+    const custo=num(get("custo")),atual=num(get("preco"));
+    const cl=classify(desc,fab,grupo,ean);
+    let pmc=cmedPMC(cl.cm);if(!(pmc>0))pmc=num(get("pmc"));
+    const mrec=(ean&&MKT.byEan.get(ean))||(codigo&&MKT.byCod.get(codigo))||null;
+    const dg=ean?DSG.byEan.get(ean):null;
+    const prices=mrec?mrec.prices.slice():[];
+    if(dg&&dg.pm>0&&cfg.usarDsg)prices.push(dg.pm);
+    const ms=prices.some(p=>p>0)?mktStats(prices):null;const mref=mktRef(ms);
+    const key=rowKey(r,i);
+    let qtd=num(get("vendas"));if(!(qtd>0)&&dg&&dg.vl>0)qtd=dg.vl;
+    const o={key,codigo,ean,desc,fab,grupo,cl,custo,atual,pmc,ms,mref,dg,qtd:qtd>0?qtd:NaN,flags:[]};
+    const mkMin=cl.mk/100;
+    o.papelAuto=autoPapel(desc+" "+fab,mkMin,cl,dg);
+    o.papel=cfg.papelOn?(ROLES[key]||o.papelAuto):"eq";
+    if(o.papel==="traf")o.flags.push("traf");else if(o.papel==="marg")o.flags.push("marg");
+    o.mkMin=mkMin;
+    o.pagarAte=NaN;
+    if(isFinite(mref)&&atual>0){o.idxMkt=atual/mref-1;if(o.idxMkt>cfg.mktTol/100)o.flags.push("exp");else if(o.idxMkt<-cfg.mktTol/100)o.flags.push("cheap")}
+    if(cl.kind==="sugerido")o.flags.push("sug");
+    if(cl.kind==="ai")o.flags.push("ai");
+    if(!(custo>0)){o.novo=atual;o.flags.push("miss");o.lucro=NaN;o.mkReal=NaN;o.pagarAte=atual>0?atual/(1+mkMin):NaN;return o}
+    const piso=custo*(1+mkMin);
+    const capPMC=x=>(cfg.travaPMC&&pmc>0&&x>pmc+0.001)?Math.round(pmc*100)/100:x;
+    // preço padrão (equilíbrio)
+    let pBase=roundPrice(custo*(1+mkMin+(cfg.folga||0)/100));
+    if(cfg.usarMkt&&isFinite(mref))pBase=roundPrice(Math.max(mref*(1+(cfg.mktPos||0)/100),piso));
+    pBase=capPMC(pBase);
+    const pRef=atual>0?atual:pBase;
+    o.lucroBase=pRef-custo-pRef*d;
+    let p=pBase;
+    if(o.papel==="traf"){
+      if(isFinite(mref)){
+        const alvo=mref*(1+(cfg.trafPos||0)/100);
+        if(alvo<piso-0.001)o.flags.push("mktbelow");
+        p=(atual>0&&atual<alvo)?Math.max(atual,roundPrice(piso)):roundPrice(Math.max(alvo,piso));
+        o.porMercado=true;
+      }else{o.flags.push("nomkt")}
+    }else if(o.papel==="marg"){
+      p=custo*(1+mkMin+(cfg.folga||0)/100+(cfg.margPP||0)/100);
+      if(isFinite(mref)){p=Math.max(p,mref);p=Math.min(p,mref*(1+(cfg.margMaxAcima||0)/100));p=Math.max(p,piso)}
+      p=roundPrice(p);
+    }else if(cfg.usarMkt&&isFinite(mref))o.porMercado=true;
+    if(cfg.travaPMC&&pmc>0&&p>pmc+0.001){p=Math.round(pmc*100)/100;o.flags.push("cap")}
+    if(cfg.naoBaixar&&!(o.papel==="traf"&&isFinite(mref))&&atual>0&&p<atual-0.001&&!(o.porMercado&&o.flags.includes("exp"))){o.sugerido=p;p=atual;o.flags.push("keep")}
+    if(cfg.soAcima&&atual>0&&Math.abs(p-atual)/atual*100<(cfg.minVar||0)&&!o.flags.includes("cap"))p=atual;
+    if(state.overrides[key]!==undefined){p=state.overrides[key];o.flags.push("man")}
+    o.novo=p;
+    o.mkReal=p/custo-1;
+    o.lucro=p-custo-p*d;o.mgLiq=o.lucro/p;
+    o.pagarAte=p/(1+mkMin);
+    if(o.mkReal<mkMin-0.0005)o.flags.push("low");
+    if(o.lucro<0)o.flags.push("loss");
+    o.dLucro=(o.lucro-o.lucroBase)*(o.qtd>0?o.qtd:1);
+    if(isFinite(mref)&&o.novo>0){o.idxNovo=o.novo/mref-1}
+    return o;
+  });
+}
+const changed=o=>isFinite(o.novo)&&o.novo>0&&(!(o.atual>0)||Math.abs(o.novo-o.atual)>0.004);
+function passes(o,f){
+  switch(f){
+    case "all":return true;
+    case "up":return o.atual>0&&o.novo>o.atual+0.004;
+    case "down":return o.atual>0&&o.novo<o.atual-0.004;
+    default:return o.flags.includes(f);
+  }
+}
+/* Ação recomendada em linguagem simples */
+function acao(o){
+  const F=f=>o.flags.includes(f);
+  if(F("miss"))return {a:"revisar",t:"Cadastrar o custo",m:"Sem custo na planilha, não dá para calcular."};
+  if(F("loss"))return {a:"revisar",t:"Negociar o custo",m:`Dá prejuízo mesmo no preço ${F("cap")?"máximo (PMC)":"atual"}. Pague até R$ ${brl(o.pagarAte)}.`};
+  if(F("nomkt"))return {a:"revisar",t:"Pesquisar preço do mercado",m:"Produto de tráfego: precisa do preço da concorrência para ser competitivo."};
+  if(F("low"))return {a:"revisar",t:"Negociar o custo",m:`${F("cap")?"O PMC":"O preço"} não permite o markup mínimo de ${pc(o.mkMin,0)}. Pague até R$ ${brl(o.pagarAte)}.`};
+  if(F("mktbelow"))return {a:"revisar",t:"Negociar o custo",m:`O mercado vende abaixo do seu mínimo. Para competir, pague até R$ ${brl((o.mref*(1+(cfg.trafPos||0)/100))/(1+o.mkMin))}.`};
+  if(!(o.atual>0)&&o.novo>0)return {a:"subir",t:`Cadastrar a R$ ${brl(o.novo)}`,m:"Produto sem preço de venda."};
+  if(o.novo>o.atual+0.004){
+    let m;
+    if(o.atual<o.custo*(1+o.mkMin)-0.004)m=`Está abaixo do markup mínimo de ${pc(o.mkMin,0)}.`;
+    else if(o.papel==="marg")m="Produto de margem: cliente pesquisa pouco o preço.";
+    else if(F("cheap"))m=`Está ${pc(-o.idxMkt)} abaixo do mercado.`;
+    else m=`Ajuste para o markup alvo de ${pc(o.mkMin+(cfg.folga||0)/100,0)}.`;
+    return {a:"subir",t:`Subir para R$ ${brl(o.novo)}`,m};
+  }
+  if(o.novo<o.atual-0.004){
+    let m;
+    if(o.papel==="traf")m=`Produto de tráfego: ${F("exp")?pc(o.idxMkt)+" acima do mercado":"ficar competitivo"}.`;
+    else if(F("exp"))m=`Está ${pc(o.idxMkt)} acima do mercado.`;
+    else if(F("cap"))m="Está acima do PMC permitido.";
+    else m="Preço acima do necessário pela regra.";
+    return {a:"baixar",t:`Baixar para R$ ${brl(o.novo)}`,m};
+  }
+  if(F("keep"))return {a:"manter",t:"Manter",m:`Preço atual já cobre o mínimo (cálculo daria R$ ${brl(o.sugerido)}).`};
+  if(F("exp"))return {a:"manter",t:"Manter",m:`Está ${pc(o.idxMkt)} acima do mercado. Considere marcar como tráfego.`};
+  return {a:"manter",t:"Manter",m:"Preço dentro da regra."};
+}
+/* `ignorar` = critério que não entra na conta (ex.: "cat" ao contar as opções da lista de categorias),
+   pra cada número dos filtros mostrar quantos produtos sobram escolhendo aquela opção, junto com os outros filtros. */
+const passaTipo=(o,v)=>!v||(v==="med"?o.cl.isMed:!o.cl.isMed);
+const passaMkt=(o,v)=>!v||(v==="exp"?o.flags.includes("exp"):v==="cheap"?o.flags.includes("cheap"):v==="ok"?isFinite(o.mref)&&!o.flags.includes("exp")&&!o.flags.includes("cheap"):!isFinite(o.mref));
+const passaCurva=(o,v)=>!v||(v==="none"?!o.dg:!!(o.dg&&o.dg.curva===v));
+const chaveGrupo=o=>norm(o.grupo)||"(SEM GRUPO)";
+function passesFilters(o,ignorar){
+  const f=state.fl;
+  if(ignorar!=="acao"&&state.acao&&o.ac.a!==state.acao)return false;
+  if(ignorar!=="tipo"&&!passaTipo(o,f.tipo))return false;
+  if(ignorar!=="papel"&&f.papel&&o.papel!==f.papel)return false;
+  if(ignorar!=="mkt"&&!passaMkt(o,f.mkt))return false;
+  if(ignorar!=="grupo"&&f.grupo&&chaveGrupo(o)!==f.grupo)return false;
+  if(ignorar!=="curva"&&!passaCurva(o,f.curva))return false;
+  if(ignorar!=="cat"&&f.cat&&o.cl.label!==f.cat)return false;
+  if(ignorar!=="lab"&&f.lab&&norm(o.fab)!==f.lab)return false;
+  if(state.q){const q=norm(state.q);if(!norm(o.desc+" "+o.codigo+" "+o.ean+" "+o.fab).includes(q))return false}
+  return true;
+}
+const impacto=o=>isFinite(o.novo)&&o.atual>0?(o.novo-o.atual)*(o.qtd>0?o.qtd:1):0;
+
+/* ================= Render: lote ================= */
+function renderMap(){
+  const g=$("mapGrid");g.innerHTML="";
+  FIELDS.forEach(f=>{
+    const l=document.createElement("label");l.textContent=f.nome;l.htmlFor="map_"+f.id;
+    const s=document.createElement("select");s.id="map_"+f.id;
+    s.innerHTML='<option value="-1">— não usar —</option>'+state.headers.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join("");
+    s.value=String(state.map[f.id]??-1);
+    s.onchange=()=>{state.map[f.id]=+s.value;if(f.id==="categoria"){autoCatMap();renderCatMap()}refresh();saveTrier()};
+    g.append(l,s);
+  });
+}
+function renderCatMap(){
+  const box=$("catMap");box.innerHTML="";const ci=state.map.categoria;
+  if(ci<0){box.innerHTML='<span class="hint">Escolha a coluna de grupo em “Colunas da planilha”.</span>';return}
+  const counts={};state.rows.forEach(r=>{const k=norm(r[ci])||"(SEM GRUPO)";counts[k]=(counts[k]||0)+1});
+  Object.keys(counts).sort().forEach((k,i)=>{
+    const sp=document.createElement("span");sp.textContent=k+" ("+counts[k]+")";
+    const s=document.createElement("select");s.id="cm_"+i;s.setAttribute("aria-label","Categoria de "+k);
+    s.innerHTML=CATS.map(c=>`<option value="${c.id}">${c.nome}${c.med?" (med.)":""}</option>`).join("");
+    s.value=cfg.catMap[k]||"out";s.onchange=()=>{cfg.catMap[k]=s.value;save();refresh()};
+    box.append(sp,s);
+  });
+}
+function renderCats(){
+  const box=$("cats");box.innerHTML='<span class="h">Categoria</span><span class="h">Markup %</span>';
+  CATS.forEach(c=>{
+    const n=document.createElement("span");n.textContent=c.nome;
+    const a=document.createElement("input");a.type="number";a.step="1";a.id="mk_"+c.id;a.value=cfg.cats[c.id];a.setAttribute("aria-label","Markup "+c.nome);
+    a.oninput=()=>{cfg.cats[c.id]=num(a.value)||0;save();refresh();renderSingle()};
+    box.append(n,a);
+  });
+}
+function renderControls(){
+  $("loja").value=cfg.loja||"";$("despesas").value=cfg.despesas;$("folga").value=cfg.folga;$("arred").value=cfg.arred;
+  ["travaPMC","naoBaixar","soAcima","usarMkt"].forEach(id=>$(id).checked=!!cfg[id]);
+  $("minVar").value=cfg.minVar;$("papelOn").checked=!!cfg.papelOn;$("trafPos").value=cfg.trafPos;$("trafMaxMk").value=cfg.trafMaxMk;$("margPP").value=cfg.margPP;$("margMaxAcima").value=cfg.margMaxAcima;$("trafKws").value=cfg.trafKws;$("margKws").value=cfg.margKws;$("mktRef").value=cfg.mktRef;$("mktTol").value=cfg.mktTol;$("mktPos").value=cfg.mktPos;
+}
+function searchLink(o){const q=o.ean&&o.ean.length>=8?o.ean:o.desc;return "https://www.google.com/search?tbm=shop&q="+encodeURIComponent(q)}
+/* ================= Colunas: ordem, minimizar e mudar de lugar ================= */
+/* Cada coluna sabe montar o próprio <td>. A ordem e quem está minimizado ficam salvos neste navegador. */
+function rowView(o){
+  const dv=o.atual>0&&o.novo>0?(o.novo-o.atual)/o.atual:NaN;
+  const extra=[];
+  if(o.flags.includes("cap"))extra.push('<span class="pill cap">Teto PMC</span>');
+  if(o.flags.includes("man"))extra.push('<span class="pill man">Manual</span>');
+  return {
+    dv,dcls:dv>0.0001?"up":dv<-0.0001?"down":"",
+    kindPill:o.cl.kind==="sugerido"?' <span class="pill sug">sugerido</span>':o.cl.kind==="ai"?' <span class="pill ai">IA</span>':"",
+    meta:[o.ean||o.codigo,o.fab,o.grupo,o.dg&&o.dg.curva?"curva "+o.dg.curva+" região":""].filter(Boolean).map(esc).join(" · "),
+    mk:o.ms?`${brl(o.mref)}<span class="sub">${o.flags.includes("exp")?"você "+pcs(o.idxMkt):o.flags.includes("cheap")?"você "+pcs(o.idxMkt):(o.ms.n===1&&o.dg&&o.dg.pm>0&&cfg.usarDsg?"média região":o.ms.n+" preço"+(o.ms.n>1?"s":""))}</span>`:`<span class="sub">—</span>`,
+    mcls:o.flags.includes("exp")?"exp":o.flags.includes("cheap")?"cheap":"",
+    extra:extra.join(" ")
+  };
+}
+const COLDEF={
+  produto:{t:"Produto",w:260,td:(o,v)=>`<td class="desc"><div class="d">${esc(o.desc||"(sem descrição)")}</div><div class="m"><span>${v.meta}</span><a href="${searchLink(o)}" target="_blank" rel="noopener">Pesquisar preço ↗</a></div></td>`},
+  todo:{t:"O que fazer",w:220,td:(o,v)=>`<td class="todo"><div class="t1 ${o.ac.a}">${esc(o.ac.t)}</div><div class="t2">${esc(o.ac.m)}</div>${v.extra}</td>`},
+  custo:{t:"Custo",num:true,td:o=>`<td class="num">${o.custo>0?brl(o.custo):"—"}</td>`},
+  atual:{t:"Atual",num:true,td:o=>`<td class="num">${o.atual>0?brl(o.atual):"—"}</td>`},
+  novo:{t:"Novo",num:true,td:o=>`<td class="num new"><input type="text" inputmode="decimal" data-k="${esc(o.key)}" value="${o.novo>0?brl(o.novo):""}" class="${o.flags.includes("man")?"edited":""}" aria-label="Preço novo de ${esc(o.desc)}"></td>`},
+  var:{t:"Var.",num:true,td:(o,v)=>`<td class="num delta ${v.dcls}">${isFinite(v.dv)?pcs(v.dv):"—"}</td>`},
+  mercado:{t:"Mercado",num:true,td:(o,v)=>`<td class="num mkt ${v.mcls}">${v.mk}</td>`},
+  markup:{t:"Markup",num:true,td:o=>`<td class="num">${pc(o.mkReal)}<span class="sub">mín. ${pc(o.mkMin,0)}</span></td>`},
+  papel:{t:"Papel",w:130,td:o=>`<td><select class="papel ${o.papel}" data-papel="${esc(o.key)}" aria-label="Papel de ${esc(o.desc)}" ${cfg.papelOn?"":"disabled"}>${[["traf","Tráfego"],["eq","Equilíbrio"],["marg","Margem"]].map(([x,t])=>`<option value="${x}"${o.papel===x?" selected":""}>${t}${o.papelAuto===x?" ·auto":""}</option>`).join("")}</select></td>`},
+  pmc:{t:"PMC",num:true,td:o=>`<td class="num">${o.pmc>0?brl(o.pmc):"—"}</td>`},
+  lucro:{t:"Lucro",num:true,td:o=>`<td class="num">${isFinite(o.lucro)?brl(o.lucro):"—"}<span class="sub">${pc(o.mgLiq)}</span></td>`},
+  pagar:{t:"Pagar até",num:true,td:o=>`<td class="num">${brl(o.pagarAte)}</td>`},
+  regra:{t:"Regra",w:190,td:(o,v)=>`<td class="rule"><div class="r1">${esc(o.cl.label)}${v.kindPill}</div><div class="r2">${esc(o.cl.detail)}</div></td>`}
+};
+/* Custo logo depois do produto e da ação: é o que se confere primeiro. */
+const COL_PADRAO=["produto","todo","custo","atual","novo","var","mercado","markup","papel","pmc","lucro","pagar","regra"];
+let COLCFG=lsGet("pdv_cols")||{};
+let COLMIN=new Set((COLCFG.min||[]).filter(id=>COLDEF[id]));
+function colOrder(){
+  const salvo=(COLCFG.order||[]).filter(id=>COLDEF[id]);
+  return salvo.concat(COL_PADRAO.filter(id=>!salvo.includes(id)));
+}
+function saveCols(){COLCFG={order:colOrder(),min:[...COLMIN]};lsSet("pdv_cols",COLCFG)}
+function setOrder(order){COLCFG.order=order;saveCols();renderHead();renderTable()}
+function moveCol(id,delta){const o=colOrder();const i=o.indexOf(id),j=i+delta;if(i<0||j<0||j>=o.length)return;o.splice(i,1);o.splice(j,0,id);setOrder(o)}
+function renderHead(){
+  const order=colOrder();
+  $("thead").innerHTML=order.map((id,i)=>{
+    const c=COLDEF[id];
+    if(COLMIN.has(id))return `<th class="colmin" data-col="${id}" draggable="true" title="Coluna ${c.t} minimizada"><button type="button" class="colbtn" data-colact="max" data-col="${id}" aria-label="Mostrar a coluna ${c.t}" title="Mostrar a coluna ${c.t}">+</button><span class="colv">${c.t}</span></th>`;
+    return `<th class="${c.num?"num":""}" data-col="${id}" draggable="true"><div class="colh"><span class="colt" title="Arraste para mudar a coluna de lugar">⠿ ${c.t}</span><span class="colacts"><button type="button" data-colact="left" data-col="${id}" aria-label="Mover ${c.t} para a esquerda" title="Mover para a esquerda"${i===0?" disabled":""}>◀</button><button type="button" data-colact="right" data-col="${id}" aria-label="Mover ${c.t} para a direita" title="Mover para a direita"${i===order.length-1?" disabled":""}>▶</button><button type="button" data-colact="min" data-col="${id}" aria-label="Minimizar a coluna ${c.t}" title="Minimizar a coluna">–</button></span></div></th>`;
+  }).join("");
+  // Largura mínima da tabela segue as colunas abertas (minimizada ocupa só uma faixa).
+  $("tbl").style.minWidth=order.reduce((t,id)=>t+(COLMIN.has(id)?30:(COLDEF[id].w||100)),0)+"px";
+}
+function renderTable(){
+  let list=computed.filter(o=>passesFilters(o));
+  const so=state.fl.sort;
+  const rank={revisar:0,subir:1,baixar:2,manter:3};
+  if(so==="imp")list.sort((a,b)=>rank[a.ac.a]-rank[b.ac.a]||Math.abs(impacto(b))-Math.abs(impacto(a)));
+  else if(so==="var")list.sort((a,b)=>Math.abs((b.novo-b.atual)/(b.atual||1))-Math.abs((a.novo-a.atual)/(a.atual||1)));
+  else if(so==="mkt")list.sort((a,b)=>(isFinite(b.idxMkt)?b.idxMkt:-9)-(isFinite(a.idxMkt)?a.idxMkt:-9));
+  else if(so==="cheap")list.sort((a,b)=>(isFinite(a.idxMkt)?a.idxMkt:9)-(isFinite(b.idxMkt)?b.idxMkt:9));
+  else list.sort((a,b)=>a.desc.localeCompare(b.desc,"pt-BR"));
+  state.visible=list;
+  const tb=$("tbody");
+  const labels={subir:"Aumentar preço",baixar:"Baixar preço",revisar:"Revisar",manter:"Manter"};
+  $("tLabel").textContent=state.acao?labels[state.acao]:"Todos os produtos";
+  if(!list.length){tb.innerHTML=`<tr><td colspan="${colOrder().length}"><div class="empty">${state.rows.length?"Nenhum produto com esses filtros.":"Importe a planilha do Trier para começar."}</div></td></tr>`;$("moreBox").hidden=true;$("countInfo").textContent="0 produtos";return}
+  const show=list.slice(0,state.limit);
+  const order=colOrder();
+  tb.innerHTML=show.map(o=>{
+    const v=rowView(o);
+    return `<tr class="${state.isExample?"example":""}">${order.map(id=>COLMIN.has(id)?'<td class="colmin" aria-hidden="true"></td>':COLDEF[id].td(o,v)).join("")}</tr>`;
+  }).join("");
+  $("moreBox").hidden=list.length<=state.limit;
+  $("countInfo").textContent=`${show.length.toLocaleString("pt-BR")} de ${list.length.toLocaleString("pt-BR")}`;
+}
+function fillSelect(id,items,cur,allLabel,total){
+  const el=$(id);
+  // A opção escolhida continua na lista mesmo se os outros filtros zerarem ela — senão o filtro "sumia" sozinho.
+  if(cur&&!items.some(x=>x[0]===cur))items=[[cur,{fCat:cur,fLab:cur,fGrupo:cur}[id],0]].concat(items);
+  el.innerHTML=`<option value="">${allLabel} (${total})</option>`+items.map(([v,t,n])=>`<option value="${esc(v)}">${esc(t)} (${n})</option>`).join("");
+  el.value=cur||"";
+}
+/* Opções fixas (tipo, papel, mercado, curva): mesmo texto de sempre + a contagem atual. */
+function contarFixo(id,chave,teste){
+  const base=computed.filter(o=>passesFilters(o,chave));
+  [...$(id).options].forEach(op=>{
+    if(!op.dataset.rot)op.dataset.rot=op.textContent;
+    const n=op.value?base.filter(o=>teste(o,op.value)).length:base.length;
+    op.textContent=`${op.dataset.rot} (${n.toLocaleString("pt-BR")})`;
+  });
+}
+function renderFilters(){
+  const contar=(chave,fn)=>{const c={},nome={};const base=computed.filter(o=>passesFilters(o,chave));base.forEach(o=>fn(o,c,nome));return {c,nome,total:base.length}};
+  const g=contar("grupo",(o,c,n)=>{const k=chaveGrupo(o);c[k]=(c[k]||0)+1;n[k]=o.grupo||"(sem grupo)"});
+  const ct=contar("cat",(o,c)=>{c[o.cl.label]=(c[o.cl.label]||0)+1});
+  const lb=contar("lab",(o,c,n)=>{if(o.fab){const k=norm(o.fab);c[k]=(c[k]||0)+1;n[k]=o.fab}});
+  const hasGrupo=state.map.categoria>=0;$("fGrupo").hidden=!hasGrupo;
+  if(hasGrupo)fillSelect("fGrupo",Object.keys(g.c).sort((a,b)=>a.localeCompare(b,"pt-BR")).map(k=>[k,g.nome[k],g.c[k]]),state.fl.grupo,"Todos os grupos",g.total);
+  fillSelect("fCat",Object.keys(ct.c).sort((a,b)=>a.localeCompare(b,"pt-BR")).map(k=>[k,k,ct.c[k]]),state.fl.cat,"Todas as categorias",ct.total);
+  fillSelect("fLab",Object.keys(lb.c).sort((a,b)=>lb.c[b]-lb.c[a]).slice(0,80).map(k=>[k,lb.nome[k],lb.c[k]]),state.fl.lab,"Todos os laboratórios",lb.total);
+  contarFixo("fTipo","tipo",passaTipo);
+  contarFixo("fPapel","papel",(o,v)=>o.papel===v);
+  contarFixo("fMkt","mkt",passaMkt);
+  contarFixo("fCurva","curva",passaCurva);
+  const f=state.fl;
+  $("fCurva").hidden=!DSG.n;
+  [["fTipo",f.tipo],["fPapel",f.papel],["fMkt",f.mkt],["fCurva",f.curva],["fGrupo",f.grupo],["fCat",f.cat],["fLab",f.lab]].forEach(([id,v])=>{$(id).value=v;$(id).classList.toggle("on",!!v)});
+  $("fSort").value=f.sort;
+  $("fClear").hidden=!(f.tipo||f.papel||f.mkt||f.curva||f.grupo||f.cat||f.lab||state.q||state.acao);
+}
+function renderSummary(){
+  computed.forEach(o=>o.ac=acao(o));
+  const hasQ=computed.some(o=>o.qtd>0);
+  ["subir","baixar","revisar","manter"].forEach(a=>{
+    const L=computed.filter(o=>o.ac.a===a&&passesFilters(o,"acao"));
+    $("a_"+a).textContent=L.length.toLocaleString("pt-BR");
+    let sub="";
+    if(a==="subir"||a==="baixar"){const v=L.reduce((t,o)=>t+impacto(o),0);sub=L.length?`${v>=0?"+":"−"}R$ ${brl(Math.abs(v))} ${hasQ?"no período":"por unidade"}`:""}
+    else if(a==="revisar"){const c={};L.forEach(o=>c[o.ac.t]=(c[o.ac.t]||0)+1);const top=Object.entries(c).sort((x,y)=>y[1]-x[1])[0];sub=top?`${top[1]} × ${top[0].toLowerCase()}`:""}
+    else sub=L.length?"preço já está certo":"";
+    $("ai_"+a).textContent=sub;
+  });
+  document.querySelectorAll(".act").forEach(b=>b.setAttribute("aria-pressed",b.dataset.a===state.acao));
+  $("exampleBanner").hidden=!state.isExample;
+  $("fileInfo").className="status"+(state.isExample?"":" ok");
+  $("fileInfo").innerHTML=state.isExample?"Mostrando produtos de exemplo.":`<b>${esc(state.fileName)}</b> · ${state.rows.length.toLocaleString("pt-BR")} linhas · salva neste navegador`;
+  $("btnTrierClear").hidden=state.isExample;
+  const nsug=computed.filter(o=>o.cl.kind==="sugerido"&&!o.cl.isMed).length;
+  $("aiInfo").textContent=nsug?`${nsug} produto(s) fora da tabela`:"Todos os produtos casaram com a tabela.";
+  $("btnAI").disabled=!nsug;
+  renderFilters();
+}
+function refresh(){compute();renderSummary();renderTable();renderBalance()}
+
+/* ================= Balanço de imagem de preço ================= */
+function balanceSums(){
+  let t=0,m=0,nt=0,nm=0;const hasQ=computed.some(o=>o.qtd>0);
+  computed.forEach(o=>{if(!isFinite(o.dLucro))return;if(o.papel==="traf"){t+=o.dLucro;nt++}else if(o.papel==="marg"){m+=o.dLucro;nm++}});
+  return {t,m,nt,nm,hasQ};
+}
+function renderBalance(){
+  const box=$("balance");
+  if(!cfg.papelOn){box.innerHTML='<span class="hint">Ative a precificação por papel para ver o balanço.</span>';return}
+  const b=balanceSums();const tot=b.t+b.m;
+  const per=b.hasQ?"no período da planilha":"por unidade (sem coluna de quantidade vendida)";
+  const cls=v=>v<-0.005?"neg":v>0.005?"pos":"";
+  box.innerHTML=`<div class="bl"><span>Tráfego · ${b.nt} itens</span><b class="${cls(b.t)}">${b.t>0?"+":""}R$ ${brl(b.t)}</b></div>
+    <div class="bl"><span>Margem · ${b.nm} itens</span><b class="${cls(b.m)}">${b.m>0?"+":""}R$ ${brl(b.m)}</b></div>
+    <div class="bl tot"><span>Saldo no lucro</span><b class="${cls(tot)}">${tot>0?"+":""}R$ ${brl(tot)}</b></div>
+    <p class="hint">Variação do lucro em relação aos preços de hoje, ${per}.${b.hasQ?"":" Inclua a quantidade vendida na planilha para um balanço real."}</p>
+    ${tot<-0.005&&b.nm?'<button type="button" class="small" id="btnComp">Compensar no grupo margem</button>':""}`;
+}
+function compensate(){
+  const orig=cfg.margPP;let lo=orig,hi=Math.max(orig,1),ok=false;
+  for(let i=0;i<8;i++){cfg.margPP=hi;compute();const b=balanceSums();if(b.t+b.m>=0){ok=true;break}lo=hi;hi*=2;if(hi>200)break}
+  if(!ok){cfg.margPP=orig;compute();toast("Os itens de margem não conseguem compensar sozinhos (teto do mercado ou PMC). Aumente o limite acima do mercado ou marque mais itens como margem.");refresh();return}
+  for(let i=0;i<20;i++){const mid=(lo+hi)/2;cfg.margPP=mid;compute();const b=balanceSums();if(b.t+b.m>=0)hi=mid;else lo=mid}
+  cfg.margPP=Math.ceil(hi);save();$("margPP").value=cfg.margPP;refresh();
+  toast(`Markup extra da margem ajustado para +${cfg.margPP} p.p.`);
+}
+
+/* ================= Render: regras ================= */
+function rulesSummary(){const nb=RULES.reduce((a,r)=>a+r.brands.length,0);$("rulesInfo").innerHTML=`<b>${RULES.length} categorias</b> · ${nb} marcas`}
+function renderRules(){
+  rulesSummary();
+  const q=norm($("ruleSearch").value);
+  const box=$("rules");box.innerHTML="";
+  RULES.forEach((r,ri)=>{
+    if(q&&!norm(r.cat+" "+r.brands.map(b=>b.nome).join(" ")).includes(q))return;
+    const vals=r.brands.map(b=>b.mk).concat(r.mk!=null?[r.mk]:[]);
+    const lo=Math.min(...vals),hi=Math.max(...vals);
+    const d=document.createElement("details");
+    d.innerHTML=`<summary><span>${esc(r.cat)}</span><span class="mk">${vals.length?(lo===hi?lo+"%":lo+"–"+hi+"%"):"—"}</span></summary>`;
+    const body=document.createElement("div");body.className="rbody";
+    body.innerHTML=`<label for="rk_${ri}">Palavras da categoria</label><input type="text" id="rk_${ri}" value="${esc(r.kws.join(", "))}">
+      <div class="row"><label for="rm_${ri}" style="font-size:12px;text-transform:none;letter-spacing:0;color:var(--ink)">Markup sem marca (%)</label><input type="number" id="rm_${ri}" value="${r.mk??""}" placeholder="—"></div>`;
+    body.querySelector("#rk_"+ri).onchange=e=>{r.kws=e.target.value.split(",").map(s=>s.trim()).filter(Boolean);saveRules();refresh();renderSingle();testRule()};
+    body.querySelector("#rm_"+ri).onchange=e=>{const v=num(e.target.value);r.mk=isFinite(v)?v:null;saveRules();renderRules();refresh();renderSingle()};
+    r.brands.forEach((b,bi)=>{
+      const row=document.createElement("div");row.className="brand-row";
+      row.innerHTML=`<input type="text" id="bn_${ri}_${bi}" value="${esc(b.nome)}" aria-label="Marca"><input type="number" id="bm_${ri}_${bi}" value="${b.mk}" aria-label="Markup de ${esc(b.nome)}"><button type="button" aria-label="Remover ${esc(b.nome)}">×</button>${b.demais?'<span class="kw hint">Vale para qualquer outra marca desta categoria.</span>':`<input type="text" class="kw" id="bk_${ri}_${bi}" value="${esc(b.kws.join(", "))}" aria-label="Palavras da marca ${esc(b.nome)}">`}`;
+      row.querySelector("#bn_"+ri+"_"+bi).onchange=e=>{b.nome=e.target.value.trim();b.demais=/^demais/i.test(b.nome);saveRules();renderRules()};
+      row.querySelector("#bm_"+ri+"_"+bi).onchange=e=>{b.mk=num(e.target.value)||0;saveRules();refresh();renderSingle()};
+      const kw=row.querySelector("#bk_"+ri+"_"+bi);if(kw)kw.onchange=e=>{b.kws=e.target.value.split(",").map(s=>s.trim()).filter(Boolean);saveRules();refresh();renderSingle();testRule()};
+      row.querySelector("button").onclick=()=>{r.brands.splice(bi,1);saveRules();renderRules();refresh()};
+      body.append(row);
+    });
+    const actions=document.createElement("div");actions.className="actions";
+    const add=document.createElement("button");add.type="button";add.className="small";add.textContent="Adicionar marca";
+    add.onclick=()=>{r.brands.push({nome:"Nova marca",kws:["NOVA MARCA"],mk:40,demais:false});saveRules();renderRules();box.querySelectorAll("details")[ri]?.setAttribute("open","")};
+    const del=document.createElement("button");del.type="button";del.className="small";del.textContent="Excluir categoria";
+    del.onclick=()=>{if(del.dataset.confirm){RULES.splice(ri,1);saveRules();renderRules();refresh()}else{del.dataset.confirm="1";del.textContent="Confirmar exclusão"}};
+    actions.append(add,del);body.append(actions);
+    d.append(body);box.append(d);
+  });
+  if(!box.children.length)box.innerHTML='<span class="hint" style="padding:8px">Nada encontrado.</span>';
+}
+function testRule(){
+  const v=$("ruleTest").value.trim();const out=$("ruleTestRes");
+  if(!v){out.textContent="";return}
+  const r=matchRule(v,"","");
+  out.innerHTML=r?`<b>${esc(r.cat)}</b> · ${esc(r.brand||"categoria")} · markup mínimo <b>${r.mk}%</b>${r.kind==="sugerido"?' <span class="pill sug">sugerido</span>':""}`:'<span class="pill sug">Fora da tabela</span> usa o markup padrão da categoria.';
+}
+
+/* ================= IA (sugestão de markup) ================= */
+let sampleFn=null;
+async function initCaps(){
+  try{if(window.claude&&window.claude.use){sampleFn=await window.claude.use("sample");if(sampleFn)$("aiRow").hidden=false}}catch(e){}
+}
+async function runAI(){
+  if(!sampleFn)return;
+  const items=computed.filter(o=>o.cl.kind==="sugerido"&&!o.cl.isMed&&!AISUG[norm(o.desc)]).slice(0,60);
+  if(!items.length){toast("Nada novo para sugerir.");return}
+  const btn=$("btnAI");btn.disabled=true;$("aiInfo").textContent=`Analisando ${items.length} produtos…`;
+  const tabela=RULES.map(r=>{const v=r.brands.map(b=>`${b.nome} ${b.mk}%`);if(r.mk!=null)v.unshift(`geral ${r.mk}%`);return `${r.cat}: ${v.join(", ")}`}).join("\n");
+  const lista=items.map((o,i)=>`${i}\t${o.desc}\t${o.fab||"-"}\t${o.grupo||"-"}\tcusto ${brl(o.custo)}`).join("\n");
+  const prompt=`Você ajuda a precificar produtos de farmácia no Brasil (não medicamentos). Abaixo está a tabela de MARKUP MÍNIMO da loja (markup sobre o custo) por categoria e marca, seguida de produtos que não casaram com a tabela.
+Para cada produto, escolha a categoria da tabela mais parecida (ou crie um nome curto de categoria se nenhuma servir) e sugira um markup mínimo coerente com a tabela: marcas líderes e itens de alto giro com markup menor, itens de impulso, acessórios e marcas pequenas com markup maior. Use valores inteiros entre 15 e 80.
+
+TABELA:
+${tabela}
+
+PRODUTOS (índice, descrição, fabricante, grupo, custo):
+${lista}
+
+Responda somente com JSON: uma lista de objetos {"i": índice, "categoria": "texto curto", "markup": número}.`;
+  try{
+    const res=await sampleFn.json(prompt,{modelTier:"default"});
+    const arr=Array.isArray(res)?res:(res&&Array.isArray(res.items)?res.items:[]);
+    let n=0;
+    arr.forEach(a=>{const o=items[+a.i];const mk=num(a.markup);if(o&&mk>0&&mk<300){AISUG[norm(o.desc)]={mk:Math.round(mk),cat:String(a.categoria||"").slice(0,40)};n++}});
+    lsSet("pdv_ai",AISUG);refresh();
+    toast(`${n} sugestões aplicadas. Revise na coluna Regra.`);
+  }catch(e){
+    if(e&&e.code==="not_granted"){$("aiRow").hidden=true;toast("A sugestão com IA não foi autorizada nesta página.")}
+    else if(e&&e.code==="rate_limited")toast("Muitas consultas seguidas. Tente de novo em alguns minutos.");
+    else toast("Não consegui gerar as sugestões agora. Tente de novo.");
+  }finally{btn.disabled=false;renderSummary()}
+}
+
+/* ================= Um produto ================= */
+let uModo="vender";
+function renderSingle(){
+  const sel=$("u_cat");
+  if(!sel.options.length)sel.innerHTML='<option value="auto">Automático</option>'+CATS.map(c=>`<option value="${c.id}">${c.nome}</option>`).join("");
+  $("f_custo").hidden=false;$("f_preco").querySelector("label").textContent=uModo==="vender"?"Preço atual (opcional)":"Preço de venda (R$)";
+  $("f_custo").querySelector("label").textContent=uModo==="vender"?"Custo de compra (R$)":"Custo oferecido (opcional)";
+  const desc=$("u_desc").value.trim(),ean=digits($("u_ean").value);
+  const custo=num($("u_custo").value),preco=num($("u_preco").value);
+  let mktP=num($("u_mkt").value);{const dg0=digits($("u_ean").value);const g0=dg0?DSG.byEan.get(dg0):null;if(!(mktP>0)&&g0&&g0.pm>0&&cfg.usarDsg)mktP=g0.pm}
+  const d=(cfg.despesas||0)/100;
+  let cl;
+  const forced=sel.value;
+  if(forced!=="auto"){const c=CATS.find(x=>x.id===forced);cl={isMed:c.med,catId:c.id,mk:cfg.cats[c.id],label:c.nome,detail:"categoria escolhida",kind:"padrao",cm:ean?CMED.byEan.get(ean):null};
+    if(!c.med&&desc){const r=matchRule(desc,"","");if(r&&r.kind==="tabela")cl={...cl,mk:r.mk,label:r.cat,detail:r.brand||"categoria",kind:"tabela"}}}
+  else cl=classify(desc,"","",ean);
+  const mkIn=num($("u_mk").value);
+  const mk=(isFinite(mkIn)?mkIn:cl.mk)/100;
+  $("u_mk").placeholder=`automático: ${cl.mk}%`;
+  const pmc=cmedPMC(cl.cm);
+  const udg=ean?DSG.byEan.get(ean):null;
+  if(udg&&udg.pm>0&&!$("u_mkt").value)$("u_mkt").placeholder="região: "+brl(udg.pm);else $("u_mkt").placeholder="opcional";
+  $("u_rule").innerHTML=(desc||ean)?`Regra: <b>${esc(cl.label)}</b> · ${esc(cl.detail)} · mínimo ${cl.mk}%${cl.kind==="sugerido"?" (sugerido, fora da tabela)":""}${cl.cm?` · CMED: ${esc(cl.cm.n)}`:""}`:"Digite a descrição para buscar o markup na tabela, ou o EAN para buscar o PMC na CMED.";
+  const out=$("u_out");
+  const legend=(items)=>`<div class="legend">${items.map(([k,v])=>`<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}</div>`;
+  const barH=(p,c)=>{const dd=p*d,l=p-c-dd;if(l>=0)return `<div class="bar" aria-hidden="true"><span class="c" style="width:${c/p*100}%"></span><span class="d" style="width:${dd/p*100}%"></span><span class="l" style="width:${l/p*100}%"></span></div><p class="hint">Cinza: custo · amarelo: custos sobre a venda · verde: lucro</p>`;return `<div class="bar" aria-hidden="true"><span class="c" style="width:${Math.min(100,c/p*100)}%"></span><span class="n" style="width:${Math.max(0,100-c/p*100)}%"></span></div>`};
+  if(uModo==="vender"){
+    if(!(custo>0)){out.innerHTML=`<div class="bigprice"><span class="lbl">Preço sugerido</span><span class="val">—</span><span class="note">Informe o custo de compra.</span></div>`;return}
+    let p=roundPrice(custo*(1+mk+(cfg.folga||0)/100));const alerts=[];
+    if(cfg.usarMkt&&mktP>0){p=roundPrice(Math.max(mktP*(1+(cfg.mktPos||0)/100),custo*(1+mk)));}
+    if(pmc>0&&p>pmc){p=Math.round(pmc*100)/100;alerts.push(`<div class="alert cap">Limitado ao PMC de R$ ${brl(pmc)} (${esc(cfg.cmedCol)}).</div>`)}
+    const lucro=p-custo-p*d,mkr=p/custo-1;
+    if(lucro<0)alerts.push(`<div class="alert crit">Prejuízo de R$ ${brl(-lucro)} por unidade depois dos custos sobre a venda.</div>`);
+    else if(mkr<mk-0.0005)alerts.push(`<div class="alert crit">Markup de ${pc(mkr)} fica abaixo do mínimo de ${pc(mk,0)}.</div>`);
+    if(mktP>0){const ix=p/mktP-1;alerts.push(`<div class="alert ${ix>cfg.mktTol/100?"crit":ix<-cfg.mktTol/100?"warn":"okay"}">${ix>cfg.mktTol/100?"Caro":ix<-cfg.mktTol/100?"Barato":"Alinhado"} em relação ao mercado: ${pcs(ix)} (mercado R$ ${brl(mktP)}).</div>`)}
+    if(preco>0){const v=p/preco-1;alerts.push(`<div class="alert ${Math.abs(v)<0.005?"okay":"warn"}">Preço atual R$ ${brl(preco)} → sugerido ${pcs(v)}.</div>`)}
+    out.innerHTML=`<div class="bigprice"><span class="lbl">Preço sugerido</span><span class="val">R$ ${brl(p)}</span><span class="note">markup ${pc(mkr)} sobre o custo</span></div>
+      ${barH(p,custo)}
+      ${legend([["Custo","R$ "+brl(custo)],["Custos s/ venda ("+cfg.despesas+"%)","R$ "+brl(p*d)],["Lucro por unidade","R$ "+brl(lucro)],["Margem líquida",pc(lucro/p)],["Preço mínimo (markup "+pc(mk,0)+")","R$ "+brl(roundPrice(custo*(1+mk)))],["PMC",pmc>0?"R$ "+brl(pmc):"—"]])}
+      ${alerts.join("")}`;
+  }else{
+    const base=preco>0?preco:(pmc>0?pmc:mktP>0?mktP:NaN);
+    if(!(base>0)){out.innerHTML=`<div class="bigprice"><span class="lbl">Pagar no máximo</span><span class="val">—</span><span class="note">Informe o preço de venda${CMED.n?", o EAN para usar o PMC":""} ou o preço do mercado.</span></div>`;return}
+    const origem=preco>0?"preço informado":pmc>0?"PMC":"preço do mercado";
+    const maxC=base/(1+mk),equil=base*(1-d);const alerts=[];
+    if(custo>0){
+      if(custo<=maxC)alerts.push(`<div class="alert okay">Pode comprar. O custo de R$ ${brl(custo)} rende markup de ${pc(base/custo-1)}.</div>`);
+      else if(custo<=equil)alerts.push(`<div class="alert warn">Abaixo do mínimo. Com custo de R$ ${brl(custo)} o markup fica em ${pc(base/custo-1)}. Negocie até R$ ${brl(maxC)}.</div>`);
+      else alerts.push(`<div class="alert crit">Prejuízo. Com custo de R$ ${brl(custo)} você perde R$ ${brl(custo-equil)} por unidade.</div>`);
+    }
+    out.innerHTML=`<div class="bigprice"><span class="lbl">Pagar no máximo</span><span class="val">R$ ${brl(maxC)}</span><span class="note">para vender a R$ ${brl(base)} (${origem}) com markup de ${pc(mk,0)}</span></div>
+      ${legend([["Preço de venda","R$ "+brl(base)],["Custo máximo","R$ "+brl(maxC)],["Ponto de equilíbrio","R$ "+brl(equil)],["Lucro no custo máximo","R$ "+brl(base-maxC-base*d)],["PMC",pmc>0?"R$ "+brl(pmc):"—"],["Mercado",mktP>0?"R$ "+brl(mktP):"—"]])}
+      <p class="hint">Ponto de equilíbrio: acima desse custo a venda dá prejuízo depois dos custos sobre a venda (${cfg.despesas}%).</p>
+      ${alerts.join("")}`;
+  }
+}
+
+/* ================= Exportação ================= */
+function csvCell(v){v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+const n2=v=>isFinite(v)&&v!==0?brl(v):"";
+const p1=v=>isFinite(v)?(v*100).toFixed(1).replace(".",","):"";
+function buildCSV(all,filtered){
+  const rows=(filtered?state.visible:computed).filter(o=>all||changed(o));
+  const head=all?["codigo","ean","descricao","grupo","regra","detalhe_regra","markup_minimo_pct","custo","pmc","mercado_ref","mercado_min","mercado_max","indice_mercado_pct","preco_atual","preco_novo","markup_real_pct","lucro_unit","margem_liquida_pct","pagar_ate","papel","o_que_fazer","motivo","situacao"]:["codigo","ean","descricao","preco_atual","preco_novo"];
+  const lines=[head.join(";")];
+  rows.forEach(o=>{
+    const base=all?[o.codigo,o.ean,o.desc,o.grupo,o.cl.label,o.cl.detail,p1(o.mkMin),n2(o.custo),n2(o.pmc),n2(o.mref),o.ms?n2(o.ms.min):"",o.ms?n2(o.ms.max):"",p1(o.idxMkt),n2(o.atual),n2(o.novo),p1(o.mkReal),isFinite(o.lucro)?brl(o.lucro):"",p1(o.mgLiq),n2(o.pagarAte),{traf:"trafego",eq:"equilibrio",marg:"margem"}[o.papel],o.ac?o.ac.t:"",o.ac?o.ac.m:"",o.flags.join(",")]
+      :[o.codigo,o.ean,o.desc,n2(o.atual),brl(o.novo)];
+    lines.push(base.map(csvCell).join(";"));
+  });
+  return {text:"﻿"+lines.join("\r\n"),n:rows.length};
+}
+let dlCap=null;
+async function offer(filename,text,label){
+  try{
+    if(!dlCap&&window.claude&&window.claude.use)dlCap=await window.claude.use("downloads");
+    if(dlCap){await dlCap.save({filename,data:text});toast(label);return}
+  }catch(e){if(e&&e.code==="declined"){toast("Download cancelado.");return}}
+  if(window.top===window||!window.claude){try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/plain;charset=utf-8"}));a.download=filename;document.body.append(a);a.click();a.remove();toast(label);return}catch(e){}}
+  $("copyText").value=text;$("copyBox").hidden=false;$("copyBox").scrollIntoView({block:"nearest"});
+}
+const stamp=()=>{const d=new Date();return d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")};
+const slug=()=>(cfg.loja||"loja").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/gi,"-").toLowerCase().replace(/^-|-$/g,"")||"loja";
+
+/* ================= Exemplo ================= */
+const EX=[
+ ["10231","7896004700014","LOSARTANA POTASSICA 50MG 30CP","GENERICOS","EMS",4.12,14.99,28.50,[11.90,12.49,9.99],120],
+ ["10232","7896714200011","DIPIRONA 500MG 10CP","GENERICOS","MEDLEY",1.85,5.49,8.90,[4.99,5.29,4.79],300],
+ ["20410","7891058001155","DORFLEX 36CP","OTC","SANOFI",11.90,21.99,25.30,[22.90,23.49,21.90],80],
+ ["30188","7896261013820","PURAN T4 50MCG 30CP","ETICO REFERENCIA","SANOFI",9.85,15.99,14.60,[13.90,14.29],60],
+ ["40077","7896181901124","OMEPRAZOL 20MG 28CAP","SIMILARES","CIMED",3.90,12.99,22.40,[17.90,19.99,18.49],90],
+ ["50310","7891010031510","PROTETOR SOLAR SUNDOWN FPS50 200ML","PERFUMARIA","JOHNSON",38.20,69.90,"",[59.90,62.90,57.99],15],
+ ["50402","7891150020012","SHAMPOO SEDA CERAMIDAS 325ML","PERFUMARIA","UNILEVER",9.40,12.49,"",[13.99,14.49,13.79],40],
+ ["50411","7891024134702","DESOD AER REXONA CLINICAL 150ML","PERFUMARIA","UNILEVER",13.10,19.90,"",[21.90,22.99],35],
+ ["50518","7500435125482","FRALDA PAMPERS CONFORT SEC G 30UN","HIGIENE INFANTIL","P&G",48.60,54.90,"",[56.90,59.90,54.99],70],
+ ["50601","7891000061190","LEITE NINHO FASES 1+ 800G","NUTRICAO","NESTLE",42.30,48.90,"",[52.90,54.49],45],
+ ["50702","7891350030118","ESMALTE RISQUE VERMELHO 8ML","PERFUMARIA","COTY",2.95,4.99,"",[4.29,4.49],60],
+ ["50803","7891172422101","COTONETE CREMER 75UN","HIGIENE","CREMER",2.10,3.29,"",[3.99,4.29],50],
+ ["50904","7896007540112","LENCO UMEDECIDO HUGGIES 48UN","HIGIENE INFANTIL","KIMBERLY",7.80,10.99,"",[11.49,12.90],40],
+ ["51005","7896022208311","PRESERVATIVO JONTEX LUBRIFICADO 3UN","CONVENIENCIA","RECKITT",4.70,8.99,"",[7.49,7.99,6.99],25],
+ ["51106","7898040320012","VELA AROMATICA LAVANDA","CONVENIENCIA","",11.00,"","",[],4],
+ ["51207","7896015530218","TESTE DE GRAVIDEZ CONFIRME 1UN","CORRELATOS","CIFARMA",5.20,12.90,"",[13.90,15.49],30],
+ ["51308","7896658002116","NEOSALDINA 30DRG","OTC","TAKEDA",17.40,32.90,38.40,[29.90,31.49],55],
+ ["60001","7898040329991","TERMOMETRO DIGITAL","CORRELATOS","G-TECH",9.70,"","",[19.90,22.90],6]
+];
+function loadExample(){
+  state.headers=["Código","EAN","Descrição","Grupo","Fabricante","Custo","Preço Venda","PMC","Qtd Vendida"];
+  state.rows=EX.map(r=>r.slice(0,8).concat([r[9]||""]));state.isExample=true;state.fileName="";state.overrides={};
+  state.map=autoMap(state.headers);autoCatMap();
+  MKT={byEan:new Map(),byCod:new Map(),comps:["Drogasil","Pague Menos","Concorrente do bairro"],file:"",isExample:true};
+  EX.forEach(r=>{if(r[8].length)MKT.byEan.set(digits(r[1]),{prices:r[8]})});
+}
+
+/* ================= Eventos ================= */
+function bindDrop(id,input,fn){
+  const el=$(id);
+  ["dragenter","dragover"].forEach(t=>el.addEventListener(t,e=>{e.preventDefault();el.classList.add("over")}));
+  ["dragleave","drop"].forEach(t=>el.addEventListener(t,e=>{e.preventDefault();el.classList.remove("over")}));
+  el.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(f)fn(f)});
+  $(input).onchange=e=>{const f=e.target.files[0];e.target.value="";if(f)fn(f)};
+}
+bindDrop("drop","file",handleFile);
+bindDrop("dropMkt","fileMkt",handleMkt);
+bindDrop("dropCmed","fileCmed",handleCmed);
+bindDrop("dropDsg","fileDsg",handleDsg);
+$("usarDsg").onchange=e=>{cfg.usarDsg=e.target.checked;save();refresh()};
+$("curvaTraf").onchange=e=>{cfg.curvaTraf=e.target.checked;save();refresh()};
+$("fileRules").onchange=e=>{const f=e.target.files[0];e.target.value="";if(f)handleRulesFile(f)};
+$("loja").oninput=e=>{cfg.loja=e.target.value;save()};
+const numCfg=(id,key)=>$(id).oninput=e=>{cfg[key]=num(e.target.value)||0;save();refresh();renderSingle()};
+numCfg("despesas","despesas");numCfg("folga","folga");numCfg("minVar","minVar");numCfg("mktTol","mktTol");
+$("mktPos").oninput=e=>{const v=num(e.target.value);cfg.mktPos=isFinite(v)?v:0;save();refresh();renderSingle()};
+$("papelOn").onchange=e=>{cfg.papelOn=e.target.checked;save();refresh()};
+["trafPos","trafMaxMk","margPP","margMaxAcima"].forEach(id=>$(id).oninput=e=>{const v=num(e.target.value);cfg[id]=isFinite(v)?v:0;save();refresh()});
+["trafKws","margKws"].forEach(id=>$(id).onchange=e=>{cfg[id]=e.target.value;save();refresh()});
+$("tbody").addEventListener("change",e=>{const t=e.target;if(!t.dataset.papel)return;const o=computed.find(x=>x.key===t.dataset.papel);if(o&&t.value===o.papelAuto)delete ROLES[t.dataset.papel];else ROLES[t.dataset.papel]=t.value;lsSet("pdv_roles",ROLES);refresh()});
+$("balance").addEventListener("click",e=>{if(e.target.id==="btnComp")compensate()});
+$("arred").onchange=e=>{cfg.arred=e.target.value;save();refresh();renderSingle()};
+$("mktRef").onchange=e=>{cfg.mktRef=e.target.value;save();refresh()};
+["travaPMC","naoBaixar","soAcima","usarMkt"].forEach(id=>$(id).onchange=e=>{cfg[id]=e.target.checked;save();refresh();renderSingle()});
+$("cmedCol").onchange=e=>{cfg.cmedCol=e.target.value;save();refresh();renderSingle()};
+document.querySelectorAll(".act").forEach(b=>b.onclick=()=>{state.acao=state.acao===b.dataset.a?"":b.dataset.a;state.limit=200;renderSummary();renderTable()});
+$("busca").oninput=e=>{state.q=e.target.value;state.limit=200;renderSummary();renderTable()};
+[["fTipo","tipo"],["fPapel","papel"],["fMkt","mkt"],["fCurva","curva"],["fGrupo","grupo"],["fCat","cat"],["fLab","lab"],["fSort","sort"]].forEach(([id,k])=>$(id).onchange=e=>{state.fl[k]=e.target.value;state.limit=200;renderSummary();renderTable()});
+$("fClear").onclick=()=>{state.fl={tipo:"",papel:"",mkt:"",curva:"",grupo:"",cat:"",lab:"",sort:state.fl.sort};state.acao="";state.q="";$("busca").value="";state.limit=200;renderSummary();renderTable()};
+$("thead").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-colact]");if(!b||b.disabled)return;
+  const id=b.dataset.col,act=b.dataset.colact;
+  if(act==="min"){COLMIN.add(id);saveCols();renderHead();renderTable()}
+  else if(act==="max"){COLMIN.delete(id);saveCols();renderHead();renderTable()}
+  else if(act==="left")moveCol(id,-1);
+  else if(act==="right")moveCol(id,1);
+});
+/* Arrastar o cabeçalho: solta antes da coluna de destino (ou depois, se soltar na metade direita). */
+let colArrastada=null;
+$("thead").addEventListener("dragstart",e=>{const th=e.target.closest("th[data-col]");if(!th)return;colArrastada=th.dataset.col;th.classList.add("dragging");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain",colArrastada)}catch(_){}});
+$("thead").addEventListener("dragend",()=>{colArrastada=null;document.querySelectorAll("#thead th").forEach(t=>t.classList.remove("dragging","dragover"))});
+$("thead").addEventListener("dragover",e=>{const th=e.target.closest("th[data-col]");if(!th||!colArrastada)return;e.preventDefault();document.querySelectorAll("#thead th.dragover").forEach(t=>t!==th&&t.classList.remove("dragover"));th.classList.add("dragover")});
+$("thead").addEventListener("drop",e=>{
+  const th=e.target.closest("th[data-col]");if(!th||!colArrastada)return;e.preventDefault();
+  const alvo=th.dataset.col;if(alvo===colArrastada)return;
+  const r=th.getBoundingClientRect();const depois=e.clientX>r.left+r.width/2;
+  const o=colOrder().filter(id=>id!==colArrastada);let j=o.indexOf(alvo)+(depois?1:0);o.splice(j,0,colArrastada);
+  colArrastada=null;setOrder(o);
+});
+$("colReset").onclick=()=>{COLCFG={};COLMIN=new Set();lsSet("pdv_cols",COLCFG);renderHead();renderTable();toast("Colunas restauradas.")};
+$("btnTrierClear").onclick=e=>{
+  const b=e.target;
+  if(!b.dataset.confirm){b.dataset.confirm="1";b.textContent="Confirmar: remover a planilha";return}
+  delete b.dataset.confirm;b.textContent="Remover planilha salva";
+  idbDel("trier");idbDel("mkt");loadExample();renderAll();toast("Planilha removida. Mostrando os produtos de exemplo.");
+};
+$("btnMore").onclick=()=>{state.limit+=300;renderTable()};
+$("tbody").addEventListener("change",e=>{
+  const t=e.target;if(!t.dataset.k)return;const v=num(t.value);
+  if(t.value.trim()==="")delete state.overrides[t.dataset.k];else if(v>0)state.overrides[t.dataset.k]=Math.round(v*100)/100;else toast("Digite um preço válido, como 12,99.");
+  refresh();saveTrier();
+});
+$("btnExport").onclick=()=>{compute();const {text,n}=buildCSV(false);if(!n){toast("Nenhum preço mudou.");return}offer(`precos-trier-${slug()}-${stamp()}.csv`,text,n+" preços exportados.")};
+$("btnExportAll").onclick=()=>{refresh();const {text,n}=buildCSV(true,true);offer(`analise-precos-${slug()}-${stamp()}.csv`,text,n+" produtos exportados.")};
+$("btnColeta").onclick=()=>{
+  compute();
+  const rows=computed.slice().sort((a,b)=>(b.atual||0)-(a.atual||0));
+  const lines=["ean;codigo;descricao;nosso_preco;Concorrente 1;Concorrente 2;Concorrente 3"];
+  rows.forEach(o=>lines.push([o.ean,o.codigo,o.desc,n2(o.atual),"","",""].map(csvCell).join(";")));
+  offer(`coleta-precos-${slug()}-${stamp()}.csv`,"﻿"+lines.join("\r\n"),"Planilha de coleta gerada. Renomeie as colunas com o nome de cada concorrente.");
+};
+$("btnMktClear").onclick=()=>{MKT={byEan:new Map(),byCod:new Map(),comps:[],file:"",isExample:false};idbDel("mkt");renderMkt();refresh()};
+$("cfgExport").onclick=()=>offer(`config-preco-${slug()}.json`,JSON.stringify({cfg,rules:RULES},null,2),"Configuração exportada.");
+$("cfgFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;try{const o=JSON.parse(await f.text());const c=o.cfg||o;cfg=Object.assign(structuredClone(DEF),c);cfg.cats=Object.assign(structuredClone(DEF.cats),c.cats||{});if(Array.isArray(o.rules))RULES=o.rules;save();saveRules();autoCatMap();renderAll();toast("Configuração importada.")}catch(err){toast("Esse arquivo não é uma configuração válida.")}};
+$("btnCopy").onclick=async()=>{const ta=$("copyText");try{await navigator.clipboard.writeText(ta.value);toast("Copiado.")}catch(e){ta.select();toast("Texto selecionado. Use copiar do seu teclado.")}};
+$("btnCloseCopy").onclick=()=>{$("copyBox").hidden=true};
+$("ruleSearch").oninput=renderRules;
+$("ruleTest").oninput=testRule;
+$("ruleAdd").onclick=()=>{RULES.unshift({cat:"Nova categoria",kws:["PALAVRA"],mk:40,brandOnly:false,prio:false,brands:[]});saveRules();$("ruleSearch").value="";renderRules();const d=$("rules").querySelector("details");if(d)d.open=true};
+$("ruleReset").onclick=e=>{const b=e.target;if(b.dataset.confirm){RULES=DEFAULT_RULES();saveRules();renderRules();refresh();renderSingle();b.textContent="Restaurar padrão";delete b.dataset.confirm;toast("Tabela padrão restaurada.")}else{b.dataset.confirm="1";b.textContent="Confirmar: apagar alterações"}};
+$("btnAI").onclick=runAI;
+function setTab(t){
+  $("tabLote").setAttribute("aria-selected",t==="lote");$("tabUm").setAttribute("aria-selected",t==="um");
+  $("viewLote").hidden=t!=="lote";$("viewUm").hidden=t!=="um";$("topActions").hidden=t!=="lote";
+  if(t==="um")renderSingle();
+}
+$("tabLote").onclick=()=>setTab("lote");$("tabUm").onclick=()=>setTab("um");
+document.querySelectorAll("#segModo button").forEach(b=>b.onclick=()=>{uModo=b.dataset.v;document.querySelectorAll("#segModo button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderSingle()});
+["u_desc","u_ean","u_custo","u_preco","u_mk","u_mkt"].forEach(id=>$(id).oninput=renderSingle);
+$("u_cat").onchange=renderSingle;
+
+function renderAll(){renderHead();renderCats();renderControls();renderMap();renderCatMap();renderRules();renderMkt();renderCmed();renderDsg();refresh()}
+
+/* ================= Painel recolhível ================= */
+function makeAccordion(){
+  document.querySelectorAll("aside.panel > .sec").forEach((sec,i)=>{
+    const h=sec.querySelector(":scope > h2");if(!h)return;
+    const d=document.createElement("details");d.className="sec";if(i===0)d.open=true;
+    const sm=document.createElement("summary");sm.append(h);
+    const body=document.createElement("div");body.className="secb";
+    while(sec.firstChild)body.append(sec.firstChild);
+    d.append(sm,body);sec.replaceWith(d);
+  });
+}
+makeAccordion();
+/* ================= Painel lateral recolhível ================= */
+function setPainelRecolhido(rec){$("gridMain").classList.toggle("painel-recolhido",rec);lsSet("pdv_painel_recolhido",rec)}
+$("painelRecolher").onclick=()=>setPainelRecolhido(true);
+$("painelAbrir").onclick=()=>setPainelRecolhido(false);
+if(lsGet("pdv_painel_recolhido"))setPainelRecolhido(true);
+/* ================= Início ================= */
+loadExample();renderAll();
+Promise.all([idbGet("trier"),idbGet("mkt")]).then(([t,m])=>{
+  let mudou=false;
+  if(t&&Array.isArray(t.rows)&&t.rows.length){
+    state.headers=t.headers;state.rows=t.rows;state.map=t.map;state.fileName=t.fileName;state.overrides=t.overrides||{};
+    state.isExample=false;state.limit=200;
+    // Os preços de mercado do exemplo só valem pros produtos de exemplo.
+    if(MKT.isExample)MKT={byEan:new Map(),byCod:new Map(),comps:[],file:"",isExample:false};
+    autoCatMap();mudou=true;
+  }
+  if(m&&Array.isArray(m.comps)&&m.comps.length){MKT={byEan:new Map(m.byEan),byCod:new Map(m.byCod),comps:m.comps,file:m.file,isExample:false};mudou=true}
+  if(mudou)renderAll();
+});
+$("u_desc").value="SHAMPOO SEDA CERAMIDAS 325ML";$("u_custo").value="9,40";renderSingle();
+idbGet("dsg").then(o=>{if(o&&o.list){dsgFromStored(o);renderDsg();refresh()}});
+idbGet("cmed").then(o=>{if(o&&o.list){cmedFromStored(o);renderCmed();refresh();renderSingle()}});
+initCaps();
+})();
+</script>
+
+</body>
+</html>
