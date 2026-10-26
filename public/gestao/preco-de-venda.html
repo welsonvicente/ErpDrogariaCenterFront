@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Preço de Venda</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -9,6 +10,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 html,body{margin:0}
+/* Sempre no tema claro (verde-claro do PharmaMind), mesmo com o computador no modo escuro. */
+:root{color-scheme:light}
 [hidden]{display:none!important}
 img{max-width:100%}
 
@@ -164,7 +167,16 @@ select.papel.marg{color:var(--accent);border-color:var(--accent)}
 /* Colunas da tabela: minimizar (–/+), mudar de lugar (arrastar o cabeçalho ou ◀ ▶) */
 th .colh{display:flex;flex-direction:column;gap:4px}
 th.num .colh{align-items:flex-end}
-th .colt{cursor:grab;user-select:none}
+th .colt{cursor:grab;user-select:none;text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:var(--muted)}
+th .colt{cursor:pointer}
+th[data-ord] .colt{color:var(--accent)}
+th[data-ord="asc"] .colt::after{content:" ▲"}
+th[data-ord="desc"] .colt::after{content:" ▼"}
+th.colmin[data-ord] .colv{color:var(--accent)}
+/* Balão que explica a coluna ao passar o mouse no título */
+.coltip{position:fixed;z-index:50;max-width:300px;padding:10px 12px;border-radius:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.14);font-size:12.5px;font-weight:400;line-height:1.45;text-transform:none;letter-spacing:0;white-space:normal;pointer-events:none}
+.coltip b{display:block;margin-bottom:3px;color:var(--accent);font-size:13px}
+.coltip .ex{display:block;margin-top:6px;color:var(--muted);font-size:11.5px}
 th .colacts{display:inline-flex;gap:2px}
 th .colacts button,th .colbtn{padding:0 5px;font-size:11px;line-height:16px;min-width:18px;border-radius:4px;justify-content:center;font-weight:700}
 th .colacts button:disabled{opacity:.35;cursor:default}
@@ -254,6 +266,7 @@ textarea.copy{width:100%;height:140px;font-family:var(--f-num);font-size:12px;ba
 
     <div class="filters" id="filters">
       <input id="busca" type="search" placeholder="Buscar produto, EAN ou laboratório" aria-label="Buscar">
+      <select id="fAcao" aria-label="O que fazer"><option value="">O que fazer: todos</option><option value="subir">Aumentar preço</option><option value="baixar">Baixar preço</option><option value="revisar">Revisar</option><option value="manter">Manter</option></select>
       <select id="fTipo" aria-label="Tipo"><option value="">Todos os tipos</option><option value="med">Medicamentos</option><option value="nmed">Não medicamentos</option></select>
       <select id="fPapel" aria-label="Papel"><option value="">Todos os papéis</option><option value="traf">Tráfego</option><option value="eq">Equilíbrio</option><option value="marg">Margem</option></select>
       <select id="fMkt" aria-label="Mercado"><option value="">Mercado: todos</option><option value="exp">Caro vs mercado</option><option value="cheap">Barato vs mercado</option><option value="ok">Alinhado ao mercado</option><option value="none">Sem preço de mercado</option></select>
@@ -1200,6 +1213,46 @@ const COLDEF={
   pagar:{t:"Pagar até",num:true,td:o=>`<td class="num">${brl(o.pagarAte)}</td>`},
   regra:{t:"Regra",w:190,td:(o,v)=>`<td class="rule"><div class="r1">${esc(o.cl.label)}${v.kindPill}</div><div class="r2">${esc(o.cl.detail)}</div></td>`}
 };
+/* Explicação de cada coluna, mostrada ao passar o mouse no título. */
+const COLDICA={
+  produto:"Nome do produto como está no Trier. Embaixo: EAN ou código e o laboratório. O link \"Pesquisar preço\" abre uma busca na internet para conferir o preço dos concorrentes.",
+  todo:"Recomendação do sistema: Aumentar preço, Baixar preço, Revisar (precisa da sua decisão, ex.: negociar o custo) ou Manter. Embaixo vem o motivo.",
+  custo:"Quanto você paga no produto, conforme a planilha do Trier.",
+  atual:"Preço de venda de hoje, cadastrado no Trier.",
+  novo:"Preço sugerido pelo sistema. Clique e digite para usar outro preço (fica destacado). Apague o campo para voltar ao sugerido.",
+  var:"Quanto o preço novo muda em relação ao atual. Positivo = aumento; negativo = redução.",
+  mercado:"Preço de referência dos concorrentes (média, menor ou mediana, conforme a configuração \"Referência do mercado\"). Embaixo: quantos preços foram encontrados, ou quanto você está acima/abaixo quando passa da tolerância.",
+  markup:"Markup com o preço novo: quanto o preço está acima do custo. Embaixo: o markup mínimo que a regra do produto exige.",
+  papel:"Tráfego: produto que o cliente compara o preço — fica perto do mercado. Equilíbrio: regra normal da categoria. Margem: cliente pesquisa pouco — preço com mais lucro. \"·auto\" marca o que o sistema escolheu; você pode trocar.",
+  pmc:"Preço Máximo ao Consumidor (tabela CMED/Anvisa). Medicamento não pode ser vendido acima dele.",
+  lucro:"Lucro por unidade com o preço novo, já descontando o custo e as despesas da loja (% configurado). Embaixo: margem líquida — quanto do preço sobra de lucro.",
+  pagar:"Custo máximo que você pode pagar ao fornecedor e ainda manter o markup mínimo com o preço novo. Use para negociar a compra.",
+  regra:"De onde veio o markup mínimo: tabela de medicamentos, categoria, sugestão da DSG ou da IA, ou o padrão da categoria. Embaixo: o detalhe da regra.",
+};
+const COLEX={
+  custo:"Ex.: custo R$ 10,00.",
+  markup:"Ex.: custo R$ 10,00 e preço R$ 14,00 = markup de 40%.",
+  var:"Ex.: de R$ 10,00 para R$ 11,00 = +10%.",
+  lucro:"Ex.: preço R$ 14,00, custo R$ 10,00 e despesas de 10% (R$ 1,40) = lucro de R$ 2,60, margem de 18,6%.",
+  pagar:"Ex.: preço R$ 14,00 e markup mínimo de 40% = pagar até R$ 10,00.",
+};
+/* Clique no título ordena pela coluna. Sem valor (—) vai sempre pro fim. */
+const COLORD={
+  produto:o=>o.desc||"",
+  todo:o=>({revisar:0,subir:1,baixar:2,manter:3})[o.ac.a],
+  custo:o=>o.custo>0?o.custo:NaN,
+  atual:o=>o.atual>0?o.atual:NaN,
+  novo:o=>o.novo>0?o.novo:NaN,
+  var:o=>o.atual>0&&o.novo>0?o.novo/o.atual-1:NaN,
+  mercado:o=>o.idxMkt,
+  markup:o=>o.mkReal,
+  papel:o=>({traf:0,eq:1,marg:2})[o.papel],
+  pmc:o=>o.pmc>0?o.pmc:NaN,
+  lucro:o=>o.lucro,
+  pagar:o=>o.pagarAte,
+  regra:o=>o.cl.label||"",
+};
+const ORD_DICA={mercado:"Ordena pela diferença em % entre o seu preço e o mercado (\"você +8%\").",todo:"Ordena na sequência: Revisar, Aumentar, Baixar, Manter.",papel:"Ordena na sequência: Tráfego, Equilíbrio, Margem."};
 /* Custo logo depois do produto e da ação: é o que se confere primeiro. */
 const COL_PADRAO=["produto","todo","custo","atual","novo","var","mercado","markup","papel","pmc","lucro","pagar","regra"];
 let COLCFG=lsGet("pdv_cols")||{};
@@ -1215,11 +1268,44 @@ function renderHead(){
   const order=colOrder();
   $("thead").innerHTML=order.map((id,i)=>{
     const c=COLDEF[id];
-    if(COLMIN.has(id))return `<th class="colmin" data-col="${id}" draggable="true" title="Coluna ${c.t} minimizada"><button type="button" class="colbtn" data-colact="max" data-col="${id}" aria-label="Mostrar a coluna ${c.t}" title="Mostrar a coluna ${c.t}">+</button><span class="colv">${c.t}</span></th>`;
-    return `<th class="${c.num?"num":""}" data-col="${id}" draggable="true"><div class="colh"><span class="colt" title="Arraste para mudar a coluna de lugar">⠿ ${c.t}</span><span class="colacts"><button type="button" data-colact="left" data-col="${id}" aria-label="Mover ${c.t} para a esquerda" title="Mover para a esquerda"${i===0?" disabled":""}>◀</button><button type="button" data-colact="right" data-col="${id}" aria-label="Mover ${c.t} para a direita" title="Mover para a direita"${i===order.length-1?" disabled":""}>▶</button><button type="button" data-colact="min" data-col="${id}" aria-label="Minimizar a coluna ${c.t}" title="Minimizar a coluna">–</button></span></div></th>`;
+    if(COLMIN.has(id))return `<th class="colmin" data-col="${id}" draggable="true" data-dica="${id}"><button type="button" class="colbtn" data-colact="max" data-col="${id}" aria-label="Mostrar a coluna ${c.t}" title="Mostrar a coluna ${c.t}">+</button><span class="colv">${c.t}</span></th>`;
+    return `<th class="${c.num?"num":""}" data-col="${id}" draggable="true"><div class="colh"><span class="colt" data-dica="${id}">⠿ ${c.t}</span><span class="colacts"><button type="button" data-colact="left" data-col="${id}" aria-label="Mover ${c.t} para a esquerda" title="Mover para a esquerda"${i===0?" disabled":""}>◀</button><button type="button" data-colact="right" data-col="${id}" aria-label="Mover ${c.t} para a direita" title="Mover para a direita"${i===order.length-1?" disabled":""}>▶</button><button type="button" data-colact="min" data-col="${id}" aria-label="Minimizar a coluna ${c.t}" title="Minimizar a coluna">–</button></span></div></th>`;
   }).join("");
   // Largura mínima da tabela segue as colunas abertas (minimizada ocupa só uma faixa).
   $("tbl").style.minWidth=order.reduce((t,id)=>t+(COLMIN.has(id)?30:(COLDEF[id].w||100)),0)+"px";
+}
+/* Balão de explicação das colunas: aparece ao passar o mouse (ou focar) no título. */
+const colTip=document.createElement("div");colTip.className="coltip";colTip.hidden=true;colTip.setAttribute("role","tooltip");document.body.appendChild(colTip);
+function mostrarDica(el){
+  const id=el.dataset.dica,c=COLDEF[id];if(!c||!COLDICA[id])return;
+  const min=COLMIN.has(id);
+  colTip.innerHTML=`<b>${esc(c.t)}</b>${esc(COLDICA[id])}${COLEX[id]?`<span class="ex">${esc(COLEX[id])}</span>`:""}${ORD_DICA[id]?`<span class="ex">${esc(ORD_DICA[id])}</span>`:""}<span class="ex">${min?"Clique no nome para ordenar · no + para mostrar a coluna.":"Clique no título para ordenar (de novo inverte, a 3ª vez desliga) · arraste para mudar de lugar."}</span>`;
+  colTip.hidden=false;
+  const r=el.getBoundingClientRect(),w=colTip.offsetWidth,h=colTip.offsetHeight;
+  let x=Math.min(Math.max(8,r.left),innerWidth-w-8),y=r.bottom+8;
+  if(y+h>innerHeight-8)y=Math.max(8,r.top-h-8);
+  colTip.style.left=x+"px";colTip.style.top=y+"px";
+}
+$("thead").addEventListener("mouseover",e=>{const el=e.target.closest("[data-dica]");if(el)mostrarDica(el)});
+$("thead").addEventListener("mouseout",e=>{const el=e.target.closest("[data-dica]");if(el&&!el.contains(e.relatedTarget))colTip.hidden=true});
+$("thead").addEventListener("dragstart",()=>{colTip.hidden=true});
+addEventListener("scroll",()=>{colTip.hidden=true},true);
+function marcarOrdem(){
+  const so=state.fl.sort,[,id,dir]=so.startsWith("col:")?so.split(":"):[];
+  document.querySelectorAll("#thead th[data-col]").forEach(th=>{if(th.dataset.col===id)th.dataset.ord=dir;else delete th.dataset.ord});
+  const sel=$("fSort");let op=sel.querySelector("option[data-colord]");
+  if(id){
+    if(!op){op=document.createElement("option");op.dataset.colord="1";sel.appendChild(op)}
+    const txt=id==="produto"||id==="regra";
+    op.value=so;op.textContent=`Coluna ${COLDEF[id].t}: ${dir==="desc"?(txt?"Z → A":"maior → menor"):(txt?"A → Z":"menor → maior")}`;
+  }else if(op)op.remove();
+  sel.value=so;
+}
+function ordenarPorColuna(id){
+  const so=state.fl.sort,atual=so.startsWith("col:"+id+":")?so.split(":")[2]:"";
+  // 1º clique: menor → maior (A → Z) · 2º: maior → menor · 3º: volta para "maior impacto no lucro".
+  state.fl.sort=atual===""?`col:${id}:asc`:atual==="asc"?`col:${id}:desc`:"imp";
+  state.limit=200;renderTable();
 }
 function renderTable(){
   let list=computed.filter(o=>passesFilters(o));
@@ -1229,7 +1315,13 @@ function renderTable(){
   else if(so==="var")list.sort((a,b)=>Math.abs((b.novo-b.atual)/(b.atual||1))-Math.abs((a.novo-a.atual)/(a.atual||1)));
   else if(so==="mkt")list.sort((a,b)=>(isFinite(b.idxMkt)?b.idxMkt:-9)-(isFinite(a.idxMkt)?a.idxMkt:-9));
   else if(so==="cheap")list.sort((a,b)=>(isFinite(a.idxMkt)?a.idxMkt:9)-(isFinite(b.idxMkt)?b.idxMkt:9));
+  else if(so.startsWith("col:")){
+    const [,id,dir]=so.split(":"),val=COLORD[id],sinal=dir==="desc"?-1:1;
+    const vazio=v=>v===undefined||v===null||(typeof v==="number"&&!isFinite(v));
+    list.sort((a,b)=>{const x=val(a),y=val(b),vx=vazio(x),vy=vazio(y);if(vx||vy)return vx-vy;return (typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*sinal||a.desc.localeCompare(b.desc,"pt-BR")});
+  }
   else list.sort((a,b)=>a.desc.localeCompare(b.desc,"pt-BR"));
+  marcarOrdem();
   state.visible=list;
   const tb=$("tbody");
   const labels={subir:"Aumentar preço",baixar:"Baixar preço",revisar:"Revisar",manter:"Manter"};
@@ -1273,6 +1365,8 @@ function renderFilters(){
   contarFixo("fPapel","papel",(o,v)=>o.papel===v);
   contarFixo("fMkt","mkt",passaMkt);
   contarFixo("fCurva","curva",passaCurva);
+  contarFixo("fAcao","acao",(o,v)=>o.ac.a===v);
+  $("fAcao").value=state.acao;$("fAcao").classList.toggle("on",!!state.acao);
   const f=state.fl;
   $("fCurva").hidden=!DSG.n;
   [["fTipo",f.tipo],["fPapel",f.papel],["fMkt",f.mkt],["fCurva",f.curva],["fGrupo",f.grupo],["fCat",f.cat],["fLab",f.lab]].forEach(([id,v])=>{$(id).value=v;$(id).classList.toggle("on",!!v)});
@@ -1550,11 +1644,13 @@ $("arred").onchange=e=>{cfg.arred=e.target.value;save();refresh();renderSingle()
 $("mktRef").onchange=e=>{cfg.mktRef=e.target.value;save();refresh()};
 ["travaPMC","naoBaixar","soAcima","usarMkt"].forEach(id=>$(id).onchange=e=>{cfg[id]=e.target.checked;save();refresh();renderSingle()});
 $("cmedCol").onchange=e=>{cfg.cmedCol=e.target.value;save();refresh();renderSingle()};
+$("fAcao").onchange=e=>{state.acao=e.target.value;state.limit=200;renderSummary();renderTable()};
 document.querySelectorAll(".act").forEach(b=>b.onclick=()=>{state.acao=state.acao===b.dataset.a?"":b.dataset.a;state.limit=200;renderSummary();renderTable()});
 $("busca").oninput=e=>{state.q=e.target.value;state.limit=200;renderSummary();renderTable()};
 [["fTipo","tipo"],["fPapel","papel"],["fMkt","mkt"],["fCurva","curva"],["fGrupo","grupo"],["fCat","cat"],["fLab","lab"],["fSort","sort"]].forEach(([id,k])=>$(id).onchange=e=>{state.fl[k]=e.target.value;state.limit=200;renderSummary();renderTable()});
 $("fClear").onclick=()=>{state.fl={tipo:"",papel:"",mkt:"",curva:"",grupo:"",cat:"",lab:"",sort:state.fl.sort};state.acao="";state.q="";$("busca").value="";state.limit=200;renderSummary();renderTable()};
 $("thead").addEventListener("click",e=>{
+  const t=e.target.closest(".colt,th.colmin .colv");if(t){ordenarPorColuna(t.closest("th").dataset.col);return}
   const b=e.target.closest("button[data-colact]");if(!b||b.disabled)return;
   const id=b.dataset.col,act=b.dataset.colact;
   if(act==="min"){COLMIN.add(id);saveCols();renderHead();renderTable()}
