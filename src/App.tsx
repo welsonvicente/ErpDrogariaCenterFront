@@ -15,6 +15,7 @@ import { ManagerDashboardPage } from './pages/ManagerDashboardPage';
 import { ManagerFuncionariosPage } from './pages/ManagerFuncionariosPage';
 import { ManagerLoginPage } from './pages/ManagerLoginPage';
 import { ManagerPrecoVendaPage } from './pages/ManagerPrecoVendaPage';
+import { ManagerCalendarioComprasPage } from './pages/ManagerCalendarioComprasPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { OrganizationRequiredPage } from './pages/OrganizationRequiredPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -142,6 +143,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <ManagerPrecoVendaPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* Gestão — calendário de compras (ferramenta estática embutida, dados no servidor). */}
+          <Route
+            path="gerente/calendario-compras"
+            element={
+              <ProtectedRoute>
+                <ManagerCalendarioComprasPage />
               </ProtectedRoute>
             }
           />
