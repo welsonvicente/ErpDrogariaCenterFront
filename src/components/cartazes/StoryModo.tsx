@@ -2,9 +2,13 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AjustarEnquadramentoModal } from '../AjustarEnquadramentoModal';
 import { CameraModal } from '../CameraModal';
 import { ElementoStoryEditavel, type GuiasAlinhamentoStory } from '../ElementoStoryEditavel';
-import { blobDeImagem, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
+import { blobDeImagem, carregarImagemDeArquivo, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
+import { carregarFundoDoServidor, enviarFundoParaServidor, type FundoNoServidor } from '../../utils/fundoNoServidor';
+import { RecortarProdutoModal } from './RecortarProdutoModal';
+import { copiarRecorteParaProjeto, guardarRecorteNaBiblioteca } from '../../utils/bibliotecaRecortes';
 import {
   ALTURA_STORY,
+  CAIXA_PRODUTO_PADRAO_STORY,
   LARGURA_STORY,
   calcularCaixasStory,
   carregarFontesCartaz,
@@ -22,6 +26,7 @@ import {
 } from '../../utils/cartazEngine';
 import {
   carregarConfiguracoes,
+  chaveDescricaoProduto,
   EVENTO_PREFERENCIAS_SINCRONIZADAS,
   carregarImagemDeDataUrl,
   carregarProdutosRecentes,
@@ -52,7 +57,7 @@ interface Guia {
   largura?: number;
 }
 
-type ElementoStory = 'nome' | 'preco' | 'frases' | 'imagemExtra';
+type ElementoStory = 'nome' | 'preco' | 'frases' | 'imagemExtra' | 'produto';
 
 /** Formato de `estadoEditor` salvo no projeto — nome/preço/enquadramento/fotos do produto em andamento (equivalente ao antigo `RascunhoStory`, agora com referências ao R2 em vez de base64). */
 interface EstadoEditorStory {
@@ -63,6 +68,8 @@ interface EstadoEditorStory {
   imagemArquivoId: string | null;
   imagemExtraArquivoId: string | null;
   imagemExtraCaixa: CaixaStory | null;
+  /** Foto de antes do recorte (no projeto) — "Voltar à foto original" funciona em qualquer dia/aparelho. */
+  fotoOriginalArquivoId?: string | null;
 }
 
 /**
@@ -80,6 +87,7 @@ export function StoryModo() {
   const frameRef = useRef<HTMLDivElement>(null);
   const inputArquivoRef = useRef<HTMLInputElement>(null);
   const inputImagemExtraRef = useRef<HTMLInputElement>(null);
+  const inputFundoPersonalizadoRef = useRef<HTMLInputElement>(null);
 
   // ---- Projeto ativo -------------------------------------------------------
   const [projetoAtivo, setProjetoAtivo] = useState<ProjetoCartazCompleto | null>(null);
@@ -99,6 +107,17 @@ export function StoryModo() {
   const [enviandoImagemExtra, setEnviandoImagemExtra] = useState(false);
 
   const [transformImagem, setTransformImagem] = useState<TransformImagem>(TRANSFORM_PADRAO);
+
+  // Opção "fundo personalizado": fundo (no R2) atrás, produto recortado na frente. Desligada = story de sempre.
+  const [fundoPersonalizadoAtivo, setFundoPersonalizadoAtivo] = useState(false);
+  const [fundoPersonalizado, setFundoPersonalizado] = useState<FundoNoServidor | null>(null);
+  const [imagemFundoPersonalizado, setImagemFundoPersonalizado] = useState<HTMLImageElement | null>(null);
+  const [produtoCaixa, setProdutoCaixa] = useState<CaixaStory | null>(null);
+  const [enviandoFundoPersonalizado, setEnviandoFundoPersonalizado] = useState(false);
+  const fundoPersonalizadoMostradoRef = useRef<string | null | undefined>(undefined);
+  const [recorteAberto, setRecorteAberto] = useState(false);
+  /** Quando a foto atual é um recorte: a original, guardada no projeto (ver EstadoEditorStory). */
+  const [fotoOriginalArquivoId, setFotoOriginalArquivoId] = useState<string | null>(null);
   const [carregandoImagem, setCarregandoImagem] = useState(false);
   const [cameraAberta, setCameraAberta] = useState(false);
   const [ajusteAberto, setAjusteAberto] = useState(false);
@@ -186,6 +205,9 @@ export function StoryModo() {
       if (config.fontePreco) setFontePreco(config.fontePreco);
       if (config.fonteFrases) setFonteFrases(config.fonteFrases);
       if (config.corFundoPreco) setCorFundoPreco(config.corFundoPreco);
+      if (config.fundoPersonalizadoAtivo !== undefined) setFundoPersonalizadoAtivo(config.fundoPersonalizadoAtivo);
+      if (config.fundoPersonalizado !== undefined) setFundoPersonalizado(config.fundoPersonalizado);
+      if (config.produtoCaixa !== undefined) setProdutoCaixa(config.produtoCaixa);
     }
     aplicarConfiguracoes();
     window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aplicarConfiguracoes);
@@ -214,8 +236,31 @@ export function StoryModo() {
       fontePreco,
       fonteFrases,
       corFundoPreco,
+      fundoPersonalizadoAtivo,
+      fundoPersonalizado,
+      produtoCaixa,
     });
-  }, [corLogo, corTextoNome, corPreco, tamanhoNome, tamanhoPreco, margemNome, margemPreco, frasesAtivo, frases, corFundoFrases, corTextoFrases, tamanhoFrases, margemFrases, guiaNome, guiaPreco, guiaFrases, fonteNome, fontePreco, fonteFrases, corFundoPreco]);
+  }, [corLogo, corTextoNome, corPreco, tamanhoNome, tamanhoPreco, margemNome, margemPreco, frasesAtivo, frases, corFundoFrases, corTextoFrases, tamanhoFrases, margemFrases, guiaNome, guiaPreco, guiaFrases, fonteNome, fontePreco, fonteFrases, corFundoPreco, fundoPersonalizadoAtivo, fundoPersonalizado, produtoCaixa]);
+
+  // Fundo personalizado salvo no servidor: baixa quando muda (ao abrir, ou trocado em outro aparelho).
+  useEffect(() => {
+    const id = fundoPersonalizado?.arquivoId ?? null;
+    if (id && fundoPersonalizadoMostradoRef.current === id) return;
+    if (!id) {
+      fundoPersonalizadoMostradoRef.current = null;
+      setImagemFundoPersonalizado(null);
+      return;
+    }
+    let cancelado = false;
+    carregarFundoDoServidor(id)
+      .then((img) => {
+        if (cancelado) return;
+        fundoPersonalizadoMostradoRef.current = id;
+        setImagemFundoPersonalizado(img);
+      })
+      .catch(() => { if (!cancelado) setToast('Não foi possível baixar o fundo personalizado do story.'); });
+    return () => { cancelado = true; };
+  }, [fundoPersonalizado?.arquivoId]);
 
   useEffect(() => {
     let cancelado = false;
@@ -244,6 +289,7 @@ export function StoryModo() {
     setDe(estado.de || '');
     setPor(estado.por || '');
     setTransformImagem(estado.transform || TRANSFORM_PADRAO);
+    setFotoOriginalArquivoId(estado.fotoOriginalArquivoId || null);
     setImagemExtraCaixa(estado.imagemExtraCaixa || null);
     setImagemArquivoId(estado.imagemArquivoId || null);
     setImagemExtraArquivoId(estado.imagemExtraArquivoId || null);
@@ -359,8 +405,8 @@ export function StoryModo() {
   // `persistirEstadoImediato` pra montar o PATCH com os valores mais atuais
   // mesmo quando chamado de dentro de um callback assíncrono (upload), onde
   // o closure da função poderia estar com um valor antigo (stale).
-  const estadoEditorRef = useRef<EstadoEditorStory>({ nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa });
-  estadoEditorRef.current = { nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa };
+  const estadoEditorRef = useRef<EstadoEditorStory>({ nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa, fotoOriginalArquivoId });
+  estadoEditorRef.current = { nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa, fotoOriginalArquivoId };
 
   const debounceAutosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [salvandoPendente, setSalvandoPendente] = useState(false);
@@ -395,7 +441,7 @@ export function StoryModo() {
     setSalvandoPendente(true);
     debounceAutosaveRef.current = setTimeout(() => {
       debounceAutosaveRef.current = null;
-      const estadoEditor: EstadoEditorStory = { nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa };
+      const estadoEditor: EstadoEditorStory = { nome, de, por, transform: transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa, fotoOriginalArquivoId };
       projetoCartazService
         .salvarEstadoEditor(projetoAtivo.id, estadoEditor as unknown as Record<string, unknown>)
         .catch((erro) => setToast(mensagemFalhaAoSalvar(erro)))
@@ -404,7 +450,7 @@ export function StoryModo() {
     return () => {
       if (debounceAutosaveRef.current) clearTimeout(debounceAutosaveRef.current);
     };
-  }, [prontoParaPersistir, projetoAtivo, nome, de, por, transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa]);
+  }, [prontoParaPersistir, projetoAtivo, nome, de, por, transformImagem, imagemArquivoId, imagemExtraArquivoId, imagemExtraCaixa, fotoOriginalArquivoId]);
 
   // A logomarca (já no R2) + posição do Story viram o padrão dos stories de
   // cada produto do Panfleto. Só grava quando existe logo: abrir um projeto
@@ -471,6 +517,8 @@ export function StoryModo() {
       fontePreco,
       fonteFrases,
       corFundoPreco,
+      fundoPersonalizado: fundoPersonalizadoAtivo ? imagemFundoPersonalizado : null,
+      produtoCaixa,
     };
     pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, parametros);
     const proximasCaixas = calcularCaixasStory(ctx, LARGURA_STORY, parametros);
@@ -510,6 +558,9 @@ export function StoryModo() {
     fonteFrases,
     corFundoPreco,
     versaoFontes,
+    fundoPersonalizadoAtivo,
+    imagemFundoPersonalizado,
+    produtoCaixa,
   ]);
 
   useEffect(() => {
@@ -535,6 +586,7 @@ export function StoryModo() {
       setGuiaFrases({ y: 560, offsetX: 0 });
       setTamanhoFrases(32);
     }
+    if (elementoSelecionado === 'produto') setProdutoCaixa(null);
     if (elementoSelecionado === 'imagemExtra' && imagemExtra) {
       const largura = 240;
       const altura = Math.max(80, Math.round(largura * ((imagemExtra.naturalHeight || imagemExtra.height) / (imagemExtra.naturalWidth || imagemExtra.width))));
@@ -605,6 +657,7 @@ export function StoryModo() {
   }
 
   async function definirImagemNova(imagemNova: HTMLImageElement, blob: Blob, mimeType: string, transform: TransformImagem = TRANSFORM_PADRAO) {
+    setFotoOriginalArquivoId(null);
     setImagem(imagemNova);
     setTransformImagem(transform);
     await enviarFotoProduto(blob, mimeType);
@@ -622,6 +675,67 @@ export function StoryModo() {
       setToast('Não foi possível ler essa foto. Tente outra.');
     } finally {
       setCarregandoImagem(false);
+    }
+  }
+
+  async function handleEscolherFundoPersonalizado(event: ChangeEvent<HTMLInputElement>) {
+    const arquivo = event.target.files?.[0];
+    event.target.value = '';
+    if (!arquivo) return;
+    setEnviandoFundoPersonalizado(true);
+    try {
+      // Mostra na hora e envia pro servidor — o fundo passa a valer em todos os aparelhos da conta.
+      const img = await carregarImagemDeArquivo(arquivo);
+      setImagemFundoPersonalizado(img);
+      setFundoPersonalizadoAtivo(true);
+      const arquivoId = await enviarFundoParaServidor(img, LARGURA_STORY);
+      fundoPersonalizadoMostradoRef.current = arquivoId;
+      setFundoPersonalizado({ nome: arquivo.name, arquivoId });
+    } catch {
+      setToast('Não foi possível salvar esse fundo no servidor. Confira a conexão e tente de novo.');
+    } finally {
+      setEnviandoFundoPersonalizado(false);
+    }
+  }
+
+  /**
+   * O recorte vira a foto do produto: o PNG vai pra biblioteca de recortes (ligado ao nome do
+   * produto) e uma cópia entra no projeto. A foto original fica guardada pra poder voltar.
+   */
+  async function handleRecorteSalvo(recorte: { imagem: HTMLImageElement; blob: Blob }) {
+    if (!projetoAtivo) return;
+    const original = fotoOriginalArquivoId ?? imagemArquivoId;
+    setImagem(recorte.imagem);
+    setTransformImagem(TRANSFORM_PADRAO);
+    if (!fundoPersonalizadoAtivo && imagemFundoPersonalizado) setFundoPersonalizadoAtivo(true);
+    setEnviandoImagem(true);
+    setErroEnvioImagem(false);
+    try {
+      const bibliotecaId = await guardarRecorteNaBiblioteca(recorte.blob, nome.trim() ? chaveDescricaoProduto(nome.trim()) : null);
+      const copia = await copiarRecorteParaProjeto(bibliotecaId, projetoAtivo.id);
+      setImagemArquivoId(copia.arquivoId);
+      setFotoOriginalArquivoId(original);
+      persistirEstadoImediato({ imagemArquivoId: copia.arquivoId, fotoOriginalArquivoId: original, transform: TRANSFORM_PADRAO });
+    } catch {
+      // Falhou a biblioteca/cópia: ao menos guarda o recorte no projeto (o "Tentar de novo" reenvia).
+      setFotoOriginalArquivoId(original);
+      await enviarFotoProduto(recorte.blob, 'image/png');
+    } finally {
+      setEnviandoImagem(false);
+    }
+  }
+
+  async function handleVoltarFotoOriginal() {
+    if (!fotoOriginalArquivoId) return;
+    try {
+      const img = await carregarFundoDoServidor(fotoOriginalArquivoId);
+      setImagem(img);
+      setTransformImagem(TRANSFORM_PADRAO);
+      setImagemArquivoId(fotoOriginalArquivoId);
+      setFotoOriginalArquivoId(null);
+      persistirEstadoImediato({ imagemArquivoId: fotoOriginalArquivoId, fotoOriginalArquivoId: null, transform: TRANSFORM_PADRAO });
+    } catch {
+      setToast('Não consegui baixar a foto original. Tente de novo.');
     }
   }
 
@@ -656,6 +770,7 @@ export function StoryModo() {
     }
     try {
       const img = await carregarImagemDeDataUrl(url);
+      setFotoOriginalArquivoId(null);
       setImagem(img);
       setTransformImagem(TRANSFORM_PADRAO);
       setNome(produto.name || '');
@@ -851,6 +966,46 @@ export function StoryModo() {
               </div>
               <input ref={inputImagemExtraRef} type="file" accept="image/png" style={{ display: 'none' }} onChange={handleEscolherImagemExtra} />
             </div>
+            <div className="story-fundo-personalizado">
+              <div>
+                <strong>🎨 Fundo personalizado <small>(opcional)</small></strong>
+                <span>Sua imagem de fundo atrás e o produto recortado na frente. Desligado, o story fica como sempre. Vale também para os stories dos produtos do Panfleto.</span>
+              </div>
+              <label className="cartaz-checkbox" style={{ margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={fundoPersonalizadoAtivo}
+                  onChange={(e) => {
+                    setFundoPersonalizadoAtivo(e.target.checked);
+                    if (!e.target.checked && elementoSelecionado === 'produto') setElementoSelecionado(null);
+                  }}
+                />{' '}
+                Usar fundo personalizado
+              </label>
+              <div className="story-fundo-personalizado-acoes">
+                <button type="button" className="btn-ghost" disabled={enviandoFundoPersonalizado} onClick={() => inputFundoPersonalizadoRef.current?.click()}>
+                  🖼️ {enviandoFundoPersonalizado ? 'Enviando fundo…' : imagemFundoPersonalizado ? 'Trocar fundo' : 'Escolher fundo'}
+                </button>
+                {fundoPersonalizado && (
+                  <button type="button" className="btn-ghost" disabled={enviandoFundoPersonalizado} onClick={() => { setFundoPersonalizado(null); setFundoPersonalizadoAtivo(false); }}>
+                    Remover fundo
+                  </button>
+                )}
+                <button type="button" className="btn-ghost" disabled={!imagem || enviandoImagem} onClick={() => setRecorteAberto(true)} title="A IA tira o fundo e a mão da foto, deixando só o produto">
+                  ✂️ Tirar fundo da foto
+                </button>
+                {fotoOriginalArquivoId && (
+                  <button type="button" className="btn-ghost" disabled={enviandoImagem} onClick={() => void handleVoltarFotoOriginal()}>↶ Voltar à foto original</button>
+                )}
+                {fundoPersonalizadoAtivo && produtoCaixa && (
+                  <button type="button" className="btn-ghost" onClick={() => setProdutoCaixa(null)}>↺ Produto no lugar padrão</button>
+                )}
+              </div>
+              {fundoPersonalizadoAtivo && imagemFundoPersonalizado && (
+                <p className="footnote" style={{ textAlign: 'left', margin: 0 }}>Na prévia, clique no produto para mover ou mudar o tamanho.</p>
+              )}
+              <input ref={inputFundoPersonalizadoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEscolherFundoPersonalizado} />
+            </div>
             <p className="footnote" style={{ textAlign: 'left', margin: '-4px 0 14px' }}>
               Preencha os dados e ajuste a arte diretamente na prévia.
             </p>
@@ -913,7 +1068,7 @@ export function StoryModo() {
                 <div className="cartaz-ajuste-contextual-head">
                   <div>
                     <span>Ajustando na prévia</span>
-                    <strong>{elementoSelecionado === 'nome' ? 'Nome do produto' : elementoSelecionado === 'preco' ? 'Oferta (De / Por)' : elementoSelecionado === 'frases' ? 'Frases extras' : 'Logomarca ou selo'}</strong>
+                    <strong>{elementoSelecionado === 'nome' ? 'Nome do produto' : elementoSelecionado === 'preco' ? 'Oferta (De / Por)' : elementoSelecionado === 'frases' ? 'Frases extras' : elementoSelecionado === 'produto' ? 'Foto do produto' : 'Logomarca ou selo'}</strong>
                   </div>
                   <button type="button" className="btn-ghost" onClick={resetarElementoSelecionado}>Redefinir</button>
                 </div>
@@ -1007,6 +1162,22 @@ export function StoryModo() {
                       </div>
                     </div>
                   )}
+                {fundoPersonalizadoAtivo && imagemFundoPersonalizado && imagem && (
+                  <ElementoStoryEditavel
+                    frameRef={frameRef}
+                    caixa={produtoCaixa ?? CAIXA_PRODUTO_PADRAO_STORY}
+                    selecionado={elementoSelecionado === 'produto'}
+                    descricao="Foto do produto"
+                    tamanho={1}
+                    tamanhoMinimo={1}
+                    tamanhoMaximo={1}
+                    controlaTipografia={false}
+                    caixasVizinhas={[caixasPreview.nome, caixasPreview.preco, caixasPreview.frases, caixasPreview.imagemExtra].filter((caixa): caixa is CaixaStory => caixa !== null)}
+                    onSelecionar={() => setElementoSelecionado('produto')}
+                    onGuiasAlinhadas={setGuiasAlinhamento}
+                    onAlterar={(caixa) => setProdutoCaixa({ ...caixa, larguraMinima: 160, alturaMinima: 160 })}
+                  />
+                )}
                 <ElementoStoryEditavel
                   frameRef={frameRef}
                   caixa={caixasPreview.nome}
@@ -1097,6 +1268,15 @@ export function StoryModo() {
           { y: guiaFrases.y, offsetX: guiaFrases.offsetX, margem: margemFrases, visivel: frasesAtivo, corClasse: 'faixa-arrasto--frases', rotulo: 'FRASES' },
         ]}
       />
+
+      {recorteAberto && imagem && (
+        <RecortarProdutoModal
+          imagem={imagem}
+          titulo={nome.trim() || undefined}
+          onSalvar={handleRecorteSalvo}
+          onFechar={() => setRecorteAberto(false)}
+        />
+      )}
 
       {ajusteAberto && (
         <AjustarEnquadramentoModal

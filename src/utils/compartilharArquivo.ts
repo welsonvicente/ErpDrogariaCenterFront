@@ -32,6 +32,18 @@ export async function baixarArquivoDireto(conteudo: string | Blob, nomeArquivo: 
 }
 
 /**
+ * Salva vários arquivos direto na pasta de Downloads, um por um (sem folha de
+ * compartilhar e sem .zip). O intervalo evita o navegador descartar downloads
+ * seguidos — na primeira vez o Chrome pergunta se pode baixar vários arquivos.
+ */
+export async function baixarVariosDireto(itens: { conteudo: string | Blob; nomeArquivo: string; mime: string }[]) {
+  for (const [i, item] of itens.entries()) {
+    if (i > 0) await new Promise((resolve) => setTimeout(resolve, 350));
+    baixarPorLink(await paraArquivo(item.conteudo, item.nomeArquivo, item.mime));
+  }
+}
+
+/**
  * "Baixa" ou compartilha um arquivo — no iPhone (Safari/Chrome-iOS), o
  * atributo `download` do `<a>` é ignorado, então clicar no link simplesmente
  * não baixa nada. A Web Share API (passando o arquivo) é o jeito confiável de

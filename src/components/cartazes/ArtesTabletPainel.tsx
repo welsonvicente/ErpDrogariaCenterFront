@@ -4,7 +4,7 @@ import { ElementoStoryEditavel, type GuiasAlinhamentoStory } from '../ElementoSt
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
 import { carregarFundoDoServidor, enviarFundoParaServidor, type FundoNoServidor } from '../../utils/fundoNoServidor';
 import { carregarFontesCartaz } from '../../utils/cartazEngine';
-import { compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
+import { baixarArquivoDireto, baixarVariosDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
 import {
   alinharCaixasTablet,
@@ -198,6 +198,23 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
     }
   }
 
+  /** Salva direto na pasta Downloads do computador (sem a janela de compartilhar): a arte aberta ou todas, em PNGs separados. */
+  async function handleSalvarNoComputador(todas: boolean) {
+    if (artes.length === 0) return onAviso('Nenhum produto marcado para o tablet. Clique em "Escolher produtos do tablet".');
+    setBaixando(true);
+    try {
+      const paginas = todas ? artes.map((pagina, i) => ({ pagina, i })) : [{ pagina: produtosDaArte, i: indice }];
+      const itens = await Promise.all(paginas.map(async ({ pagina, i }) => ({ conteudo: await gerarPng(pagina), nomeArquivo: `tablet-${String(i + 1).padStart(2, '0')}.png`, mime: 'image/png' })));
+      if (itens.length === 1) await baixarArquivoDireto(itens[0].conteudo, itens[0].nomeArquivo, 'image/png');
+      else await baixarVariosDireto(itens);
+      onAviso(itens.length === 1 ? 'Arte salva na pasta Downloads.' : `${itens.length} artes salvas na pasta Downloads.`);
+    } catch {
+      onAviso('Não foi possível salvar as artes do tablet. Tente novamente.');
+    } finally {
+      setBaixando(false);
+    }
+  }
+
   async function handleBaixarAtual() {
     if (produtosDaArte.length === 0) return onAviso('Adicione produtos ao panfleto antes de baixar as artes do tablet.');
     setBaixando(true);
@@ -331,6 +348,8 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
           </div>
         )}
         <div className="tablet-painel-downloads">
+          <button type="button" className="btn-ghost" disabled={baixando || produtosDaArte.length === 0} onClick={() => void handleSalvarNoComputador(false)}>💾 Salvar esta no computador</button>
+          <button type="button" className="btn-ghost" disabled={baixando || artes.length === 0} onClick={() => void handleSalvarNoComputador(true)}>💾 Salvar todas no computador ({artes.length})</button>
           <button type="button" className="btn-ghost" disabled={baixando || produtosDaArte.length === 0} onClick={() => void handleBaixarAtual()}>⬇️ Baixar esta arte</button>
           <button type="button" className="btn-primary" disabled={baixando || artes.length === 0} onClick={() => void handleBaixarTodas()}>
             {baixando ? 'Gerando…' : `⬇️ Baixar todas (${artes.length} PNG)`}

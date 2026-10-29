@@ -78,6 +78,10 @@ export interface ProdutoPanfleto {
   ajustesStory?: AjustesStoryProduto;
   /** Tirado das artes do tablet (continua no panfleto). Ausente = vai pro tablet. */
   foraDoTablet?: boolean;
+  /** A foto atual é um recorte (sem fundo): de qual arquivo da biblioteca veio e qual era a foto original (no projeto). */
+  recorte?: { bibliotecaId: string; originalArquivoId: string | null };
+  /** A pessoa voltou à foto original: não reaplicar o recorte da biblioteca sozinho. */
+  recorteIgnorado?: boolean;
   /**
    * Id do arquivo no R2 (ver `ArquivoCartazService` no backend) — nulo
    * enquanto o upload dessa foto ainda está em andamento/falhou. Não afeta a
@@ -103,6 +107,8 @@ export function montarParametrosStoryProduto(
   emoji: string,
   /** Logomarca padrão do Story (PNG + posição) — ver `useLogoPadraoStory`. */
   logoPadrao: { imagem: HTMLImageElement; caixa: CaixaStory } | null = null,
+  /** Fundo personalizado do Story já carregado (ver `useFundoPersonalizadoStory`) — null = story de sempre. */
+  fundoPersonalizado: { imagem: HTMLImageElement; produtoCaixa: CaixaStory | null } | null = null,
 ): ParametrosStory {
   const a = produto.ajustesStory;
   function r<T>(doProduto: T | undefined, doPadrao: T | undefined, embutido: T): T {
@@ -150,6 +156,8 @@ export function montarParametrosStoryProduto(
     corFundoPreco: r(a?.corFundoPreco, padrao.corFundoPreco, COR_FUNDO_PRECO_PADRAO),
     imagemExtra: logoPadrao?.imagem ?? null,
     imagemExtraCaixa: logoPadrao ? a?.imagemExtraCaixa ?? logoPadrao.caixa : null,
+    fundoPersonalizado: fundoPersonalizado?.imagem ?? null,
+    produtoCaixa: fundoPersonalizado?.produtoCaixa ?? null,
   };
 }
 

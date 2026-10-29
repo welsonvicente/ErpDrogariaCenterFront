@@ -1805,3 +1805,32 @@ body.conta-gotas-ativo .story-elemento-editavel { cursor: crosshair !important; 
 /* Modal "Trocar meu PIN" (tela do funcionário). */
 .modal-pin-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(23, 60, 58, .35); }
 .modal-pin { width: 100%; max-width: 380px; padding: 24px; }
+
+/* Story: opção "fundo personalizado" (fundo atrás, produto recortado na frente) */
+.story-fundo-personalizado { display: flex; flex-direction: column; gap: 8px; border: 1px dashed var(--teal); border-radius: 12px; padding: 12px; margin: 0 0 14px; background: var(--mint); }
+.story-fundo-personalizado > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+.story-fundo-personalizado > div:first-child span { font-size: 12px; color: var(--ink-soft); }
+.story-fundo-personalizado small { font-weight: 500; color: var(--ink-soft); }
+.story-fundo-personalizado-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.story-fundo-personalizado-acoes button { width: auto; margin: 0; font-size: 12px; padding: 6px 10px; }
+
+/* Janela "Tirar fundo" (recorte do produto com IA) */
+.recorte-modal { max-width: 760px; }
+.recorte-ferramentas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.recorte-ferramentas button { border: 1px solid var(--line); background: #fff; color: var(--ink-soft); padding: 8px 12px; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.recorte-ferramentas button.active { background: var(--teal); border-color: var(--teal); color: #fff; }
+.recorte-borracha { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+.recorte-borracha input { width: 110px; }
+.recorte-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.recorte-acoes button { width: auto; margin: 0; font-size: 12px; padding: 6px 10px; }
+.recorte-ver { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.recorte-ver input { width: 16px; height: 16px; margin: 0; }
+.recorte-palco { position: relative; display: flex; justify-content: center; align-items: center; min-height: 260px; border-radius: 12px; background: #1f2b29; padding: 8px; }
+.recorte-palco.resultado { background: repeating-conic-gradient(#e6ece9 0 25%, #fff 0 50%) 0 / 22px 22px; }
+.recorte-canvas { display: block; max-width: 100%; max-height: 60vh; touch-action: none; cursor: crosshair; border-radius: 6px; }
+.recorte-canvas.ferramenta-borracha { cursor: cell; }
+.recorte-aviso { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #fff; font-weight: 700; text-align: center; padding: 16px; }
+.recorte-aviso small { font-weight: 500; opacity: .8; }
+.recorte-calculando { position: absolute; top: 14px; right: 14px; background: rgba(0, 0, 0, .7); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+.recorte-rodape { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.recorte-rodape button { width: auto; margin: 0; }

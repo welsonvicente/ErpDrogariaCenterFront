@@ -54,6 +54,13 @@ export interface ParametrosStory {
   fonteFrases?: string;
   /** Fundo da faixa de preço (antes fixo em rosa). `transparent` em qualquer fundo = sem quadrante, só a letra. */
   corFundoPreco?: string;
+  /**
+   * Opção "fundo personalizado": a imagem enviada cobre a arte inteira e a foto do
+   * produto (de preferência recortada, PNG transparente) entra por cima, inteira,
+   * dentro de `produtoCaixa`. Ausente = story de sempre (a foto cobre a arte).
+   */
+  fundoPersonalizado?: HTMLImageElement | null;
+  produtoCaixa?: CaixaStory | null;
 }
 
 export const FONTE_PADRAO_NOME = 'Fredoka';
@@ -112,6 +119,8 @@ export interface CaixasStory {
 }
 
 export const LARGURA_STORY = 1080;
+/** Onde o produto fica, por padrão, quando o story usa fundo personalizado (abaixo das faixas de nome/preço). */
+export const CAIXA_PRODUTO_PADRAO_STORY: CaixaStory = { x: 90, y: 680, largura: 900, altura: 1140, larguraMinima: 160, alturaMinima: 160 };
 export const ALTURA_STORY = 1920;
 
 export function fmtMoney(v: string | number): string {
@@ -338,8 +347,17 @@ export function calcularCaixasStory(ctx: CanvasRenderingContext2D, largura: numb
 /** Pinta o story inteiro (1080×1920) no contexto dado — usada tanto pro preview ao vivo quanto pra exportar fora de tela. */
 export function pintarStory(ctx: CanvasRenderingContext2D, largura: number, altura: number, p: ParametrosStory) {
   ctx.clearRect(0, 0, largura, altura);
+  // Fundo branco por baixo: uma foto recortada (PNG transparente) sem fundo personalizado não sai "vazada".
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, largura, altura);
 
-  if (p.imagem) {
+  if (p.fundoPersonalizado) {
+    desenharImagemCover(ctx, p.fundoPersonalizado, 0, 0, largura, altura);
+    if (p.imagem) {
+      const c = p.produtoCaixa ?? CAIXA_PRODUTO_PADRAO_STORY;
+      desenharImagemContain(ctx, p.imagem, c.x, c.y, c.largura, c.altura);
+    }
+  } else if (p.imagem) {
     desenharImagemCover(ctx, p.imagem, 0, 0, largura, altura, p.transformImagem);
   } else {
     ctx.fillStyle = '#DDEBD8';

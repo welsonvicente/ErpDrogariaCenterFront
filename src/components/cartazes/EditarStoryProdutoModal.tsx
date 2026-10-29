@@ -20,6 +20,7 @@ import { carregarConfiguracoes, type ConfiguracoesStory } from '../../utils/cart
 import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import type { AjustesStoryProduto, ProdutoPanfleto } from '../../utils/panfletoEngine';
 import type { LogoStoryCarregada } from '../../hooks/useLogoPadraoStory';
+import type { FundoPersonalizadoCarregado } from '../../hooks/useFundoPersonalizadoStory';
 import { AjustesCaixaTexto } from './AjustesCaixaTexto';
 
 const EMOJI_PADRAO = '🤩😱';
@@ -77,12 +78,15 @@ function resolver<T>(doProduto: T | undefined, doPadrao: T | undefined, embutido
 export function EditarStoryProdutoModal({
   produto,
   logoPadrao = null,
+  fundoPersonalizado = null,
   onFechar,
   onSalvar,
 }: {
   produto: ProdutoPanfleto;
   /** Logomarca definida no Story produto único — entra na mesma posição, e aqui dá pra mudar só pra este produto. */
   logoPadrao?: LogoStoryCarregada | null;
+  /** Fundo personalizado ligado no Story — fundo atrás e a foto do produto na frente. */
+  fundoPersonalizado?: FundoPersonalizadoCarregado | null;
   onFechar: () => void;
   onSalvar: (ajustes: AjustesStoryProduto, campos: { nome: string; de: string; por: string }) => void;
 }) {
@@ -220,6 +224,8 @@ export function EditarStoryProdutoModal({
       fontePreco,
       fonteFrases,
       corFundoPreco,
+      fundoPersonalizado: fundoPersonalizado?.imagem ?? null,
+      produtoCaixa: fundoPersonalizado?.produtoCaixa ?? null,
     };
     pintarStory(ctx, LARGURA_STORY, ALTURA_STORY, parametros);
     const proximasCaixas = calcularCaixasStory(ctx, LARGURA_STORY, parametros);
@@ -253,6 +259,7 @@ export function EditarStoryProdutoModal({
     fonteFrases,
     corFundoPreco,
     versaoFontes,
+    fundoPersonalizado,
   ]);
 
   function atualizarGuia(setGuia: (atualizar: (atual: Guia) => Guia) => void, caixa: CaixaStory) {

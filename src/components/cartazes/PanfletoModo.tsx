@@ -22,8 +22,10 @@ import {
   salvarConfiguracoesPanfleto,
   salvarProdutoRecente,
   salvarProjetoAtivo,
+  carregarRecortesProduto,
   chaveDescricaoProduto,
   descricaoDoProduto,
+  EVENTO_RECORTES_PRODUTO,
   salvarDescricaoProduto,
   type ProdutoRecente,
 } from '../../utils/cartazPersistencia';
@@ -32,6 +34,9 @@ import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { useLogoPadraoStory } from '../../hooks/useLogoPadraoStory';
+import { useFundoPersonalizadoStory } from '../../hooks/useFundoPersonalizadoStory';
+import { RecortarProdutoModal } from './RecortarProdutoModal';
+import { copiarRecorteParaProjeto, guardarRecorteNaBiblioteca } from '../../utils/bibliotecaRecortes';
 import {
   caixaLogoAbsoluta,
   caixaLogoPadrao,
@@ -114,6 +119,8 @@ interface ProdutoPanfletoSalvo {
   transform: TransformImagem;
   ajustesStory?: AjustesStoryProduto;
   foraDoTablet?: boolean;
+  recorte?: { bibliotecaId: string; originalArquivoId: string | null };
+  recorteIgnorado?: boolean;
 }
 
 interface EstadoEditorPanfleto {
@@ -276,6 +283,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   // PNG + posição definidos no Story produto único — padrão da logo nos stories de cada produto.
   const logoPadraoStory = useLogoPadraoStory();
+  // Opção "fundo personalizado" ligada no Story: os stories dos produtos saem com o fundo atrás e a foto na frente.
+  const fundoPersonalizadoStory = useFundoPersonalizadoStory();
+  /** Produto aberto no "Tirar fundo" (a janela passa de um em um com "Usar e próximo"). */
+  const [recorteIdx, setRecorteIdx] = useState<number | null>(null);
 
   const [ajusteIdx, setAjusteIdx] = useState<number | null>(null);
   const [editarStoryIdx, setEditarStoryIdx] = useState<number | null>(null);
@@ -567,7 +578,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         // eslint-disable-next-line no-await-in-loop
         imagem = await criarImagemAvisoSemFoto();
       }
-      const restaurado = { imagem, nome: p.nomeOriginal ? descricaoDoProduto(p.nomeOriginal, p.ean) : p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined, arquivoId: p.arquivoId };
+      const restaurado = { imagem, nome: p.nomeOriginal ? descricaoDoProduto(p.nomeOriginal, p.ean) : p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined, recorte: p.recorte, recorteIgnorado: p.recorteIgnorado || undefined, arquivoId: p.arquivoId };
       restaurados.push(restaurado);
       if (p.arquivoId && urlsDeFora.has(p.arquivoId) && url && imagem) paraAdotar.push(restaurado);
     }
@@ -694,7 +705,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   function montarEstadoEditor(produtosParaSalvar: ProdutoPanfleto[], logo: Partial<typeof logoRef.current> = {}): EstadoEditorPanfleto {
     const { logoArquivoId: arquivoDaLogo, logoCaixa: caixaDaLogo } = { ...logoRef.current, ...logo };
     return {
-      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined })),
+      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined, recorte: p.recorte, recorteIgnorado: p.recorteIgnorado || undefined })),
       logoArquivoId: arquivoDaLogo,
       logoCaixa: caixaDaLogo,
     };
@@ -1404,13 +1415,104 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     );
   }
 
+  /**
+   * O recorte (PNG transparente) vira a foto do produto — no panfleto, no tablet e no story.
+   * Vai pra biblioteca (ligado ao EAN/nome, reaproveitado quando o produto entrar de novo) e
+   * uma cópia entra no projeto; a foto original fica guardada pra "Voltar à foto original".
+   */
+  async function handleRecorteProdutoSalvo(idx: number, recorte: { imagem: HTMLImageElement; blob: Blob }) {
+    if (!projetoAtivo) return;
+    const produto = produtosRef.current[idx];
+    if (!produto) return;
+    const original = produto.recorte?.originalArquivoId ?? produto.arquivoId ?? null;
+    setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, imagem: recorte.imagem, transform: TRANSFORM_PADRAO_PANFLETO, arquivoId: null } : p)));
+    setStatusUploadProdutos((atual) => ({ ...atual, [idx]: { enviando: true, erro: false } }));
+    try {
+      const bibliotecaId = await guardarRecorteNaBiblioteca(recorte.blob, chaveDescricaoProduto(produto.nomeOriginal ?? produto.nome, produto.ean));
+      const copia = await copiarRecorteParaProjeto(bibliotecaId, projetoAtivo.id);
+      const atualizados = produtosRef.current.map((p, i) => (i === idx ? { ...p, arquivoId: copia.arquivoId, recorte: { bibliotecaId, originalArquivoId: original }, recorteIgnorado: undefined } : p));
+      setProdutos(atualizados);
+      persistirProdutos(atualizados);
+      setStatusUploadProdutos((atual) => ({ ...atual, [idx]: { enviando: false, erro: false } }));
+    } catch {
+      // Sem biblioteca/cópia: ao menos sobe o recorte pro projeto (com "Tentar de novo" se falhar).
+      setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, recorte: original ? { bibliotecaId: '', originalArquivoId: original } : undefined } : p)));
+      await enviarFotoDeProdutoExistente(idx, recorte.blob, 'image/png');
+    }
+  }
+
+  async function handleVoltarFotoOriginal(idx: number) {
+    const original = produtosRef.current[idx]?.recorte?.originalArquivoId;
+    if (!original) return;
+    try {
+      const imagem = await carregarFundoDoServidor(original);
+      const atualizados = produtosRef.current.map((p, i) => (i === idx ? { ...p, imagem, arquivoId: original, transform: TRANSFORM_PADRAO_PANFLETO, recorte: undefined, recorteIgnorado: true } : p));
+      setProdutos(atualizados);
+      persistirProdutos(atualizados);
+    } catch {
+      setToast('Não consegui baixar a foto original. Tente de novo.');
+    }
+  }
+
+  // Biblioteca de recortes: produto que já foi recortado antes (mesmo EAN/nome) entra já sem fundo.
+  // Só quando a foto original já está no projeto (dá pra voltar) e a pessoa não voltou à original.
+  const [versaoBibliotecaRecortes, setVersaoBibliotecaRecortes] = useState(0);
+  const recortesEmAndamentoRef = useRef(new Set<string>());
+  useEffect(() => {
+    const atualizar = () => setVersaoBibliotecaRecortes((v) => v + 1);
+    window.addEventListener(EVENTO_RECORTES_PRODUTO, atualizar);
+    window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, atualizar);
+    return () => {
+      window.removeEventListener(EVENTO_RECORTES_PRODUTO, atualizar);
+      window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, atualizar);
+    };
+  }, []);
+  useEffect(() => {
+    if (!prontoParaPersistir || !projetoAtivo) return;
+    const biblioteca = carregarRecortesProduto();
+    const chaveDe = (p: ProdutoPanfleto) => chaveDescricaoProduto(p.nomeOriginal ?? p.nome, p.ean);
+    const alvos = produtos.filter((p) => {
+      const salvo = biblioteca[chaveDe(p)];
+      return salvo && p.arquivoId && !p.recorteIgnorado && p.recorte?.bibliotecaId !== salvo.arquivoId && !recortesEmAndamentoRef.current.has(chaveDe(p));
+    });
+    if (alvos.length === 0) return;
+    const projetoId = projetoAtivo.id;
+    alvos.forEach((p) => recortesEmAndamentoRef.current.add(chaveDe(p)));
+    void (async () => {
+      let aplicados = 0;
+      for (const alvo of alvos) {
+        const chave = chaveDe(alvo);
+        const bibliotecaId = biblioteca[chave].arquivoId;
+        try {
+          const copia = await copiarRecorteParaProjeto(bibliotecaId, projetoId);
+          const atualizados = produtosRef.current.map((p) =>
+            // Sem arquivoId = foto ainda subindo (ex.: o recorte manual deste mesmo produto) — não mexe.
+            chaveDe(p) === chave && p.arquivoId && !p.recorteIgnorado && p.recorte?.bibliotecaId !== bibliotecaId
+              ? { ...p, imagem: copia.imagem, arquivoId: copia.arquivoId, transform: TRANSFORM_PADRAO_PANFLETO, recorte: { bibliotecaId, originalArquivoId: p.recorte?.originalArquivoId ?? p.arquivoId ?? null } }
+              : p,
+          );
+          produtosRef.current = atualizados;
+          setProdutos(atualizados);
+          persistirProdutos(atualizados);
+          aplicados++;
+        } catch {
+          /* recorte da biblioteca indisponível (apagado?) — fica com a foto original */
+        } finally {
+          recortesEmAndamentoRef.current.delete(chave);
+        }
+      }
+      if (aplicados > 0) setToast(`Recorte salvo aplicado em ${aplicados} produto(s). Para voltar à foto original, use ↶ na lista.`);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prontoParaPersistir, projetoAtivo, produtos, versaoBibliotecaRecortes]);
+
   async function handleGerarGaleriaStories() {
     if (produtos.length === 0) {
       setToast('Adicione produtos ao panfleto antes de gerar os stories.');
       return;
     }
     const configPadrao = carregarConfiguracoes() || {};
-    const parametrosPorProduto = produtos.map((produto) => montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY, logoPadraoStory));
+    const parametrosPorProduto = produtos.map((produto) => montarParametrosStoryProduto(produto, configPadrao, EMOJI_PADRAO_STORY, logoPadraoStory, fundoPersonalizadoStory));
     // O canvas não espera fonte carregar — sem isso, uma fonte escolhida no Story sairia na reserva do sistema.
     await carregarFontesCartaz(parametrosPorProduto.flatMap((p) => [p.fonteNome, p.fontePreco, p.fonteFrases]));
     const itens = produtos.map((produto, i) => {
@@ -1600,6 +1702,17 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                 👁️ Ver todos os stories antes de baixar ({produtos.length})
               </button>
             )}
+            {produtos.length > 0 && (
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ width: '100%', fontSize: 12, margin: '8px 0 0' }}
+                onClick={() => setRecorteIdx(0)}
+                title="A IA tira o fundo e a mão das fotos, um produto de cada vez"
+              >
+                ✂️ Tirar fundo das fotos dos produtos
+              </button>
+            )}
             <div className="product-list">
               {produtos.length === 0 && <div className="empty-note">Nenhum produto adicionado ainda.</div>}
               {produtos.map((p, idx) => (
@@ -1650,6 +1763,14 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     </button>
                     <button type="button" className="product-row-acao" title="Ajustar enquadramento da foto (usado ao gerar story individual)" onClick={() => setAjusteIdx(idx)}>
                       🖼️
+                    </button>
+                    {p.recorte?.originalArquivoId && (
+                      <button type="button" className="product-row-acao" title="Voltar à foto original (com fundo)" aria-label={`Voltar à foto original de ${p.nome}`} onClick={() => void handleVoltarFotoOriginal(idx)}>
+                        ↶
+                      </button>
+                    )}
+                    <button type="button" className="product-row-acao" title="Tirar fundo da foto (deixa só o produto)" aria-label={`Tirar fundo da foto de ${p.nome}`} onClick={() => setRecorteIdx(idx)}>
+                      ✂️
                     </button>
                     <button type="button" className="product-row-acao" title="Editar e baixar o story individual deste produto" onClick={() => setEditarStoryIdx(idx)}>
                       📱
@@ -2124,11 +2245,24 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         />
       )}
 
+      {recorteIdx !== null && produtos[recorteIdx] && (
+        <RecortarProdutoModal
+          key={recorteIdx}
+          imagem={produtos[recorteIdx].imagem}
+          titulo={produtos[recorteIdx].nome}
+          posicaoFila={produtos.length > 1 ? `${recorteIdx + 1} de ${produtos.length}` : undefined}
+          onSalvar={(recorte) => handleRecorteProdutoSalvo(recorteIdx, recorte)}
+          onFechar={() => setRecorteIdx(null)}
+          onProximo={recorteIdx < produtos.length - 1 ? () => setRecorteIdx(recorteIdx + 1) : undefined}
+        />
+      )}
+
       {editarStoryIdx !== null && produtos[editarStoryIdx] && (
         <EditarStoryProdutoModal
           key={editarStoryIdx}
           produto={produtos[editarStoryIdx]}
           logoPadrao={logoPadraoStory}
+          fundoPersonalizado={fundoPersonalizadoStory}
           onFechar={() => setEditarStoryIdx(null)}
           onSalvar={(ajustesStory, campos) => handleSalvarAjustesStory(editarStoryIdx, ajustesStory, campos)}
         />

@@ -119,6 +119,10 @@ export interface ConfiguracoesStory {
   fontePreco?: string;
   fonteFrases?: string;
   corFundoPreco?: string;
+  /** Opção "fundo personalizado" (fundo no R2 atrás, produto recortado na frente) — vale pro Story e pros stories do Panfleto. */
+  fundoPersonalizadoAtivo?: boolean;
+  fundoPersonalizado?: { nome: string; arquivoId: string } | null;
+  produtoCaixa?: CaixaStory | null;
 }
 
 export function carregarConfiguracoes(): Partial<ConfiguracoesStory> | null {
@@ -166,10 +170,14 @@ export function montarGuiasCameraDoStory() {
   ];
 }
 
+/** Disparado nesta aba quando o Story grava as configurações — o Panfleto (montado ao lado) acompanha o fundo personalizado. */
+export const EVENTO_CONFIG_STORY_SALVA = 'cartazes:config-story-salva';
+
 export function salvarConfiguracoes(config: ConfiguracoesStory) {
   try {
     localStorage.setItem(CHAVE_CONFIGURACOES, JSON.stringify(config));
     agendarEnvioPreferencia('story', JSON.stringify(config));
+    window.dispatchEvent(new Event(EVENTO_CONFIG_STORY_SALVA));
   } catch {
     /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
   }
@@ -640,6 +648,44 @@ export function salvarDescricaoProduto(nomeOriginal: string, ean: string | null 
   }
 }
 
+// ---------------------------------------------------------------------------
+// Biblioteca de recortes — produto sem fundo (PNG no R2, fora de qualquer projeto,
+// então sobrevive ao projeto ser apagado), pela mesma chave das descrições.
+// Quando o produto entra de novo num panfleto, o recorte já é aplicado.
+
+const CHAVE_RECORTES_PRODUTO = 'cartazes_recortes_produto_v1';
+/** Disparado nesta aba quando a biblioteca muda (o Panfleto reaplica recortes novos). */
+export const EVENTO_RECORTES_PRODUTO = 'cartazes:recortes-produto';
+
+export interface RecorteSalvo {
+  arquivoId: string;
+  em: string;
+}
+
+export function carregarRecortesProduto(): Record<string, RecorteSalvo> {
+  try {
+    const valor = JSON.parse(localStorage.getItem(CHAVE_RECORTES_PRODUTO) || '{}');
+    return valor && typeof valor === 'object' ? valor : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Guarda (ou, com `arquivoId` null, esquece) o recorte desse produto. */
+export function salvarRecorteProduto(chave: string, arquivoId: string | null) {
+  const biblioteca = carregarRecortesProduto();
+  if (arquivoId) biblioteca[chave] = { arquivoId, em: new Date().toISOString() };
+  else delete biblioteca[chave];
+  try {
+    const serializado = JSON.stringify(biblioteca);
+    localStorage.setItem(CHAVE_RECORTES_PRODUTO, serializado);
+    agendarEnvioPreferencia('recortes_produto', serializado);
+    window.dispatchEvent(new Event(EVENTO_RECORTES_PRODUTO));
+  } catch {
+    /* armazenamento indisponível — o recorte vale só neste projeto */
+  }
+}
+
 const CHAVE_LOCAL_DA_PREFERENCIA: Record<ChavePreferenciaCartaz, string> = {
   story: CHAVE_CONFIGURACOES,
   panfleto: CHAVE_CONFIGURACOES_PANFLETO,
@@ -647,6 +693,7 @@ const CHAVE_LOCAL_DA_PREFERENCIA: Record<ChavePreferenciaCartaz, string> = {
   logo_story: CHAVE_LOGO_PADRAO_STORY,
   descricoes_produto: CHAVE_DESCRICOES_PRODUTO,
   cartaz_oferta: CHAVE_CARTAZ_OFERTA,
+  recortes_produto: CHAVE_RECORTES_PRODUTO,
 };
 
 let preferenciasSincronizadas = false;
