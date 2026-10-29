@@ -113,6 +113,7 @@ interface ProdutoPanfletoSalvo {
   por: string;
   transform: TransformImagem;
   ajustesStory?: AjustesStoryProduto;
+  foraDoTablet?: boolean;
 }
 
 interface EstadoEditorPanfleto {
@@ -566,7 +567,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         // eslint-disable-next-line no-await-in-loop
         imagem = await criarImagemAvisoSemFoto();
       }
-      const restaurado = { imagem, nome: p.nomeOriginal ? descricaoDoProduto(p.nomeOriginal, p.ean) : p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, arquivoId: p.arquivoId };
+      const restaurado = { imagem, nome: p.nomeOriginal ? descricaoDoProduto(p.nomeOriginal, p.ean) : p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined, arquivoId: p.arquivoId };
       restaurados.push(restaurado);
       if (p.arquivoId && urlsDeFora.has(p.arquivoId) && url && imagem) paraAdotar.push(restaurado);
     }
@@ -693,7 +694,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   function montarEstadoEditor(produtosParaSalvar: ProdutoPanfleto[], logo: Partial<typeof logoRef.current> = {}): EstadoEditorPanfleto {
     const { logoArquivoId: arquivoDaLogo, logoCaixa: caixaDaLogo } = { ...logoRef.current, ...logo };
     return {
-      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory })),
+      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined })),
       logoArquivoId: arquivoDaLogo,
       logoCaixa: caixaDaLogo,
     };
@@ -2080,6 +2081,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
           onMostrarLogo={setTabletMostrarLogo}
           fundoSalvo={tabletFundo}
           onFundoSalvo={setTabletFundo}
+          onDefinirForaDoTablet={(indices, fora) => {
+            const alvo = new Set(indices);
+            setProdutos((atual) => atual.map((p, i) => (alvo.has(i) ? { ...p, foraDoTablet: fora || undefined } : p)));
+          }}
           onAviso={setToast}
         />
       )}

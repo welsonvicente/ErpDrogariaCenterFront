@@ -76,6 +76,8 @@ export interface ProdutoPanfleto {
   transform: TransformImagem;
   /** Ajustes salvos especificamente pro story deste produto — ver `AjustesStoryProduto`. Ausente = usa só o padrão do Story. */
   ajustesStory?: AjustesStoryProduto;
+  /** Tirado das artes do tablet (continua no panfleto). Ausente = vai pro tablet. */
+  foraDoTablet?: boolean;
   /**
    * Id do arquivo no R2 (ver `ArquivoCartazService` no backend) — nulo
    * enquanto o upload dessa foto ainda está em andamento/falhou. Não afeta a

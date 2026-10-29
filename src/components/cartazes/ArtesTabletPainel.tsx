@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { EscolherProdutosTabletModal } from './EscolherProdutosTabletModal';
 import { ElementoStoryEditavel, type GuiasAlinhamentoStory } from '../ElementoStoryEditavel';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
 import { carregarFundoDoServidor, enviarFundoParaServidor, type FundoNoServidor } from '../../utils/fundoNoServidor';
@@ -7,6 +8,7 @@ import { compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../u
 import type { ProdutoPanfleto } from '../../utils/panfletoEngine';
 import {
   alinharCaixasTablet,
+  PRODUTOS_POR_ARTE_TABLET,
   ALTURA_TABLET,
   caixaLogoPadraoTablet,
   centralizarNaLargura,
@@ -35,6 +37,8 @@ interface ArtesTabletPainelProps {
   /** Fundo salvo no servidor (referência no R2) — null = degradê padrão. */
   fundoSalvo: FundoNoServidor | null;
   onFundoSalvo: (fundo: FundoNoServidor | null) => void;
+  /** Tira (fora = true) ou devolve produtos às artes do tablet, pelos índices na lista do panfleto. */
+  onDefinirForaDoTablet: (indices: number[], fora: boolean) => void;
   onAviso: (mensagem: string) => void;
 }
 
@@ -44,7 +48,7 @@ interface ArtesTabletPainelProps {
  * mouse ou o dedo (ver ElementoStoryEditavel). As posições valem pra todas as
  * artes — muda uma vez, sai igual em todas.
  */
-export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixas, logoCaixa, onLogoCaixa, mostrarLogo, onMostrarLogo, fundoSalvo, onFundoSalvo, onAviso }: ArtesTabletPainelProps) {
+export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixas, logoCaixa, onLogoCaixa, mostrarLogo, onMostrarLogo, fundoSalvo, onFundoSalvo, onDefinirForaDoTablet, onAviso }: ArtesTabletPainelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const inputFundoRef = useRef<HTMLInputElement>(null);
@@ -78,14 +82,27 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
   }, [fundoSalvo?.arquivoId]);
   const [arteAtual, setArteAtual] = useState(0);
   const [selecao, setSelecao] = useState<Selecao>(null);
+  const [escolhendoProdutos, setEscolhendoProdutos] = useState(false);
   const [baixando, setBaixando] = useState(false);
   const [fontesProntas, setFontesProntas] = useState(false);
   /** Régua: linha que aparece enquanto um produto/logo arrastado fica alinhado com outro ou com o centro da arte. */
   const [guias, setGuias] = useState<GuiasAlinhamentoStory | null>(null);
 
-  const artes = construirArtesTablet(produtos);
-  const indice = Math.min(arteAtual, artes.length - 1);
+  // O tablet não aguenta passar todas as artes: só os produtos marcados entram (todos, por padrão).
+  const indicesNoTablet = produtos.flatMap((p, i) => (p.foraDoTablet ? [] : [i]));
+  const artes = construirArtesTablet(indicesNoTablet.map((i) => produtos[i]));
+  const indice = Math.min(arteAtual, Math.max(0, artes.length - 1));
   const produtosDaArte = artes[indice] ?? [];
+  /** Índice no panfleto do produto que está no card `i` da arte aberta. */
+  const indiceNoPanfleto = (i: number) => indicesNoTablet[indice * PRODUTOS_POR_ARTE_TABLET + i];
+
+  function tirarDoTablet(i: number) {
+    const idx = indiceNoPanfleto(i);
+    if (idx === undefined) return;
+    onDefinirForaDoTablet([idx], true);
+    setSelecao(null);
+    onAviso(`"${produtos[idx].nome}" saiu do tablet. Para colocar de novo, marque-o em "Escolher produtos do tablet".`);
+  }
   const logoVisivel = mostrarLogo ? imagemLogo : null;
   const logoEfetiva = logoVisivel ? logoCaixa ?? caixaLogoPadraoTablet(logoVisivel) : null;
 
@@ -119,6 +136,26 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
     onCaixas(base.map((atual, j) => (j === i ? { x: caixa.x, y: caixa.y, largura: caixa.largura, altura: caixa.altura } : atual)));
   }
 
+  // Delete/Backspace com algo selecionado na arte: tira o produto (ou a logo) do tablet. Escuta na página
+  // inteira porque, depois de clicar na arte, o foco nem sempre fica no card.
+  const teclaApagarRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  teclaApagarRef.current = (e: KeyboardEvent) => {
+    if (selecao === null || (e.key !== 'Delete' && e.key !== 'Backspace')) return;
+    const alvo = e.target as HTMLElement | null;
+    if (alvo && (alvo.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName))) return;
+    e.preventDefault();
+    if (selecao === 'logo') {
+      onMostrarLogo(false);
+      setSelecao(null);
+    } else tirarDoTablet(selecao);
+  };
+  useEffect(() => {
+    if (selecao === null) return;
+    const ouvir = (e: KeyboardEvent) => teclaApagarRef.current(e);
+    window.addEventListener('keydown', ouvir);
+    return () => window.removeEventListener('keydown', ouvir);
+  }, [selecao]);
+
   async function handleEscolherFundo(e: ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0];
     e.target.value = '';
@@ -146,6 +183,7 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
 
   async function handleBaixarTodas() {
     if (produtos.length === 0) return onAviso('Adicione produtos ao panfleto antes de baixar as artes do tablet.');
+    if (artes.length === 0) return onAviso('Nenhum produto marcado para o tablet. Clique em "Escolher produtos do tablet".');
     setBaixando(true);
     try {
       const itens = await Promise.all(
@@ -181,7 +219,7 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
         <div>
           <h3 className="cartaz-titulo-secao" style={{ margin: 0 }}>🖥️ Artes para o tablet da loja</h3>
           <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
-            PNG 1920×1080, 4 produtos por arte — {artes.length} arte(s) com os produtos deste panfleto. Arraste os produtos e a logo
+            PNG 1920×1080, 4 produtos por arte — {artes.length} arte(s) com os {indicesNoTablet.length} produto(s) marcados para o tablet. Arraste os produtos e a logo
             com o mouse ou o dedo; pelas bordas, muda o tamanho. As posições valem para todas as artes.
           </p>
         </div>
@@ -200,6 +238,36 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
         <input ref={inputFundoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEscolherFundo} />
       </div>
 
+      <div className="tablet-produtos">
+        <div>
+          <b>Produtos no tablet</b>{' '}
+          <span className="tablet-produtos-conta">{indicesNoTablet.length} de {produtos.length} · {artes.length} arte(s)</span>
+          <p className="footnote" style={{ textAlign: 'left', margin: '4px 0 0' }}>
+            O tablet passa só as artes dos produtos marcados. Quem fica de fora continua no panfleto.
+          </p>
+        </div>
+        <button type="button" className="btn-primary" disabled={produtos.length === 0} onClick={() => { setSelecao(null); setEscolhendoProdutos(true); }}>
+          🖥️ Escolher produtos do tablet
+        </button>
+      </div>
+      {escolhendoProdutos && (
+        <EscolherProdutosTabletModal
+          produtos={produtos}
+          quantidadeArtes={artes.length}
+          onDefinirForaDoTablet={onDefinirForaDoTablet}
+          onFechar={() => setEscolhendoProdutos(false)}
+        />
+      )}
+
+      {typeof selecao === 'number' && produtosDaArte[selecao] && (
+        <div className="tablet-selecao-acoes">
+          <span className="footnote" style={{ margin: 0, textAlign: 'left' }}><b>{produtosDaArte[selecao].nome}</b> — arraste para mover, ou tire só do tablet (tecla Delete).</span>
+          <button type="button" className="btn-ghost" onClick={() => tirarDoTablet(selecao)}>🗑️ Tirar do tablet</button>
+        </div>
+      )}
+      {produtos.length > 0 && artes.length === 0 && (
+        <p className="footnote tablet-vazio">Nenhum produto marcado para o tablet. Clique em "Escolher produtos do tablet" e marque os que quer destacar.</p>
+      )}
       {selecao === 'logo' && (
         <p className="footnote" style={{ textAlign: 'left', margin: '0 0 8px' }}>
           Essa é a <b>logomarca do panfleto</b> (em "Logomarca ou selo"). Arraste pra mover; pra tirar só do tablet, use "Remover logo do tablet" ou a tecla Delete.
@@ -210,14 +278,6 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
           className="tablet-stage"
           ref={stageRef}
           onPointerDownCapture={(e) => { if (e.target === canvasRef.current) setSelecao(null); }}
-          onKeyDown={(e) => {
-            // Delete/Backspace com a logo selecionada tira a logo das artes do tablet.
-            if (selecao === 'logo' && (e.key === 'Delete' || e.key === 'Backspace')) {
-              e.preventDefault();
-              onMostrarLogo(false);
-              setSelecao(null);
-            }
-          }}
         >
           <canvas ref={canvasRef} className="tablet-canvas" />
           {guias?.vertical !== undefined && <i className="story-alignment-guide story-alignment-guide--vertical" style={{ left: `${(guias.vertical / LARGURA_TABLET) * 100}%` }} aria-hidden="true" />}
@@ -272,7 +332,7 @@ export function ArtesTabletPainel({ produtos, imagemLogo, cores, caixas, onCaixa
         )}
         <div className="tablet-painel-downloads">
           <button type="button" className="btn-ghost" disabled={baixando || produtosDaArte.length === 0} onClick={() => void handleBaixarAtual()}>⬇️ Baixar esta arte</button>
-          <button type="button" className="btn-primary" disabled={baixando || produtos.length === 0} onClick={() => void handleBaixarTodas()}>
+          <button type="button" className="btn-primary" disabled={baixando || artes.length === 0} onClick={() => void handleBaixarTodas()}>
             {baixando ? 'Gerando…' : `⬇️ Baixar todas (${artes.length} PNG)`}
           </button>
         </div>
