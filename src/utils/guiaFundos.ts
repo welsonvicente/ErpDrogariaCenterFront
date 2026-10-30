@@ -61,6 +61,37 @@ ${REGRA_SEM_TEXTO}`;
 }
 
 export const GUIAS_FUNDO: GuiaFundo[] = [
+  {
+    // Posições = padrão do Story (cartazEngine.ts: faixas em 130/320/560 e CAIXA_PRODUTO_PADRAO_STORY).
+    id: 'story',
+    titulo: '📱 Story do Instagram',
+    ondeUsar: 'Story → "🎨 Fundo personalizado" → "Escolher fundo"',
+    texto: `Crie uma imagem de FUNDO para story do Instagram de uma farmácia (Drogaria Center), para anunciar promoções de produtos. Use a imagem anexada apenas como guia de layout: NÃO reproduza os retângulos, as cores de guia nem os textos dela.
+
+Formato obrigatório:
+- Vertical, proporção 9:16, exatamente 1080 x 1920 pixels.
+
+Importante — é só o fundo:
+- NÃO coloque nenhum texto, letra, número, preço, logotipo, produto, pessoa ou mão na imagem.
+- Os textos (nome do produto e preço) e a foto do produto serão colocados depois por cima, pelo nosso sistema.
+
+Onde cada coisa vai ficar (deixe essas áreas limpas e com bom contraste):
+- Topo (0 a 250 px de altura): só fundo, sem detalhes importantes (o Instagram cobre com o nome do perfil).
+- Faixa de 130 a 660 px de altura: área dos textos (nome, preço e frases). Fundo mais calmo e uniforme.
+- Faixa de 680 a 1820 px de altura, no centro (de 90 a 990 px na largura): onde a foto do produto vai aparecer, recortada e sem fundo. Deixe essa área bem limpa, com cor lisa ou degradê suave, de preferência mais clara, para o produto se destacar.
+- Rodapé (1580 a 1920 px): só fundo (o Instagram cobre com o campo de mensagem).
+
+Estilo:
+- Clima de promoção/oferta, alegre e moderno, aparência profissional de farmácia.
+- Cores principais: verde (#628B00 e #173C3A) com toques de vermelho (#E30613) e branco.
+- Enfeites (formas, faixas, brilhos, folhas, confetes ou ondas) apenas nas bordas e nos cantos, sem invadir o centro.
+- Iluminação suave, sem poluição visual.
+
+Para variar o tema, troque a parte de "Estilo" — por exemplo: Dia das Mães (rosa e lilás com flores delicadas nos cantos), Black Friday (preto/grafite com detalhes em verde-limão e dourado), Natal (vermelho e verde com luzinhas e estrelas nas bordas), Inverno (azul-claro e branco com flocos de neve suaves nos cantos).
+
+Entregue a imagem em alta qualidade, pronta para usar como fundo.`,
+    modelos: [modelo('Story', 'story-1080x1920.png', '1080 × 1920')],
+  },
   ...PANFLETOS.map((c) => ({
     id: `panfleto-${c.itens}`,
     titulo: `🗞️ Panfleto — ${c.itens} por página`,
