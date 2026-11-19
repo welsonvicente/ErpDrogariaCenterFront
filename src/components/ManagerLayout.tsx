@@ -50,6 +50,22 @@ function montarMenu(orgSlug: string | undefined): GrupoMenu[] {
       ],
     },
     {
+      rotulo: 'Estoque parado',
+      icone: '📦',
+      itens: [
+        { rotulo: 'Dashboard', icone: '📊', para: `${org}/gerente/estoque`, exato: true },
+        { rotulo: 'Importar relatório', icone: '📥', para: `${org}/gerente/estoque/importar` },
+        { rotulo: 'Produtos', icone: '🗂️', para: `${org}/gerente/estoque/produtos` },
+        { rotulo: 'Ranking de prioridades', icone: '🏆', para: `${org}/gerente/estoque/ranking` },
+        { rotulo: 'Plano de ação', icone: '✅', para: `${org}/gerente/estoque/plano-de-acao` },
+        { rotulo: 'Laboratórios', icone: '🧪', para: `${org}/gerente/estoque/laboratorios` },
+        { rotulo: 'Fornecedores', icone: '🚚', para: `${org}/gerente/estoque/fornecedores` },
+        { rotulo: 'Simulador de preços', icone: '🧮', para: `${org}/gerente/estoque/simulador` },
+        { rotulo: 'Histórico', icone: '🕘', para: `${org}/gerente/estoque/historico` },
+        { rotulo: 'Configurações', icone: '🎚️', para: `${org}/gerente/estoque/configuracoes` },
+      ],
+    },
+    {
       rotulo: 'Equipe',
       icone: '👥',
       itens: [{ rotulo: 'Funcionários', icone: '🧑‍💼', para: `${org}/gerente/funcionarios` }],

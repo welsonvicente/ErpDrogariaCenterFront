@@ -21,6 +21,16 @@ import { OrganizationRequiredPage } from './pages/OrganizationRequiredPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RegisterOrganizationPage } from './pages/RegisterOrganizationPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { EstoqueAgrupamentoPage } from './pages/estoque/EstoqueAgrupamentoPage';
+import { EstoqueConfigPage } from './pages/estoque/EstoqueConfigPage';
+import { EstoqueDashboardPage } from './pages/estoque/EstoqueDashboardPage';
+import { EstoqueHistoricoPage } from './pages/estoque/EstoqueHistoricoPage';
+import { EstoqueImportarPage } from './pages/estoque/EstoqueImportarPage';
+import { EstoqueLayout } from './pages/estoque/EstoqueLayout';
+import { EstoquePlanoAcaoPage } from './pages/estoque/EstoquePlanoAcaoPage';
+import { EstoqueProdutosPage } from './pages/estoque/EstoqueProdutosPage';
+import { EstoqueRankingPage } from './pages/estoque/EstoqueRankingPage';
+import { EstoqueSimuladorPage } from './pages/estoque/EstoqueSimuladorPage';
 
 /**
  * Manda "/:orgSlug/gestor/<resto>" para "/:orgSlug/gerente/<resto>", preservando
@@ -155,6 +165,26 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {/* Inteligência de Estoque — produtos parados do Trier. O Provider fica no layout, então os dados sobrevivem à navegação entre as telas do módulo. */}
+          <Route
+            path="gerente/estoque"
+            element={
+              <ProtectedRoute>
+                <EstoqueLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<EstoqueDashboardPage />} />
+            <Route path="importar" element={<EstoqueImportarPage />} />
+            <Route path="produtos" element={<EstoqueProdutosPage />} />
+            <Route path="ranking" element={<EstoqueRankingPage />} />
+            <Route path="plano-de-acao" element={<EstoquePlanoAcaoPage />} />
+            <Route path="laboratorios" element={<EstoqueAgrupamentoPage por="laboratorio" />} />
+            <Route path="fornecedores" element={<EstoqueAgrupamentoPage por="fornecedor" />} />
+            <Route path="simulador" element={<EstoqueSimuladorPage />} />
+            <Route path="historico" element={<EstoqueHistoricoPage />} />
+            <Route path="configuracoes" element={<EstoqueConfigPage />} />
+          </Route>
           <Route
             path="gerente/auditoria"
             element={
