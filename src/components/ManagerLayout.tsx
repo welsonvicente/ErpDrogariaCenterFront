@@ -47,6 +47,7 @@ function montarMenu(orgSlug: string | undefined): GrupoMenu[] {
       itens: [
         { rotulo: 'Preço de venda', icone: '💲', para: `${org}/gerente/preco-de-venda` },
         { rotulo: 'Calendário de compras', icone: '🗓️', para: `${org}/gerente/calendario-compras` },
+        { rotulo: 'Crítica de pedido', icone: '🧐', para: `${org}/gerente/critica-pedido` },
       ],
     },
     {

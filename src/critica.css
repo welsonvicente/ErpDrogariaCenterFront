@@ -1,0 +1,186 @@
+/* ==========================================================================
+   Gestão → Crítica de pedido (CotaPreço × Trier). Importado pela página.
+   ========================================================================== */
+
+.crit-pagina { display: flex; flex-direction: column; gap: 16px; }
+.crit-painel { padding: 18px 20px; }
+.crit-painel h2 { margin: 0 0 12px; font-size: 16px; color: var(--ink); }
+.crit-painel h3 { margin: 0 0 8px; font-size: 13px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* ---- envio ---- */
+.crit-envio { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.crit-dropzone { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; border: 2px dashed #b9cdc8; border-radius: 16px; padding: 26px 16px; cursor: pointer; background: #fafdf6; transition: background 0.15s, border-color 0.15s; }
+.crit-dropzone:hover,
+.crit-dropzone.ativa { background: var(--mint); border-color: var(--teal); }
+.crit-dropzone input { display: none; }
+.crit-dropzone-icone { font-size: 32px; }
+.crit-dropzone small { color: var(--ink-soft); max-width: 640px; }
+.crit-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.crit-doc { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.crit-doc.ok { border-color: #a8dcc3; background: #f3fbf7; }
+.crit-doc h3 { margin: 0 0 6px; font-size: 14px; }
+.crit-doc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; }
+.crit-arquivo { color: var(--ink-soft); font-size: 12.5px; word-break: break-all; }
+.crit-vazio { color: var(--ink-soft); font-size: 13px; margin: 0; }
+.crit-tolerancias { padding: 12px 16px; }
+.crit-tolerancias summary { cursor: pointer; font-weight: 600; color: var(--teal-deep); }
+.crit-tol-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 4px 14px; margin-top: 10px; }
+.crit-tol-grade .field span { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+
+/* ---- salvar / baixar ---- */
+.crit-barra-acoes { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+.crit-titulo-campo { display: flex; flex-direction: column; gap: 4px; max-width: 640px; }
+.crit-titulo-campo span { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.crit-titulo-campo input { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 14px; background: var(--card); color: var(--ink); }
+.crit-botoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.crit-aviso-ok { color: #0f5e3f; font-weight: 600; font-size: 13.5px; margin: 0; }
+.crit-titulo-secao { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.crit-titulo-secao h2 { margin: 0; }
+.crit-chip-grupo { display: inline-flex; align-items: center; gap: 2px; position: relative; }
+.crit-menu { position: relative; display: inline-block; }
+.crit-menu-icone { border: 1px solid var(--line); background: var(--card); border-radius: 999px; width: 28px; height: 28px; font-size: 14px; line-height: 1; color: var(--teal-deep); padding: 0; }
+.crit-menu-icone:hover { background: var(--mint); }
+.crit-menu-lista { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 190px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.crit-menu-lista button { display: flex; align-items: center; gap: 8px; border: none; background: none; text-align: left; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: var(--ink); }
+.crit-menu-lista button:hover:not(:disabled) { background: var(--mint); }
+.crit-menu-lista .error-text { margin: 4px 6px; font-size: 12px; max-width: 220px; }
+
+/* ---- críticas salvas ---- */
+.crit-salvas { padding: 12px 16px; }
+.crit-salvas summary { cursor: pointer; font-weight: 700; color: var(--teal-deep); }
+.crit-salvas .crit-tabela-rolagem { margin-top: 10px; }
+.crit-linha-aberta { background: var(--mint); }
+.crit-contagens { font-size: 12.5px; color: var(--ink-soft); max-width: 260px; }
+.crit-selo-veredito { display: inline-block; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.crit-selo-ok { background: var(--ok-bg); color: #0f5e3f; }
+.crit-selo-aviso { background: var(--warn-bg); color: #6b4a0b; }
+.crit-selo-erro { background: var(--late-bg); color: #8c0711; }
+
+/* ---- veredito ---- */
+.crit-veredito { display: flex; gap: 14px; align-items: center; border-radius: 16px; padding: 16px 20px; border: 1px solid; }
+.crit-veredito strong { font-size: 17px; }
+.crit-veredito p { margin: 4px 0 0; font-size: 14px; }
+.crit-veredito-emoji { font-size: 30px; }
+.crit-veredito-ok { background: var(--ok-bg); border-color: #a8dcc3; color: #0f5e3f; }
+.crit-veredito-aviso { background: var(--warn-bg); border-color: #ecd09a; color: #6b4a0b; }
+.crit-veredito-erro { background: var(--late-bg); border-color: #f2b3b7; color: #8c0711; }
+
+/* ---- financeiro ---- */
+.crit-financeiro { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.crit-fin-bloco dl { margin: 0; display: flex; flex-direction: column; }
+.crit-fin-bloco dl > div { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.crit-fin-bloco dt { color: var(--ink-soft); }
+.crit-fin-bloco dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.crit-fin-bloco dd small { font-weight: 400; color: var(--ink-soft); }
+.crit-fin-total dt { color: var(--ink); font-weight: 700; }
+.crit-fin-total dd { color: var(--teal-deep); }
+
+/* ---- tabelas ---- */
+.crit-filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.crit-chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.crit-chip.ativo { background: var(--teal); border-color: var(--teal); color: #fff; }
+.crit-tabela-rolagem { overflow-x: auto; }
+table.crit-tabela { min-width: 100%; font-size: 13px; }
+table.crit-tabela th,
+table.crit-tabela td { padding: 5px 7px; }
+table.crit-tabela th { white-space: normal; line-height: 1.2; }
+table.crit-tabela td { vertical-align: top; }
+.crit-dir { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.crit-sub { display: block; color: var(--ink-soft); font-weight: 400; font-size: 11.5px; }
+.crit-forte { color: var(--late); font-weight: 800; }
+.crit-selo { font-weight: 700; font-size: 12px; }
+.crit-obs { min-width: 240px; max-width: 360px; }
+.crit-obs p { margin: 0 0 2px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.3; }
+table.crit-tabela td:first-child { min-width: 200px; line-height: 1.3; }
+table.crit-tabela td.crit-dir { white-space: nowrap; }
+.crit-acoes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.crit-acoes .btn-ghost { padding: 5px 10px; font-size: 12px; }
+.crit-acoes select { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font-size: 12px; max-width: 100%; background: var(--card); color: var(--ink); }
+.crit-r-divergencia td:first-child { box-shadow: inset 4px 0 0 var(--late); }
+.crit-r-ausente td:first-child { box-shadow: inset 4px 0 0 #e8892b; }
+.crit-r-atencao td:first-child { box-shadow: inset 4px 0 0 #e0b100; }
+.crit-r-extra td:first-child { box-shadow: inset 4px 0 0 #2b7be8; }
+.crit-r-nao_confirmado td:first-child { box-shadow: inset 4px 0 0 #aab6b3; }
+.crit-r-ok td:first-child { box-shadow: inset 4px 0 0 var(--ok); }
+.crit-total td { font-weight: 800; border-top: 2px solid var(--line); }
+.crit-listas { display: grid; grid-template-columns: 1fr; gap: 16px; }
+
+/* ---- providências ---- */
+.crit-providencias { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; counter-reset: prov; }
+.crit-prov { counter-increment: prov; display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; line-height: 1.5; padding: 9px 12px; border-radius: 10px; background: #f6fbf0; border: 1px solid var(--line); }
+.crit-prov::before { content: counter(prov) '.'; font-weight: 700; color: var(--ink-soft); min-width: 22px; }
+.crit-prov-alta { background: var(--late-bg); border-color: #f2b3b7; }
+.crit-prov-media { background: var(--warn-bg); border-color: #ecd09a; }
+.crit-prov-nivel { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; flex: none; }
+.crit-nota { margin-top: 0; }
+
+@media (max-width: 640px) {
+  .crit-veredito { flex-direction: column; align-items: flex-start; }
+  .crit-obs { min-width: 200px; }
+}
+
+/* ---- impressão ---- */
+.crit-cabecalho-impressao { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { background: #fff !important; }
+  .menu-lateral,
+  .painel-barra,
+  .painel-veu,
+  .painel-titulo,
+  .crit-nao-imprimir,
+  .update-banner { display: none !important; }
+  .painel { display: block !important; }
+  .painel-main { padding: 0 !important; max-width: none !important; }
+  .crit-cabecalho-impressao { display: flex; flex-direction: column; gap: 2px; border-bottom: 2px solid var(--late); padding-bottom: 6px; margin-bottom: 8px; }
+  .crit-cabecalho-impressao strong { color: var(--teal-deep); font-size: 14px; }
+  .crit-cabecalho-impressao small { color: #555; }
+  .card { box-shadow: none !important; border-color: #bbb !important; }
+  .crit-tabela-rolagem { overflow: visible !important; }
+  table.crit-tabela { font-size: 9.5px; }
+  table.crit-tabela tr { break-inside: avoid; }
+  .crit-obs { max-width: none; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+.crit-doc-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.crit-doc-acoes .btn-ghost { padding: 6px 12px; font-size: 13px; }
+.crit-remover { color: #a32d2d; }
+.crit-trocado { color: #8a5a00; font-weight: 600; }
+.crit-aviso-troca { background: #fff8e6; border: 1px solid #f0d48a; border-radius: 12px; padding: 10px 14px; font-size: 13.5px; margin: 0; }
+
+.crit-anotacao { margin-top: 3px; }
+.crit-anotacao-abrir, .crit-anotacao-resumo { all: unset; box-sizing: border-box; cursor: pointer; font-size: 12px; line-height: 1.35; border-radius: 6px; }
+.crit-anotacao-abrir { color: var(--ink-soft); padding: 1px 4px; margin-left: -4px; }
+.crit-anotacao-abrir:hover, .crit-anotacao-resumo:hover { background: var(--line); }
+.crit-anotacao-abrir:focus-visible, .crit-anotacao-resumo:focus-visible { outline: 2px solid #2b7be8; }
+.crit-anotacao-resumo { display: block; color: var(--ink); background: #f3f6f5; border: 1px solid var(--line); padding: 2px 6px; max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.crit-anotacao-editor { display: flex; flex-direction: column; gap: 3px; }
+.crit-anotacao-linha { display: flex; gap: 4px; }
+.crit-anotacao select, .crit-anotacao input { border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; font-size: 12px; max-width: 100%; background: var(--card); color: var(--ink); min-width: 0; }
+.crit-anotacao-linha input { flex: 1; }
+.crit-anotacao-ok { border: 1px solid var(--line); background: var(--card); border-radius: 6px; font-size: 12px; padding: 0 8px; cursor: pointer; color: #0f5e3f; }
+.crit-so-impressao { display: none; }
+.crit-anotacao-texto { font-style: italic; }
+@media print { .crit-so-impressao { display: block !important; } }
+
+/* Linhas mais baixas: as ações (vincular, confirmar…) e o "Anotar" ficam lado a lado quando cabem. */
+.crit-obs .crit-acoes { display: inline-flex; margin-top: 3px; vertical-align: top; }
+.crit-obs .crit-acoes select { max-width: 200px; padding: 2px 6px; }
+.crit-obs .crit-acoes .btn-ghost { padding: 2px 8px; }
+.crit-obs > .crit-anotacao { display: inline-block; margin: 3px 0 0 4px; vertical-align: top; }
+.crit-obs > .crit-anotacao:first-child, .crit-obs > p + .crit-anotacao { margin-left: 0; }
+
+/* Críticas salvas: botões pequenos, numa linha só. */
+.crit-mini-acoes { display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; white-space: nowrap; }
+.crit-mini { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 6px; font-size: 12px; line-height: 1.2; padding: 3px 8px; cursor: pointer; font-weight: 600; }
+.crit-mini:hover { background: var(--mint); }
+.crit-mini-principal { background: var(--teal-deep, #0f5e3f); border-color: transparent; color: #fff; }
+.crit-mini-principal:hover { background: var(--teal-deep, #0f5e3f); filter: brightness(1.15); }
+.crit-mini-perigo { padding: 3px 6px; }
+.crit-mini-perigo:hover { background: #fdecec; border-color: #e7b4b4; }
+.crit-salvas table.crit-tabela td { vertical-align: middle; }
+.crit-salvas table.crit-tabela td:nth-child(2) { min-width: 280px; }
+.crit-salvas table.crit-tabela td:nth-child(4) { min-width: 170px; }
+.crit-salvas table.crit-tabela td { padding: 6px 7px; }

@@ -16,6 +16,7 @@ import { ManagerFuncionariosPage } from './pages/ManagerFuncionariosPage';
 import { ManagerLoginPage } from './pages/ManagerLoginPage';
 import { ManagerPrecoVendaPage } from './pages/ManagerPrecoVendaPage';
 import { ManagerCalendarioComprasPage } from './pages/ManagerCalendarioComprasPage';
+import { ManagerCriticaPedidoPage } from './pages/ManagerCriticaPedidoPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { OrganizationRequiredPage } from './pages/OrganizationRequiredPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -185,6 +186,15 @@ function App() {
             <Route path="historico" element={<EstoqueHistoricoPage />} />
             <Route path="configuracoes" element={<EstoqueConfigPage />} />
           </Route>
+          {/* Gestão — crítica de pedido: confere o pedido do CotaPreço contra o lançamento no Trier (tudo no navegador). */}
+          <Route
+            path="gerente/critica-pedido"
+            element={
+              <ProtectedRoute>
+                <ManagerCriticaPedidoPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="gerente/auditoria"
             element={
