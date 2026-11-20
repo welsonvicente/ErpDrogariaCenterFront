@@ -1,11 +1,11 @@
 // @vitest-environment node
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
-import { PEDIDO_EXEMPLO, RELATORIO_EXEMPLO } from '../../tests/fabricaCritica';
+import { PEDIDO_EXEMPLO, RELATORIO_EXEMPLO, cotaVarias, trier } from '../../tests/fabricaCritica';
 import { auditar } from './auditoria';
 import { gerarExcel } from './exportarExcel';
 import { gerarPdf, limparParaPdf } from './exportarPdf';
-import { documentoCompleto, documentoDaSecao, nomeDoArquivo, secaoAuditoria, secaoAusentes, secaoExtras, secaoFinanceiro, secaoProvidencias, textoDaCelula } from './relatorio';
+import { documentoCompleto, documentoDaSecao, nomeDoArquivo, secaoAuditoria, secaoAusentes, secaoDistribuidoras, secaoExtras, secaoFinanceiro, secaoProvidencias, textoDaCelula } from './relatorio';
 
 const auditoria = auditar(PEDIDO_EXEMPLO, RELATORIO_EXEMPLO);
 
@@ -59,6 +59,31 @@ describe('modelo do relatório', () => {
     expect(textoDaCelula(secaoAusentes(auditoria, anotacoes).linhas[0].celulas[5])).toBe('Chega na próxima entrega');
     // sem anotação, a coluna existe e fica vazia
     expect(secaoExtras(auditoria).linhas[0].celulas).toHaveLength(7);
+  });
+
+  it('com várias distribuidoras: coluna "Distribuidora", filtro, total do impacto e seção por distribuidora', () => {
+    const pedido = cotaVarias([
+      ['Dist A', 'PED-A', [['PRODUTO UM 10MG 30CP', 2, 10], ['PRODUTO DOIS 5MG 10CP', 1, 20]]],
+      ['Dist B', 'PED-B', [['PRODUTO TRES 1G 20CP', 3, 5]]],
+    ]);
+    const relatorio = trier([['PRODUTO UM 10MG 30CP', 2, 10], ['PRODUTO DOIS 5MG 10CP', 1, 22], ['PRODUTO TRES 1G 20CP', 3, 4]]);
+    const a = auditar(pedido, relatorio);
+    const todas = secaoAuditoria(a, 'TODOS');
+    expect(todas.colunas.map((c) => c.rotulo).slice(0, 3)).toEqual(['Produto', 'Distribuidora', 'Qtd. CotaPreço']);
+    expect(todas.linhas.every((l) => l.celulas.length === todas.colunas.length)).toBe(true);
+    expect(todas.total!.celulas).toHaveLength(todas.colunas.length);
+    const posImpacto = todas.colunas.findIndex((c) => c.rotulo === 'Impacto (R$)');
+    expect(todas.total!.celulas[posImpacto]).toMatchObject({ n: -1 });
+
+    const soA = secaoAuditoria(a, 'TODOS', {}, 'Dist A');
+    expect(soA.linhas.map((l) => textoDaCelula(l.celulas[1]))).toEqual(['Dist A', 'Dist A']);
+    expect(soA.titulo).toContain('Dist A');
+    expect(soA.total!.celulas[posImpacto]).toMatchObject({ n: 2 });
+
+    const por = secaoDistribuidoras(a);
+    expect(por.linhas.map((l) => textoDaCelula(l.celulas[0]))).toEqual(['Dist A', 'Dist B']);
+    expect(documentoCompleto(a, pedido, relatorio).secoes.map((s) => s.id)).toContain('distribuidoras');
+    expect(textoDaCelula(secaoFinanceiro(a).linhas[0].celulas[0])).toBe('Impacto das divergências (saldo)');
   });
 
   it('nome de arquivo sem acento nem símbolo', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TOLERANCIAS_PADRAO, auditar, type Decisoes, type LinhaAuditoria } from './auditoria';
-import { PEDIDO_EXEMPLO, RELATORIO_EXEMPLO, cota, trier } from '../../tests/fabricaCritica';
+import { PEDIDO_EXEMPLO, RELATORIO_EXEMPLO, cota, cotaVarias, trier } from '../../tests/fabricaCritica';
 
 const linha = (a: { linhas: LinhaAuditoria[] }, produto: string) => a.linhas.find((l) => l.produto.startsWith(produto))!;
 
@@ -195,5 +195,53 @@ describe('auditar — veredito e providências', () => {
     const a = auditar(cota([['PRODUTO A 10MG 30CP', 1, 5]], 99), trier([['PRODUTO A 10MG 30CP', 1, 5]]));
     expect(a.avisosDosDocumentos[0]).toMatch(/total impresso no CotaPreço/);
     expect(a.veredito).toBe('APROVADO_COM_RESSALVAS');
+  });
+});
+
+describe('auditar — distribuidoras e impacto das divergências', () => {
+  const pedido = cotaVarias([
+    ['Dist A', 'PED-A', [['PRODUTO UM 10MG 30CP', 2, 10], ['PRODUTO DOIS 5MG 10CP', 1, 20]]],
+    ['Dist B', 'PED-B', [['PRODUTO TRES 1G 20CP', 3, 5], ['PRODUTO QUATRO 2G 10CP', 1, 8]]],
+  ]);
+  // UM ok; DOIS com preço maior (+2,00 de impacto); TRES com preço menor (−3,00); QUATRO não veio.
+  const relatorio = trier([['PRODUTO UM 10MG 30CP', 2, 10], ['PRODUTO DOIS 5MG 10CP', 1, 22], ['PRODUTO TRES 1G 20CP', 3, 4]]);
+  const a = auditar(pedido, relatorio);
+
+  it('cada linha sabe de qual distribuidora veio', () => {
+    const de = (nome: string) => a.linhas.find((l) => l.produto.startsWith(nome))!.distribuidoras;
+    expect(de('PRODUTO UM')).toEqual(['Dist A']);
+    expect(de('PRODUTO TRES')).toEqual(['Dist B']);
+    expect(de('PRODUTO QUATRO')).toEqual(['Dist B']);
+  });
+
+  it('o impacto das divergências separa o que o Trier tem a mais do que tem a menos', () => {
+    expect(a.impactoDivergencias).toEqual({ positivo: 2, negativo: -3, saldo: -1, itens: 2 });
+  });
+
+  it('resume cada distribuidora: itens, total pedido, contagens e impacto', () => {
+    expect(a.distribuidoras.map((d) => d.nome)).toEqual(['Dist A', 'Dist B']);
+    const [da, db] = a.distribuidoras;
+    expect(da).toMatchObject({ itens: 2, totalPedido: 40, pedidos: ['PED-A'], impactoDivergencias: 2 });
+    expect(da.contagens).toMatchObject({ OK: 1, DIVERGENCIA: 1 });
+    expect(db).toMatchObject({ itens: 2, totalPedido: 23, impactoDivergencias: -3 });
+    expect(db.contagens).toMatchObject({ DIVERGENCIA: 1, AUSENTE: 1 });
+  });
+
+  it('as providências dizem de qual distribuidora é o produto', () => {
+    expect(a.providencias.some((p) => p.texto.includes('«PRODUTO QUATRO 2G 10CP» (Dist B)'))).toBe(true);
+  });
+
+  it('pedido de uma distribuidora só: sem resumo por distribuidora e impacto zero quando tudo confere', () => {
+    const simples = auditar(cota([['PRODUTO UM 10MG 30CP', 2, 10]]), trier([['PRODUTO UM 10MG 30CP', 2, 10]]));
+    expect(simples.distribuidoras).toEqual([]);
+    expect(simples.impactoDivergencias).toEqual({ positivo: 0, negativo: 0, saldo: 0, itens: 0 });
+    expect(simples.linhas[0].distribuidoras).toEqual([]);
+  });
+
+  it('o mesmo produto pedido em duas distribuidoras é somado e avisa', () => {
+    const dois = auditar(cotaVarias([['Dist A', 'PED-A', [['PRODUTO UM 10MG 30CP', 1, 10]]], ['Dist B', 'PED-B', [['PRODUTO UM 10MG 30CP', 1, 10]]]]), trier([['PRODUTO UM 10MG 30CP', 2, 10]]));
+    expect(dois.linhas).toHaveLength(1);
+    expect(dois.linhas[0].distribuidoras).toEqual(['Dist A', 'Dist B']);
+    expect(dois.linhas[0].observacoes.join(' ')).toMatch(/mais de uma distribuidora \(Dist A, Dist B/);
   });
 });

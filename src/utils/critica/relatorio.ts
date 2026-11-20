@@ -1,5 +1,5 @@
 import { textoDaAnotacao, type Anotacoes } from './anotacoes';
-import type { Auditoria, LinhaAuditoria, Resultado } from './auditoria';
+import { impactoDaLinha, somarImpacto, type Auditoria, type LinhaAuditoria, type Resultado } from './auditoria';
 import type { PedidoCota, RelatorioTrier } from './tipos';
 
 /**
@@ -97,13 +97,18 @@ const quantidadeSinal = (v: number | null): Cel => (v === null ? '—' : { t: `$
 
 // ------------------------------------------------------------------ seções
 
-function linhaDaAuditoria(l: LinhaAuditoria, anotacoes: Anotacoes): LinhaRel {
+/** O PDF juntou pedidos de várias distribuidoras? Então as tabelas ganham a coluna "Distribuidora". */
+export const temDistribuidoras = (a: Auditoria) => a.distribuidoras.length > 0;
+const nomesDaLinha = (l: LinhaAuditoria) => l.distribuidoras.join(' + ') || '—';
+
+function linhaDaAuditoria(l: LinhaAuditoria, anotacoes: Anotacoes, comDistribuidora: boolean): LinhaRel {
   const impacto = l.resultado === 'OK' || l.resultado === 'ATENCAO' || l.resultado === 'DIVERGENCIA' ? (l.impactoPreco ?? 0) + (l.impactoQtd ?? 0) : null;
   const dif = l.difUnitaria === null ? '—' : moedaSinal(l.difUnitaria);
   return {
     faixa: COR_RESULTADO[l.resultado],
     celulas: [
       { t: l.produto, negrito: true },
+      ...(comDistribuidora ? [nomesDaLinha(l)] : []),
       quantidade(l.qtdCota),
       quantidade(l.qtdTrier),
       quantidadeSinal(l.difQtd),
@@ -118,8 +123,9 @@ function linhaDaAuditoria(l: LinhaAuditoria, anotacoes: Anotacoes): LinhaRel {
   };
 }
 
-const COLUNAS_AUDITORIA: ColunaRel[] = [
+const colunasAuditoria = (comDistribuidora: boolean): ColunaRel[] => [
   { rotulo: 'Produto', peso: 4 },
+  ...(comDistribuidora ? [{ rotulo: 'Distribuidora', peso: 2.2 }] : []),
   { rotulo: 'Qtd. CotaPreço', peso: 1, alinhar: 'dir' },
   { rotulo: 'Qtd. Trier', peso: 1, alinhar: 'dir' },
   { rotulo: 'Dif. Qtd.', peso: 1, alinhar: 'dir' },
@@ -132,14 +138,64 @@ const COLUNAS_AUDITORIA: ColunaRel[] = [
   { rotulo: 'Motivo / anotação', peso: 4 },
 ];
 
-export function secaoAuditoria(a: Auditoria, filtro: Resultado | 'TODOS', anotacoes: Anotacoes = {}): SecaoRel {
-  const linhas = filtro === 'TODOS' ? a.linhas : a.linhas.filter((l) => l.resultado === filtro);
+/** `distribuidora`: só as linhas pedidas daquela distribuidora (o mesmo filtro da tela). */
+export function secaoAuditoria(a: Auditoria, filtro: Resultado | 'TODOS', anotacoes: Anotacoes = {}, distribuidora: string | null = null): SecaoRel {
+  const porResultado = filtro === 'TODOS' ? a.linhas : a.linhas.filter((l) => l.resultado === filtro);
+  const linhas = distribuidora ? porResultado.filter((l) => l.distribuidoras.includes(distribuidora)) : porResultado;
+  const comDistribuidora = temDistribuidoras(a);
+  const colunas = colunasAuditoria(comDistribuidora);
+  const impacto = somarImpacto(linhas);
+  const posImpacto = colunas.findIndex((c) => c.rotulo === 'Impacto (R$)');
+  const posObs = colunas.findIndex((c) => c.rotulo === 'Observação');
+  const temImpacto = linhas.some((l) => impactoDaLinha(l) !== 0 || l.resultado === 'OK' || l.resultado === 'ATENCAO' || l.resultado === 'DIVERGENCIA');
+  const celulasTotal: Cel[] = colunas.map(() => '');
+  celulasTotal[0] = `Impacto total (${impacto.itens} item(ns) com diferença)`;
+  celulasTotal[posImpacto] = moedaSinal(impacto.saldo);
+  celulasTotal[posObs] = `Trier acima do pedido: ${textoDaCelula(moedaSinal(impacto.positivo))} · abaixo: ${textoDaCelula(moedaSinal(impacto.negativo))}`;
   return {
-    id: `auditoria-${filtro}`,
-    titulo: `Auditoria — ${TITULO_FILTRO[filtro]} (${linhas.length})`,
-    nomeCurto: filtro === 'TODOS' ? 'Auditoria' : TITULO_FILTRO[filtro],
-    colunas: COLUNAS_AUDITORIA,
-    linhas: linhas.map((l) => linhaDaAuditoria(l, anotacoes)),
+    id: `auditoria-${filtro}${distribuidora ? `-${distribuidora}` : ''}`,
+    titulo: `Auditoria — ${TITULO_FILTRO[filtro]}${distribuidora ? ` — ${distribuidora}` : ''} (${linhas.length})`,
+    nomeCurto: [filtro === 'TODOS' ? 'Auditoria' : TITULO_FILTRO[filtro], distribuidora].filter(Boolean).join(' - '),
+    nota: temImpacto ? 'Impacto = quanto o Trier ficou acima (+) ou abaixo (−) do pedido, somando preço e quantidade de cada linha.' : undefined,
+    colunas,
+    linhas: linhas.map((l) => linhaDaAuditoria(l, anotacoes, comDistribuidora)),
+    total: temImpacto ? { negrito: true, celulas: celulasTotal } : undefined,
+  };
+}
+
+/** Uma linha por distribuidora: o quanto foi pedido e como saiu a conferência. */
+export function secaoDistribuidoras(a: Auditoria): SecaoRel {
+  return {
+    id: 'distribuidoras',
+    titulo: `Por distribuidora (${a.distribuidoras.length})`,
+    nomeCurto: 'Por distribuidora',
+    nota: 'Impacto das divergências = quanto o Trier ficou acima (+) ou abaixo (−) do pedido nas linhas em divergência.',
+    colunas: [
+      { rotulo: 'Distribuidora', peso: 3 },
+      { rotulo: 'Pedido', peso: 3 },
+      { rotulo: 'Itens', peso: 0.8, alinhar: 'dir' },
+      { rotulo: 'Total do pedido', peso: 1.5, alinhar: 'dir' },
+      { rotulo: 'Divergências', peso: 1.2, alinhar: 'dir' },
+      { rotulo: 'Ausentes', peso: 1, alinhar: 'dir' },
+      { rotulo: 'A confirmar', peso: 1.1, alinhar: 'dir' },
+      { rotulo: 'Atenção', peso: 1, alinhar: 'dir' },
+      { rotulo: 'OK', peso: 0.8, alinhar: 'dir' },
+      { rotulo: 'Impacto das divergências', peso: 1.8, alinhar: 'dir' },
+    ],
+    linhas: a.distribuidoras.map((d) => ({
+      celulas: [
+        { t: d.nome, negrito: true },
+        d.pedidos.join(', '),
+        { t: String(d.itens), n: d.itens },
+        moeda(d.totalPedido),
+        { t: String(d.contagens.DIVERGENCIA), n: d.contagens.DIVERGENCIA, cor: d.contagens.DIVERGENCIA ? COR_RESULTADO.DIVERGENCIA : undefined, negrito: d.contagens.DIVERGENCIA > 0 },
+        { t: String(d.contagens.AUSENTE), n: d.contagens.AUSENTE },
+        { t: String(d.contagens.NAO_CONFIRMADO), n: d.contagens.NAO_CONFIRMADO },
+        { t: String(d.contagens.ATENCAO), n: d.contagens.ATENCAO },
+        { t: String(d.contagens.OK), n: d.contagens.OK },
+        moedaSinal(d.impactoDivergencias),
+      ],
+    })),
   };
 }
 
@@ -156,6 +212,9 @@ export function secaoFinanceiro(a: Auditoria): SecaoRel {
       { rotulo: 'Valor', peso: 2.5, alinhar: 'dir' },
     ],
     linhas: [
+      par('Impacto das divergências (saldo)', moedaSinal(a.impactoDivergencias.saldo), true),
+      par('— Trier acima do pedido (a mais)', moedaSinal(a.impactoDivergencias.positivo)),
+      par('— Trier abaixo do pedido (a menos)', moedaSinal(a.impactoDivergencias.negativo)),
       par('Pedido no CotaPreço (impresso)', moeda(f.totalCotaDeclarado)),
       par('Pedido no CotaPreço (soma dos itens)', moeda(f.totalCotaItens)),
       par('Registrado no Trier (bruto)', moeda(f.totalTrierBruto)),
@@ -177,12 +236,16 @@ export function secaoFinanceiro(a: Auditoria): SecaoRel {
 
 export function secaoAusentes(a: Auditoria, anotacoes: Anotacoes = {}): SecaoRel {
   const ausentes = a.linhas.filter((l) => l.resultado === 'AUSENTE');
+  const com = temDistribuidoras(a);
+  const extra = (l: LinhaAuditoria): Cel[] => (com ? [nomesDaLinha(l)] : []);
+  const vazias: Cel[] = com ? [''] : [];
   return {
     id: 'ausentes',
     titulo: `A) No CotaPreço, mas não aparecem no Trier (${ausentes.length})`,
     nomeCurto: 'Lista A - Ausentes',
     colunas: [
       { rotulo: 'Produto', peso: 5 },
+      ...(com ? [{ rotulo: 'Distribuidora', peso: 2.2 }] : []),
       { rotulo: 'Qtd. pedida', peso: 1.2, alinhar: 'dir' },
       { rotulo: 'Preço unitário', peso: 1.4, alinhar: 'dir' },
       { rotulo: 'Valor total', peso: 1.4, alinhar: 'dir' },
@@ -191,9 +254,9 @@ export function secaoAusentes(a: Auditoria, anotacoes: Anotacoes = {}): SecaoRel
     ],
     linhas: ausentes.map((l) => ({
       faixa: COR_RESULTADO.AUSENTE,
-      celulas: [{ t: l.produto, negrito: true }, quantidade(l.qtdCota), moeda(l.precoCota), moeda(l.valorCota), 'Ausente — conferir nota, entrega e lançamento', textoDaAnotacao(anotacoes[l.chave])],
+      celulas: [{ t: l.produto, negrito: true }, ...extra(l), quantidade(l.qtdCota), moeda(l.precoCota), moeda(l.valorCota), 'Ausente — conferir nota, entrega e lançamento', textoDaAnotacao(anotacoes[l.chave])],
     })),
-    total: ausentes.length ? { negrito: true, celulas: ['Total', '', '', moeda(a.financeiro.ausentesCota), '', ''] } : undefined,
+    total: ausentes.length ? { negrito: true, celulas: ['Total', ...vazias, '', '', moeda(a.financeiro.ausentesCota), '', ''] } : undefined,
   };
 }
 
@@ -279,7 +342,7 @@ export function documentoCompleto(a: Auditoria, pedido: PedidoCota, relatorio: R
     titulo: 'Crítica de pedido',
     contexto: contexto(pedido, relatorio),
     veredito: { texto: VEREDITO_TEXTO[a.veredito], cor: VEREDITO_COR[a.veredito] },
-    secoes: [secaoResumo(a), secaoFinanceiro(a), secaoAuditoria(a, 'TODOS', anotacoes), secaoAusentes(a, anotacoes), secaoExtras(a, anotacoes), secaoProvidencias(a)],
+    secoes: [secaoResumo(a), secaoFinanceiro(a), ...(temDistribuidoras(a) ? [secaoDistribuidoras(a)] : []), secaoAuditoria(a, 'TODOS', anotacoes), secaoAusentes(a, anotacoes), secaoExtras(a, anotacoes), secaoProvidencias(a)],
   };
 }
 

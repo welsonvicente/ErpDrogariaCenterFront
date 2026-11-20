@@ -56,6 +56,8 @@ function AcoesDoCartao({ tipo, tem, lendo, onTrocar, onRemover }: { tipo: TipoDo
 export function EnvioDocumentos({ pedido, relatorio, nomeCota, nomeTrier, lendo, erros, alterados, onArquivos, onTrocar, onRemover, onLimpar }: Props) {
   const entrada = useRef<HTMLInputElement>(null);
   const [arrastando, setArrastando] = useState(false);
+  /** Com os dois documentos lidos, a área de envio encolhe para uma faixa (continua aceitando arrastar/clicar). */
+  const completo = !!pedido && !!relatorio;
 
   function aoSoltar(e: DragEvent<HTMLLabelElement>) {
     e.preventDefault();
@@ -66,7 +68,7 @@ export function EnvioDocumentos({ pedido, relatorio, nomeCota, nomeTrier, lendo,
   return (
     <section className="card crit-envio crit-nao-imprimir">
       <label
-        className={`crit-dropzone ${arrastando ? 'ativa' : ''}`}
+        className={`crit-dropzone ${arrastando ? 'ativa' : ''} ${completo ? 'compacta' : ''}`}
         onDragOver={(e) => {
           e.preventDefault();
           setArrastando(true);
@@ -84,9 +86,18 @@ export function EnvioDocumentos({ pedido, relatorio, nomeCota, nomeTrier, lendo,
             if (entrada.current) entrada.current.value = '';
           }}
         />
-        <span className="crit-dropzone-icone">📑</span>
-        <strong>{lendo ? 'Lendo os PDFs…' : 'Clique para escolher ou arraste os 2 PDFs aqui'}</strong>
-        <small>O pedido de compra do CotaPreço e o relatório “Compras por preço de venda” do Trier, em qualquer ordem. Os arquivos são lidos no seu navegador e não são enviados a lugar nenhum.</small>
+        {completo ? (
+          <>
+            <strong>{lendo ? 'Lendo os PDFs…' : '＋ Enviar outros PDFs'}</strong>
+            <small>clique ou arraste — o documento do mesmo tipo é substituído</small>
+          </>
+        ) : (
+          <>
+            <span className="crit-dropzone-icone">📑</span>
+            <strong>{lendo ? 'Lendo os PDFs…' : 'Clique para escolher ou arraste os 2 PDFs aqui'}</strong>
+            <small>O pedido de compra do CotaPreço e o relatório “Compras por preço de venda” do Trier, em qualquer ordem. Os arquivos são lidos no seu navegador e não são enviados a lugar nenhum.</small>
+          </>
+        )}
       </label>
 
       {erros.map((erro, i) => (
@@ -107,7 +118,20 @@ export function EnvioDocumentos({ pedido, relatorio, nomeCota, nomeTrier, lendo,
               <li>
                 Pedido <strong>{pedido.numero ?? '—'}</strong> · {pedido.cotacao ?? ''}
               </li>
-              <li>{pedido.distribuidora ?? 'Distribuidora não informada'}</li>
+              {pedido.pedidos && pedido.pedidos.length > 1 ? (
+                <li>
+                  <strong>{pedido.pedidos.length} distribuidoras</strong> neste PDF:
+                  <ul className="crit-distribuidoras-lista">
+                    {pedido.pedidos.map((p, i) => (
+                      <li key={i}>
+                        🏭 {p.distribuidora} <small>· {fmtInteiro(p.itens)} itens{p.totalDeclarado !== null ? ` · ${fmtMoeda(p.totalDeclarado)}` : ''}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ) : (
+                <li>{pedido.distribuidora ?? 'Distribuidora não informada'}</li>
+              )}
               <li>
                 <strong>{fmtInteiro(pedido.itens.length)}</strong> itens · total {pedido.totalDeclarado !== null ? fmtMoeda(pedido.totalDeclarado) : 'não informado'}
               </li>

@@ -64,7 +64,31 @@ export interface LinhaAuditoria {
   candidato: ItemTrier | null;
   conflitosApresentacao: string[];
   repetidoNoPedido: boolean;
+  /** De quais distribuidoras o item foi pedido (só quando o PDF juntou vários pedidos). */
+  distribuidoras: string[];
   observacoes: string[];
+}
+
+/** Soma de impactos: quanto o Trier ficou acima (+) ou abaixo (−) do pedido. */
+export interface Impacto {
+  positivo: number;
+  negativo: number;
+  saldo: number;
+  /** Quantas linhas têm impacto. */
+  itens: number;
+}
+
+/** Como cada distribuidora do PDF saiu na conferência. */
+export interface ResumoDistribuidora {
+  nome: string;
+  pedidos: string[];
+  representante: string | null;
+  itens: number;
+  totalPedido: number;
+  totalDeclarado: number | null;
+  contagens: Record<Resultado, number>;
+  /** Saldo do impacto das linhas em DIVERGÊNCIA dessa distribuidora. */
+  impactoDivergencias: number;
 }
 
 export interface ResumoFinanceiro {
@@ -109,6 +133,10 @@ export interface Auditoria {
   avisosDosDocumentos: string[];
   /** Linhas do Trier ainda sem par — as que dá pra vincular à mão. */
   trierDisponiveis: ItemTrier[];
+  /** Impacto (preço + quantidade) das linhas em DIVERGÊNCIA: o valor que as divergências estão gerando. */
+  impactoDivergencias: Impacto;
+  /** Um resumo por distribuidora — vazio quando o PDF é de um pedido só. */
+  distribuidoras: ResumoDistribuidora[];
 }
 
 // ----------------------------------------------------------------- utilitários
@@ -119,6 +147,28 @@ const unidades = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v)
 const pct = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 const soma = (valores: number[]) => centavos(valores.reduce((s, v) => s + v, 0));
 const EPS = 1e-9;
+
+const distribuidorasDe = (itens: ItemCota[]) => [...new Set(itens.map((i) => i.distribuidora).filter((d): d is string => !!d))];
+
+/** Impacto de uma linha no valor: (Δpreço × qtd pedida) + (Δqtd × preço Trier). Só existe onde há par comparado. */
+export function impactoDaLinha(l: LinhaAuditoria): number {
+  return l.resultado === 'OK' || l.resultado === 'ATENCAO' || l.resultado === 'DIVERGENCIA' ? centavos((l.impactoPreco ?? 0) + (l.impactoQtd ?? 0)) : 0;
+}
+
+/** Cada linha entra pelo valor que aparece na tela (arredondado em centavos), então o total fecha com o que se vê. */
+export function somarImpacto(linhas: LinhaAuditoria[]): Impacto {
+  let positivo = 0;
+  let negativo = 0;
+  let itens = 0;
+  for (const l of linhas) {
+    const v = impactoDaLinha(l);
+    if (Math.abs(v) < 0.005) continue;
+    itens += 1;
+    if (v > 0) positivo += v;
+    else negativo += v;
+  }
+  return { positivo: centavos(positivo), negativo: centavos(negativo), saldo: centavos(positivo + negativo), itens };
+}
 
 interface GrupoCota {
   id: number;
@@ -245,6 +295,7 @@ function linhaVazia(chave: string, produto: string): LinhaAuditoria {
     candidato: null,
     conflitosApresentacao: [],
     repetidoNoPedido: false,
+    distribuidoras: [],
     observacoes: [],
   };
 }
@@ -280,6 +331,7 @@ function linhaCorrespondente(grupo: GrupoCota, par: Par, tol: Tolerancias): Linh
     criterio: par.criterio,
     conflitosApresentacao: par.conflitos,
     repetidoNoPedido: grupo.itens.length > 1,
+    distribuidoras: distribuidorasDe(grupo.itens),
   } satisfies Partial<LinhaAuditoria>);
 
   const dif = linha.difUnitaria ?? 0;
@@ -295,7 +347,10 @@ function linhaCorrespondente(grupo: GrupoCota, par: Par, tol: Tolerancias): Linh
   linha.resultado = qtdErrada || precoGrande ? 'DIVERGENCIA' : precoPequeno ? 'ATENCAO' : 'OK';
 
   const obs = linha.observacoes;
-  if (grupo.itens.length > 1) obs.push(`Produto repetido no pedido (linhas ${grupo.itens.map((i) => i.id).join(', ')}): somados para comparar.`);
+  if (grupo.itens.length > 1) {
+    const ids = grupo.itens.map((i) => i.id).join(', ');
+    obs.push(linha.distribuidoras.length > 1 ? `Produto pedido em mais de uma distribuidora (${linha.distribuidoras.join(', ')}; linhas ${ids}): somados para comparar.` : `Produto repetido no pedido (linhas ${ids}): somados para comparar.`);
+  }
   if (par.trier.length > 1) obs.push(`Aparece ${par.trier.length} vezes no Trier (códigos ${par.trier.map((t) => t.codigo).join(', ')}): somados para comparar.`);
   if (par.criterio === 'NOME_CORTADO') obs.push('Nome do Trier cortado pelo limite de tamanho do relatório.');
   if (par.criterio === 'MANUAL') obs.push('Correspondência confirmada por você.');
@@ -326,6 +381,7 @@ function linhaAusente(grupo: GrupoCota): LinhaAuditoria {
     precoCota: qtd ? valor / qtd : null,
     valorCota: valor,
     repetidoNoPedido: grupo.itens.length > 1,
+    distribuidoras: distribuidorasDe(grupo.itens),
     observacoes: ['Pedido no CotaPreço, mas não localizado no relatório do Trier.'],
   } satisfies Partial<LinhaAuditoria>);
   return linha;
@@ -402,7 +458,33 @@ export function auditar(pedido: PedidoCota, relatorio: RelatorioTrier, toleranci
     providencias: providencias(ordenadas, avisosDosDocumentos),
     avisosDosDocumentos,
     trierDisponiveis: relatorio.itens.filter((t) => !usados.has(t.id)),
+    impactoDivergencias: somarImpacto(ordenadas.filter((l) => l.resultado === 'DIVERGENCIA')),
+    distribuidoras: resumirDistribuidoras(pedido, ordenadas),
   };
+}
+
+/** Quando o PDF juntou vários pedidos: itens, total e resultado de cada distribuidora. */
+function resumirDistribuidoras(pedido: PedidoCota, linhas: LinhaAuditoria[]): ResumoDistribuidora[] {
+  if (!pedido.pedidos || pedido.pedidos.length < 2) return [];
+  const nomes = [...new Set(pedido.pedidos.map((p) => p.distribuidora))];
+  return nomes.map((nome) => {
+    const dela = pedido.pedidos!.filter((p) => p.distribuidora === nome);
+    const itens = pedido.itens.filter((i) => i.distribuidora === nome);
+    const contagens: Record<Resultado, number> = { OK: 0, ATENCAO: 0, DIVERGENCIA: 0, EXTRA: 0, AUSENTE: 0, NAO_CONFIRMADO: 0 };
+    const linhasDela = linhas.filter((l) => l.distribuidoras.includes(nome));
+    for (const l of linhasDela) contagens[l.resultado] += 1;
+    const totais = dela.map((p) => p.totalDeclarado);
+    return {
+      nome,
+      pedidos: dela.map((p) => p.numero).filter((n): n is string => !!n),
+      representante: dela.map((p) => p.representante).find(Boolean) ?? null,
+      itens: itens.length,
+      totalPedido: soma(itens.map((i) => i.subtotal)),
+      totalDeclarado: totais.every((t) => t !== null) ? soma(totais as number[]) : null,
+      contagens,
+      impactoDivergencias: somarImpacto(linhasDela.filter((l) => l.resultado === 'DIVERGENCIA')).saldo,
+    };
+  });
 }
 
 function resumoFinanceiro(pedido: PedidoCota, relatorio: RelatorioTrier, linhas: LinhaAuditoria[]): ResumoFinanceiro {
@@ -470,7 +552,7 @@ function decidirVeredito(c: Record<Resultado, number>, avisos: string[]): { vere
 function providencias(linhas: LinhaAuditoria[], avisos: string[]): Providencia[] {
   const lista: Providencia[] = [];
   for (const l of linhas) {
-    const nome = `«${l.produto}»`;
+    const nome = `«${l.produto}»${l.distribuidoras.length ? ` (${l.distribuidoras.join(' + ')})` : ''}`;
     if (l.resultado === 'DIVERGENCIA') {
       if (l.situacaoQtd !== 'CORRETA') {
         lista.push({

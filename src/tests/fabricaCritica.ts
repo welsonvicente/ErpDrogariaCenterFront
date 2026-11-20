@@ -7,6 +7,28 @@ export function cota(itens: Array<[string, number, number]>, totalDeclarado?: nu
   return { numero: 'PED-1', cotacao: 'COTAÇÃO 01/01/2026', comprador: null, compradorCnpj: null, distribuidora: 'Distribuidora Exemplo', representante: null, totalDeclarado: totalDeclarado ?? soma, minimoDistribuidora: null, geradoEm: null, itens: lista };
 }
 
+/** Pedido que juntou várias distribuidoras: [distribuidora, número, [produto, qtd, unitário][]]. */
+export function cotaVarias(pedidos: Array<[string, string, Array<[string, number, number]>]>): PedidoCota {
+  let id = 0;
+  const itens: ItemCota[] = pedidos.flatMap(([distribuidora, numero, lista]) =>
+    lista.map(([produto, qtd, unitario]) => ({ id: ++id, ean: null, produto, qtd, unitario, subtotal: Math.round(qtd * unitario * 100) / 100, distribuidora, pedidoNumero: numero })),
+  );
+  const total = (d: string) => Math.round(itens.filter((i) => i.distribuidora === d).reduce((s, i) => s + i.subtotal, 0) * 100) / 100;
+  return {
+    numero: `${pedidos[0][1]} +${pedidos.length - 1}`,
+    cotacao: 'COTAÇÃO 01/01/2026',
+    comprador: null,
+    compradorCnpj: null,
+    distribuidora: `Várias (${pedidos.length})`,
+    representante: null,
+    totalDeclarado: Math.round(itens.reduce((s, i) => s + i.subtotal, 0) * 100) / 100,
+    minimoDistribuidora: null,
+    geradoEm: null,
+    itens,
+    pedidos: pedidos.map(([distribuidora, numero, lista]) => ({ numero, distribuidora, representante: null, totalDeclarado: total(distribuidora), minimoDistribuidora: null, itens: lista.length })),
+  };
+}
+
 /** Relatório do Trier de teste: [produto, qtd, unitário impresso, bruto (opcional), desconto (opcional)]. */
 export function trier(itens: Array<[string, number, number, number?, number?]>, totalLiquido?: number): RelatorioTrier {
   const lista: ItemTrier[] = itens.map(([produto, qtd, unitario, brutoInformado, desconto], i) => {

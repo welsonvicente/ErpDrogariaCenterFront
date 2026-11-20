@@ -58,7 +58,11 @@ export function ManagerCriticaPedidoPage() {
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   const auditoria = useMemo(() => (pedido && relatorio ? auditar(pedido, relatorio, tolerancias, decisoes) : null), [pedido, relatorio, tolerancias, decisoes]);
-  const tituloPadrao = pedido ? [pedido.distribuidora ?? 'Pedido', pedido.numero && `pedido ${pedido.numero}`].filter(Boolean).join(' — ') : '';
+  const tituloPadrao = !pedido
+    ? ''
+    : pedido.pedidos && pedido.pedidos.length > 1
+      ? `${pedido.pedidos.length} distribuidoras — ${pedido.cotacao ?? 'pedidos'}`
+      : [pedido.distribuidora ?? 'Pedido', pedido.numero && `pedido ${pedido.numero}`].filter(Boolean).join(' — ');
   const titulo = tituloEditado ?? tituloPadrao;
 
   const recarregarSalvas = useCallback(async () => {

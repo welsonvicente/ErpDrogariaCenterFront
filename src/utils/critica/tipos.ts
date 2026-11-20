@@ -27,6 +27,23 @@ export interface ItemCota {
   qtd: number;
   unitario: number;
   subtotal: number;
+  /**
+   * Distribuidora do pedido a que o item pertence. Só vem preenchida quando o PDF junta vários pedidos
+   * (uma página por distribuidora); num PDF de um pedido só fica vazia.
+   */
+  distribuidora?: string | null;
+  /** Número do pedido (PED-…) do item — idem. */
+  pedidoNumero?: string | null;
+}
+
+/** Um dos pedidos de um PDF que junta vários (um por distribuidora). */
+export interface PedidoDaDistribuidora {
+  numero: string | null;
+  distribuidora: string;
+  representante: string | null;
+  totalDeclarado: number | null;
+  minimoDistribuidora: number | null;
+  itens: number;
 }
 
 export interface PedidoCota {
@@ -41,6 +58,11 @@ export interface PedidoCota {
   minimoDistribuidora: number | null;
   geradoEm: string | null;
   itens: ItemCota[];
+  /**
+   * Preenchido só quando o PDF junta vários pedidos: um resumo por distribuidora. Nesse caso `distribuidora`
+   * e `numero` acima são textos-resumo ("Várias (5): …", "PED-… +4") e cada item diz de qual pedido veio.
+   */
+  pedidos?: PedidoDaDistribuidora[];
 }
 
 // -------------------------------------------------------------------- Trier

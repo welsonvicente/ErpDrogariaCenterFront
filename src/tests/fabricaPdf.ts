@@ -27,13 +27,13 @@ export interface LinhaCota {
   ean?: string;
 }
 
-export function pdfCotaPreco(opcoes: { itens: LinhaCota[]; total?: number; quebrarNome?: boolean }): ItemPdf[] {
+export function pdfCotaPreco(opcoes: { itens: LinhaCota[]; total?: number; quebrarNome?: boolean; distribuidora?: string; numero?: string }): ItemPdf[] {
   const t: ItemPdf[] = [];
   t.push(esquerda(1, 36, 773, 'PEDIDO DE COMPRA'));
-  t.push(esquerda(1, 36, 760, 'Pedido: PED-C000001-D000001'));
+  t.push(esquerda(1, 36, 760, `Pedido: ${opcoes.numero ?? 'PED-C000001-D000001'}`));
   t.push(esquerda(1, 184, 760, 'Cotação: COTAÇÃO 01/01/2026'));
   t.push(esquerda(1, 46, 708, 'COMPRADOR'), esquerda(1, 308, 708, 'DISTRIBUIDORA'));
-  t.push(esquerda(1, 46, 694, 'Farmácia Teste LTDA'), esquerda(1, 308, 694, 'Distribuidora Exemplo'));
+  t.push(esquerda(1, 46, 694, 'Farmácia Teste LTDA'), esquerda(1, 308, 694, opcoes.distribuidora ?? 'Distribuidora Exemplo'));
   t.push(esquerda(1, 46, 681, 'CNPJ: 00.000.000/0001-00'), esquerda(1, 308, 681, 'CNPJ: Não informado'));
   t.push(esquerda(1, 308, 667, 'Representante: Fulano de Tal ·'));
   t.push(esquerda(1, 308, 654, '81999990000'));
@@ -62,6 +62,14 @@ export function pdfCotaPreco(opcoes: { itens: LinhaCota[]; total?: number; quebr
   t.push(esquerda(2, 379, 787, 'Mínimo informado pela distribuidora: R$ 2,00'));
   t.push(esquerda(2, 36, 761, 'Gerado pelo CotaPreço em 01/01/2026 10:00'));
   return t;
+}
+
+/**
+ * Um PDF do CotaPreço que junta vários pedidos: cada um começa no seu "PEDIDO DE COMPRA", e o rodapé (mínimo, "gerado em")
+ * cai na página seguinte — como no arquivo real.
+ */
+export function pdfCotaPrecoVarios(pedidos: Array<{ distribuidora: string; numero: string; itens: LinhaCota[]; total?: number }>): ItemPdf[] {
+  return pedidos.flatMap((p, k) => pdfCotaPreco(p).map((i) => ({ ...i, pagina: i.pagina + 2 * k })));
 }
 
 // -------------------------------------------------------------------- Trier

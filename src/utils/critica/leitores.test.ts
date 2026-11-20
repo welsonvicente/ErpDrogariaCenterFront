@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pdfCotaPreco, pdfTrier } from '../../tests/fabricaPdf';
+import { pdfCotaPreco, pdfCotaPrecoVarios, pdfTrier } from '../../tests/fabricaPdf';
 import { ErroLeituraPdf, lerPedidoCotaPreco } from './parserCotaPreco';
 import { lerRelatorioTrier } from './parserTrier';
 import { agruparLinhas, numeroBr } from './tabelaPdf';
@@ -78,6 +78,42 @@ describe('lerPedidoCotaPreco', () => {
 
   it('recusa um PDF que não é do CotaPreço', () => {
     expect(() => lerPedidoCotaPreco(pdfTrier({ itens: [{ codigo: '1', produto: 'X', qtd: 1, unitario: 1 }] }))).toThrow(ErroLeituraPdf);
+  });
+});
+
+describe('lerPedidoCotaPreco — PDF com pedidos de várias distribuidoras', () => {
+  const pdf = () =>
+    pdfCotaPrecoVarios([
+      { distribuidora: 'Dismepe', numero: 'PED-C000080-D000780', itens: [{ produto: 'DIAZEPAM NQ 5MG 30CP', qtd: 1, unitario: 3.08 }, { produto: 'GEROVITAL 60CAP MOLE', qtd: 2, unitario: 59.86 }] },
+      { distribuidora: 'G1 distribuidora', numero: 'PED-C000080-D000762', itens: [{ produto: 'CARVEDILOL 6,25MG 30CP', qtd: 6, unitario: 2.39 }] },
+      { distribuidora: 'plena', numero: 'PED-C000080-D000782', itens: [{ produto: 'DEXAMETASONA 4MG 10CP', qtd: 15, unitario: 2.53 }], total: 40 },
+    ]);
+
+  it('separa os pedidos e marca cada item com a distribuidora e o número de onde veio', () => {
+    const pedido = lerPedidoCotaPreco(pdf());
+    expect(pedido.itens.map((i) => [i.id, i.produto, i.distribuidora, i.pedidoNumero])).toEqual([
+      [1, 'DIAZEPAM NQ 5MG 30CP', 'Dismepe', 'PED-C000080-D000780'],
+      [2, 'GEROVITAL 60CAP MOLE', 'Dismepe', 'PED-C000080-D000780'],
+      [3, 'CARVEDILOL 6,25MG 30CP', 'G1 distribuidora', 'PED-C000080-D000762'],
+      [4, 'DEXAMETASONA 4MG 10CP', 'plena', 'PED-C000080-D000782'],
+    ]);
+  });
+
+  it('resume cada pedido (itens, total impresso) e o documento vira "Várias (n)"', () => {
+    const pedido = lerPedidoCotaPreco(pdf());
+    expect(pedido.pedidos).toHaveLength(3);
+    expect(pedido.pedidos![0]).toMatchObject({ numero: 'PED-C000080-D000780', distribuidora: 'Dismepe', itens: 2, totalDeclarado: 122.8, minimoDistribuidora: 2 });
+    expect(pedido.pedidos![2]).toMatchObject({ distribuidora: 'plena', totalDeclarado: 40 });
+    expect(pedido.distribuidora).toBe('Várias (3): Dismepe, G1 distribuidora, plena');
+    expect(pedido.numero).toBe('PED-C000080-D000780 +2');
+    expect(pedido.totalDeclarado).toBe(177.14);
+  });
+
+  it('PDF de um pedido só continua sem marcar distribuidora nos itens', () => {
+    const pedido = lerPedidoCotaPreco(pdfCotaPreco({ itens: [{ produto: 'X 10MG', qtd: 1, unitario: 2 }], distribuidora: 'Única' }));
+    expect(pedido.pedidos).toBeUndefined();
+    expect(pedido.distribuidora).toBe('Única');
+    expect(pedido.itens[0].distribuidora).toBeUndefined();
   });
 });
 
