@@ -36,6 +36,8 @@ import {
   salvarDescricaoProduto,
 } from '../../utils/cartazPersistencia';
 import { compartilharOuBaixarVarios } from '../../utils/compartilharArquivo';
+import { enviarNoWhatsapp, mensagemEnvioWhatsapp, montarTextoOfertaWhatsapp } from '../../utils/enviarWhatsapp';
+import { IconeWhatsapp } from '../IconeWhatsapp';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
@@ -157,7 +159,8 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
 
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(''), 2500);
+    // Aviso longo (ex.: instrução do WhatsApp) fica mais tempo na tela.
+    const timer = setTimeout(() => setToast(''), Math.max(2500, toast.length * 60));
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -552,7 +555,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
   function handleCopiarTextoItem(idx: number) {
     const p = produtos[idx];
     if (!p) return;
-    copiarTexto(`🔥 *OFERTA* 🔥\n\n${montarTextoPromocional(p.descricao, String(p.normal ?? ''), String(p.promo ?? ''))}\n\n📍 Corre que é por tempo limitado!`);
+    copiarTexto(montarTextoOfertaWhatsapp(p.descricao, String(p.normal ?? ''), String(p.promo ?? '')));
   }
 
   function handleCopiarTextoTodos() {
@@ -641,6 +644,14 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
       return;
     }
     const itens = comImagem.map((p, i) => {
+      const nomeSeguro = p.descricao.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${i + 1}`;
+      return { conteudo: desenharStoryItem(p), nomeArquivo: `story-${String(i + 1).padStart(2, '0')}-${nomeSeguro}.png`, mime: 'image/png', rotulo: p.descricao };
+    });
+    setItensGaleriaStories(itens);
+  }
+
+  /** Story 1080×1920 do produto (foto, descrição e preço) como dataURL PNG. */
+  function desenharStoryItem(p: (typeof produtos)[number]): string {
       const canvas = document.createElement('canvas');
       canvas.width = LARGURA_STORY;
       canvas.height = ALTURA_STORY;
@@ -672,10 +683,26 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
         margemPreco: 60,
         margemFrases: 60,
       });
-      const nomeSeguro = p.descricao.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${i + 1}`;
-      return { conteudo: canvas.toDataURL('image/png'), nomeArquivo: `story-${String(i + 1).padStart(2, '0')}-${nomeSeguro}.png`, mime: 'image/png', rotulo: p.descricao };
-    });
-    setItensGaleriaStories(itens);
+      return canvas.toDataURL('image/png');
+  }
+
+  /** Story do produto + texto da oferta direto pro WhatsApp (ver `enviarNoWhatsapp`). */
+  async function handleEnviarWhatsappItem(idx: number) {
+    const p = produtos[idx];
+    if (!p) return;
+    if (!p.imagem) {
+      setToast('Esse produto ainda não tem foto. Busque ou envie uma foto antes de enviar no WhatsApp.');
+      return;
+    }
+    const nomeSeguro = p.descricao.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || 'produto';
+    try {
+      const texto = montarTextoOfertaWhatsapp(p.descricao, p.normal !== null ? String(p.normal) : '', p.promo !== null ? String(p.promo) : '');
+      const resultado = await enviarNoWhatsapp(desenharStoryItem(p), `oferta-${nomeSeguro}.png`, texto);
+      const aviso = mensagemEnvioWhatsapp(resultado);
+      if (aviso) setToast(aviso);
+    } catch {
+      setToast('Não foi possível preparar o envio pro WhatsApp. Tente de novo.');
+    }
   }
 
   async function handleBaixarZipStories() {
@@ -896,6 +923,9 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
                             🖼️ Ajustar
                           </button>
                         )}
+                        <button type="button" className="btn-whatsapp btn-whatsapp-icone" disabled={!p.imagem} title={p.imagem ? 'Enviar no WhatsApp (arte com descrição e preço + texto da oferta)' : 'Busque ou envie a foto primeiro'} aria-label={`Enviar ${p.descricao} no WhatsApp`} onClick={() => void handleEnviarWhatsappItem(idx)}>
+                          <IconeWhatsapp />
+                        </button>
                         <button type="button" onClick={() => handleCopiarTextoItem(idx)}>
                           📋 Copiar texto
                         </button>

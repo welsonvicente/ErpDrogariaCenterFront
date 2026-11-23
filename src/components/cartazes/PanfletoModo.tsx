@@ -30,6 +30,8 @@ import {
   type ProdutoRecente,
 } from '../../utils/cartazPersistencia';
 import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
+import { enviarNoWhatsapp, mensagemEnvioWhatsapp, montarTextoOfertaWhatsapp } from '../../utils/enviarWhatsapp';
+import { IconeWhatsapp } from '../IconeWhatsapp';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
@@ -293,7 +295,8 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
 
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(''), 2500);
+    // Aviso longo (ex.: instrução do WhatsApp) fica mais tempo na tela.
+    const timer = setTimeout(() => setToast(''), Math.max(2500, toast.length * 60));
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -1506,6 +1509,27 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prontoParaPersistir, projetoAtivo, produtos, versaoBibliotecaRecortes]);
 
+  /** Story individual do produto (foto, descrição e preço) + texto da oferta direto pro WhatsApp. */
+  async function handleEnviarWhatsapp(idx: number) {
+    const produto = produtos[idx];
+    if (!produto) return;
+    try {
+      const parametros = montarParametrosStoryProduto(produto, carregarConfiguracoes() || {}, EMOJI_PADRAO_STORY, logoPadraoStory, fundoPersonalizadoStory);
+      // Fontes já carregadas resolvem na hora — o clique continua valendo pra compartilhar/abrir o WhatsApp.
+      await carregarFontesCartaz([parametros.fonteNome, parametros.fontePreco, parametros.fonteFrases]);
+      const canvas = document.createElement('canvas');
+      canvas.width = LARGURA_STORY;
+      canvas.height = ALTURA_STORY;
+      pintarStory(canvas.getContext('2d')!, LARGURA_STORY, ALTURA_STORY, parametros);
+      const nomeSeguro = produto.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${idx + 1}`;
+      const resultado = await enviarNoWhatsapp(canvas.toDataURL('image/png'), `oferta-${nomeSeguro}.png`, montarTextoOfertaWhatsapp(produto.nome, produto.de, produto.por));
+      const aviso = mensagemEnvioWhatsapp(resultado);
+      if (aviso) setToast(aviso);
+    } catch {
+      setToast('Não foi possível preparar o envio pro WhatsApp. Tente de novo.');
+    }
+  }
+
   async function handleGerarGaleriaStories() {
     if (produtos.length === 0) {
       setToast('Adicione produtos ao panfleto antes de gerar os stories.');
@@ -1774,6 +1798,9 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     </button>
                     <button type="button" className="product-row-acao" title="Editar e baixar o story individual deste produto" onClick={() => setEditarStoryIdx(idx)}>
                       📱
+                    </button>
+                    <button type="button" className="product-row-acao product-row-whatsapp" title="Enviar no WhatsApp (arte com descrição e preço + texto da oferta)" aria-label={`Enviar ${p.nome} no WhatsApp`} onClick={() => void handleEnviarWhatsapp(idx)}>
+                      <IconeWhatsapp />
                     </button>
                     <button type="button" title="Remover" onClick={() => handleRemoverProduto(idx)}>
                       Remover
