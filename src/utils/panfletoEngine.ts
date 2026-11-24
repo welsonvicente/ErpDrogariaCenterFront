@@ -82,6 +82,8 @@ export interface ProdutoPanfleto {
   recorte?: { bibliotecaId: string; originalArquivoId: string | null };
   /** A pessoa voltou à foto original: não reaplicar o recorte da biblioteca sozinho. */
   recorteIgnorado?: boolean;
+  /** Quando foi enviado no WhatsApp pelo botão do produto (ISO) — só pra sinalizar na lista. */
+  enviadoWhatsappEm?: string;
   /**
    * Id do arquivo no R2 (ver `ArquivoCartazService` no backend) — nulo
    * enquanto o upload dessa foto ainda está em andamento/falhou. Não afeta a

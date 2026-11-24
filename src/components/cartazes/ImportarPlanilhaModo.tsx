@@ -36,7 +36,7 @@ import {
   salvarDescricaoProduto,
 } from '../../utils/cartazPersistencia';
 import { compartilharOuBaixarVarios } from '../../utils/compartilharArquivo';
-import { enviarNoWhatsapp, mensagemEnvioWhatsapp, montarTextoOfertaWhatsapp } from '../../utils/enviarWhatsapp';
+import { contaComoEnviado, enviarNoWhatsapp, formatarEnviadoEm, mensagemEnvioWhatsapp, montarTextoOfertaWhatsapp } from '../../utils/enviarWhatsapp';
 import { IconeWhatsapp } from '../IconeWhatsapp';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazService';
@@ -81,6 +81,7 @@ interface ProdutoLoteSalvo {
   arquivoId: string | null;
   status: ProdutoImportado['status'];
   transform: ProdutoImportado['transform'];
+  enviadoWhatsappEm?: string;
 }
 
 interface EstadoEditorLote {
@@ -278,6 +279,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
         status: imagem ? p.status : 'pending',
         transform: p.transform || TRANSFORM_PADRAO,
         arquivoId: imagem ? p.arquivoId : null,
+        enviadoWhatsappEm: p.enviadoWhatsappEm,
       });
     }
     setProdutos(comDescricoesSalvas(restaurados));
@@ -357,7 +359,7 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
 
   function montarEstadoEditor(produtosParaSalvar: ProdutoImportado[]): EstadoEditorLote {
     return {
-      produtos: produtosParaSalvar.map((p) => ({ descricao: p.descricao, descricaoOriginal: p.descricaoOriginal, normal: p.normal, promo: p.promo, ean: p.ean, arquivoId: p.arquivoId, status: p.status, transform: p.transform })),
+      produtos: produtosParaSalvar.map((p) => ({ descricao: p.descricao, descricaoOriginal: p.descricaoOriginal, normal: p.normal, promo: p.promo, ean: p.ean, arquivoId: p.arquivoId, status: p.status, transform: p.transform, enviadoWhatsappEm: p.enviadoWhatsappEm })),
     };
   }
 
@@ -698,6 +700,10 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
     try {
       const texto = montarTextoOfertaWhatsapp(p.descricao, p.normal !== null ? String(p.normal) : '', p.promo !== null ? String(p.promo) : '');
       const resultado = await enviarNoWhatsapp(desenharStoryItem(p), `oferta-${nomeSeguro}.png`, texto);
+      if (contaComoEnviado(resultado)) {
+        const em = new Date().toISOString();
+        setProdutos((atual) => atual.map((item, i) => (i === idx ? { ...item, enviadoWhatsappEm: em } : item)));
+      }
       const aviso = mensagemEnvioWhatsapp(resultado);
       if (aviso) setToast(aviso);
     } catch {
@@ -923,8 +929,16 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
                             🖼️ Ajustar
                           </button>
                         )}
-                        <button type="button" className="btn-whatsapp btn-whatsapp-icone" disabled={!p.imagem} title={p.imagem ? 'Enviar no WhatsApp (arte com descrição e preço + texto da oferta)' : 'Busque ou envie a foto primeiro'} aria-label={`Enviar ${p.descricao} no WhatsApp`} onClick={() => void handleEnviarWhatsappItem(idx)}>
+                        <button
+                          type="button"
+                          className={`btn-whatsapp btn-whatsapp-icone${p.enviadoWhatsappEm ? ' enviado' : ''}`}
+                          disabled={!p.imagem}
+                          title={!p.imagem ? 'Busque ou envie a foto primeiro' : p.enviadoWhatsappEm ? `Enviado no WhatsApp em ${formatarEnviadoEm(p.enviadoWhatsappEm)} — clique para enviar de novo` : 'Enviar no WhatsApp (arte com descrição e preço + texto da oferta)'}
+                          aria-label={`Enviar ${p.descricao} no WhatsApp${p.enviadoWhatsappEm ? ' (já enviado)' : ''}`}
+                          onClick={() => void handleEnviarWhatsappItem(idx)}
+                        >
                           <IconeWhatsapp />
+                          {p.enviadoWhatsappEm && <span className="whatsapp-enviado" aria-hidden="true">✓</span>}
                         </button>
                         <button type="button" onClick={() => handleCopiarTextoItem(idx)}>
                           📋 Copiar texto

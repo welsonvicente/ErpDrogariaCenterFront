@@ -30,7 +30,7 @@ import {
   type ProdutoRecente,
 } from '../../utils/cartazPersistencia';
 import { baixarArquivoDireto, compartilharOuBaixarVarios, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
-import { enviarNoWhatsapp, mensagemEnvioWhatsapp, montarTextoOfertaWhatsapp } from '../../utils/enviarWhatsapp';
+import { contaComoEnviado, enviarNoWhatsapp, formatarEnviadoEm, mensagemEnvioWhatsapp, montarTextoOfertaWhatsapp } from '../../utils/enviarWhatsapp';
 import { IconeWhatsapp } from '../IconeWhatsapp';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
@@ -123,6 +123,7 @@ interface ProdutoPanfletoSalvo {
   foraDoTablet?: boolean;
   recorte?: { bibliotecaId: string; originalArquivoId: string | null };
   recorteIgnorado?: boolean;
+  enviadoWhatsappEm?: string;
 }
 
 interface EstadoEditorPanfleto {
@@ -581,7 +582,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         // eslint-disable-next-line no-await-in-loop
         imagem = await criarImagemAvisoSemFoto();
       }
-      const restaurado = { imagem, nome: p.nomeOriginal ? descricaoDoProduto(p.nomeOriginal, p.ean) : p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined, recorte: p.recorte, recorteIgnorado: p.recorteIgnorado || undefined, arquivoId: p.arquivoId };
+      const restaurado = { imagem, nome: p.nomeOriginal ? descricaoDoProduto(p.nomeOriginal, p.ean) : p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform || TRANSFORM_PADRAO_PANFLETO, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined, recorte: p.recorte, recorteIgnorado: p.recorteIgnorado || undefined, enviadoWhatsappEm: p.enviadoWhatsappEm, arquivoId: p.arquivoId };
       restaurados.push(restaurado);
       if (p.arquivoId && urlsDeFora.has(p.arquivoId) && url && imagem) paraAdotar.push(restaurado);
     }
@@ -708,7 +709,7 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
   function montarEstadoEditor(produtosParaSalvar: ProdutoPanfleto[], logo: Partial<typeof logoRef.current> = {}): EstadoEditorPanfleto {
     const { logoArquivoId: arquivoDaLogo, logoCaixa: caixaDaLogo } = { ...logoRef.current, ...logo };
     return {
-      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined, recorte: p.recorte, recorteIgnorado: p.recorteIgnorado || undefined })),
+      produtos: produtosParaSalvar.map((p) => ({ arquivoId: p.arquivoId ?? null, nome: p.nome, nomeOriginal: p.nomeOriginal, ean: p.ean, de: p.de, por: p.por, transform: p.transform, ajustesStory: p.ajustesStory, foraDoTablet: p.foraDoTablet || undefined, recorte: p.recorte, recorteIgnorado: p.recorteIgnorado || undefined, enviadoWhatsappEm: p.enviadoWhatsappEm })),
       logoArquivoId: arquivoDaLogo,
       logoCaixa: caixaDaLogo,
     };
@@ -1523,6 +1524,10 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
       pintarStory(canvas.getContext('2d')!, LARGURA_STORY, ALTURA_STORY, parametros);
       const nomeSeguro = produto.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `produto-${idx + 1}`;
       const resultado = await enviarNoWhatsapp(canvas.toDataURL('image/png'), `oferta-${nomeSeguro}.png`, montarTextoOfertaWhatsapp(produto.nome, produto.de, produto.por));
+      if (contaComoEnviado(resultado)) {
+        const em = new Date().toISOString();
+        setProdutos((atual) => atual.map((p, i) => (i === idx ? { ...p, enviadoWhatsappEm: em } : p)));
+      }
       const aviso = mensagemEnvioWhatsapp(resultado);
       if (aviso) setToast(aviso);
     } catch {
@@ -1799,8 +1804,15 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
                     <button type="button" className="product-row-acao" title="Editar e baixar o story individual deste produto" onClick={() => setEditarStoryIdx(idx)}>
                       📱
                     </button>
-                    <button type="button" className="product-row-acao product-row-whatsapp" title="Enviar no WhatsApp (arte com descrição e preço + texto da oferta)" aria-label={`Enviar ${p.nome} no WhatsApp`} onClick={() => void handleEnviarWhatsapp(idx)}>
+                    <button
+                      type="button"
+                      className={`product-row-acao product-row-whatsapp${p.enviadoWhatsappEm ? ' enviado' : ''}`}
+                      title={p.enviadoWhatsappEm ? `Enviado no WhatsApp em ${formatarEnviadoEm(p.enviadoWhatsappEm)} — clique para enviar de novo` : 'Enviar no WhatsApp (arte com descrição e preço + texto da oferta)'}
+                      aria-label={`Enviar ${p.nome} no WhatsApp${p.enviadoWhatsappEm ? ' (já enviado)' : ''}`}
+                      onClick={() => void handleEnviarWhatsapp(idx)}
+                    >
                       <IconeWhatsapp />
+                      {p.enviadoWhatsappEm && <span className="whatsapp-enviado" aria-hidden="true">✓</span>}
                     </button>
                     <button type="button" title="Remover" onClick={() => handleRemoverProduto(idx)}>
                       Remover

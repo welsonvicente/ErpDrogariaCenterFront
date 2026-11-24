@@ -1845,3 +1845,8 @@ body.conta-gotas-ativo .story-elemento-editavel { cursor: crosshair !important; 
 /* No Panfleto: ícone compacto como os outros, no verde do WhatsApp */
 .product-row button.product-row-whatsapp { display: inline-flex; align-items: center; justify-content: center; background: #25D366; color: #fff; }
 .product-row button.product-row-whatsapp:hover { background: #1EBE5A; color: #fff; }
+
+/* Produto já enviado no WhatsApp: selinho ✓ discreto no canto do ícone */
+.product-row button.product-row-whatsapp,
+.batch-row .bactions button.btn-whatsapp-icone { position: relative; overflow: visible; }
+.whatsapp-enviado { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-radius: 50%; background: var(--teal-deep); color: #fff; border: 2px solid #fff; font-size: 8px; font-weight: 800; line-height: 11px; text-align: center; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); pointer-events: none; }

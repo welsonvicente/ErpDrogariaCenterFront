@@ -67,6 +67,19 @@ export async function enviarNoWhatsapp(imagemDataUrl: string, nomeArquivo: strin
   return imagemCopiada ? 'whatsapp-aberto' : 'imagem-baixada';
 }
 
+/** Conta como enviado quando a pessoa não cancelou (o navegador não diz se a mensagem saiu de fato). */
+export function contaComoEnviado(resultado: ResultadoEnvioWhatsapp): boolean {
+  return resultado !== 'cancelado';
+}
+
+/** "24/11 às 10:48" — pra dica do botão do WhatsApp de um produto já enviado. */
+export function formatarEnviadoEm(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const dois = (n: number) => String(n).padStart(2, '0');
+  return `${dois(d.getDate())}/${dois(d.getMonth() + 1)} às ${dois(d.getHours())}:${dois(d.getMinutes())}`;
+}
+
 /** Aviso pra tela depois de enviar — explica o passo que falta em cada caso. */
 export function mensagemEnvioWhatsapp(resultado: ResultadoEnvioWhatsapp): string {
   if (resultado === 'whatsapp-aberto') return 'WhatsApp aberto com o texto da oferta. Escolha a conversa e cole a imagem com Ctrl+V.';

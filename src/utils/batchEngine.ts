@@ -22,6 +22,8 @@ export interface ProdutoImportado {
   transform: TransformImagem;
   /** Id do arquivo no R2 (ver `ArquivoCartazService` no backend) — nulo enquanto não houver foto ou o upload dela ainda estiver em andamento/tiver falhado. */
   arquivoId: string | null;
+  /** Quando foi enviado no WhatsApp pelo botão do produto (ISO) — só pra sinalizar na lista. */
+  enviadoWhatsappEm?: string;
 }
 
 export const TRANSFORM_PADRAO: TransformImagem = { scale: 1, panX: 0.5, panY: 0.5 };
