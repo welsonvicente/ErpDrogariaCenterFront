@@ -1,4 +1,6 @@
 import { arquivoCartazService } from '../services/arquivoCartazService';
+import { campanhaAtiva } from './campanhaAtiva';
+import { campanhaCartazService, type CampanhaCartaz, type ChaveAparenciaCampanha } from '../services/campanhaCartazService';
 import type { CaixaTablet } from './tabletEngine';
 import type { OfertaCartaz, OfertaLote } from './cartazOfertaEngine';
 import { preferenciaCartazService, type ChavePreferenciaCartaz } from '../services/preferenciaCartazService';
@@ -127,7 +129,7 @@ export interface ConfiguracoesStory {
 
 export function carregarConfiguracoes(): Partial<ConfiguracoesStory> | null {
   try {
-    return JSON.parse(localStorage.getItem(CHAVE_CONFIGURACOES) || 'null');
+    return JSON.parse(localStorage.getItem(chaveLocalDaCampanha(CHAVE_CONFIGURACOES)) || 'null');
   } catch {
     return null;
   }
@@ -175,7 +177,7 @@ export const EVENTO_CONFIG_STORY_SALVA = 'cartazes:config-story-salva';
 
 export function salvarConfiguracoes(config: ConfiguracoesStory) {
   try {
-    localStorage.setItem(CHAVE_CONFIGURACOES, JSON.stringify(config));
+    localStorage.setItem(chaveLocalDaCampanha(CHAVE_CONFIGURACOES), JSON.stringify(config));
     agendarEnvioPreferencia('story', JSON.stringify(config));
     window.dispatchEvent(new Event(EVENTO_CONFIG_STORY_SALVA));
   } catch {
@@ -202,7 +204,7 @@ export interface LogoPadraoStory {
 
 export function carregarLogoPadraoStory(): LogoPadraoStory | null {
   try {
-    return JSON.parse(localStorage.getItem(CHAVE_LOGO_PADRAO_STORY) || 'null');
+    return JSON.parse(localStorage.getItem(chaveLocalDaCampanha(CHAVE_LOGO_PADRAO_STORY)) || 'null');
   } catch {
     return null;
   }
@@ -212,9 +214,10 @@ export function carregarLogoPadraoStory(): LogoPadraoStory | null {
 export function salvarLogoPadraoStory(logo: LogoPadraoStory | null) {
   const serializado = logo ? JSON.stringify(logo) : null;
   try {
-    if (localStorage.getItem(CHAVE_LOGO_PADRAO_STORY) === serializado) return;
-    if (serializado) localStorage.setItem(CHAVE_LOGO_PADRAO_STORY, serializado);
-    else localStorage.removeItem(CHAVE_LOGO_PADRAO_STORY);
+    const chaveLocal = chaveLocalDaCampanha(CHAVE_LOGO_PADRAO_STORY);
+    if (localStorage.getItem(chaveLocal) === serializado) return;
+    if (serializado) localStorage.setItem(chaveLocal, serializado);
+    else localStorage.removeItem(chaveLocal);
   } catch {
     return; /* armazenamento indisponível — o Panfleto só não recebe a logo padrão */
   }
@@ -313,7 +316,7 @@ export interface ConfiguracoesPanfleto {
 
 export function carregarConfiguracoesPanfleto(): Partial<ConfiguracoesPanfleto> | null {
   try {
-    return JSON.parse(localStorage.getItem(CHAVE_CONFIGURACOES_PANFLETO) || 'null');
+    return JSON.parse(localStorage.getItem(chaveLocalDaCampanha(CHAVE_CONFIGURACOES_PANFLETO)) || 'null');
   } catch {
     return null;
   }
@@ -321,7 +324,7 @@ export function carregarConfiguracoesPanfleto(): Partial<ConfiguracoesPanfleto> 
 
 export function salvarConfiguracoesPanfleto(config: ConfiguracoesPanfleto) {
   try {
-    localStorage.setItem(CHAVE_CONFIGURACOES_PANFLETO, JSON.stringify(config));
+    localStorage.setItem(chaveLocalDaCampanha(CHAVE_CONFIGURACOES_PANFLETO), JSON.stringify(config));
     agendarEnvioPreferencia('panfleto', JSON.stringify(config));
   } catch {
     /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
@@ -426,7 +429,7 @@ export interface ConfiguracoesLote {
 
 export function carregarConfiguracoesLote(): Partial<ConfiguracoesLote> | null {
   try {
-    return JSON.parse(localStorage.getItem(CHAVE_CONFIGURACOES_LOTE) || 'null');
+    return JSON.parse(localStorage.getItem(chaveLocalDaCampanha(CHAVE_CONFIGURACOES_LOTE)) || 'null');
   } catch {
     return null;
   }
@@ -434,7 +437,7 @@ export function carregarConfiguracoesLote(): Partial<ConfiguracoesLote> | null {
 
 export function salvarConfiguracoesLote(config: ConfiguracoesLote) {
   try {
-    localStorage.setItem(CHAVE_CONFIGURACOES_LOTE, JSON.stringify(config));
+    localStorage.setItem(chaveLocalDaCampanha(CHAVE_CONFIGURACOES_LOTE), JSON.stringify(config));
     agendarEnvioPreferencia('planilha', JSON.stringify(config));
   } catch {
     /* armazenamento indisponível/cheio — a próxima sessão só volta ao padrão */
@@ -507,9 +510,15 @@ const CHAVE_PROJETO_ATIVO: Record<TipoProjetoCartazPersistencia, string> = {
   planilha: 'cartazes_projeto_ativo_planilha_v1',
 };
 
+/** Um "projeto ativo" por modo EM CADA CAMPANHA — trocar de campanha retoma o projeto certo dela. */
+function chaveProjetoAtivo(tipo: TipoProjetoCartazPersistencia): string {
+  const campanha = campanhaAtiva();
+  return campanha ? `${CHAVE_PROJETO_ATIVO[tipo]}_${campanha.id}` : CHAVE_PROJETO_ATIVO[tipo];
+}
+
 export function carregarProjetoAtivo(tipo: TipoProjetoCartazPersistencia): string | null {
   try {
-    return localStorage.getItem(CHAVE_PROJETO_ATIVO[tipo]);
+    return localStorage.getItem(chaveProjetoAtivo(tipo));
   } catch {
     return null;
   }
@@ -517,7 +526,7 @@ export function carregarProjetoAtivo(tipo: TipoProjetoCartazPersistencia): strin
 
 export function salvarProjetoAtivo(tipo: TipoProjetoCartazPersistencia, projetoId: string) {
   try {
-    localStorage.setItem(CHAVE_PROJETO_ATIVO[tipo], projetoId);
+    localStorage.setItem(chaveProjetoAtivo(tipo), projetoId);
   } catch {
     /* sem espaço/indisponível — só não retoma automaticamente na próxima vez, nada quebra */
   }
@@ -525,7 +534,7 @@ export function salvarProjetoAtivo(tipo: TipoProjetoCartazPersistencia, projetoI
 
 export function limparProjetoAtivo(tipo: TipoProjetoCartazPersistencia) {
   try {
-    localStorage.removeItem(CHAVE_PROJETO_ATIVO[tipo]);
+    localStorage.removeItem(chaveProjetoAtivo(tipo));
   } catch {
     /* nada a limpar */
   }
@@ -696,6 +705,88 @@ const CHAVE_LOCAL_DA_PREFERENCIA: Record<ChavePreferenciaCartaz, string> = {
   recortes_produto: CHAVE_RECORTES_PRODUTO,
 };
 
+// ---------------------------------------------------------------------------
+// Aparência por campanha: Story, Panfleto/Tablet, Importar e logomarca padrão são de CADA
+// campanha (fundo da Black Friday só na Black Friday). Cópia local por campanha; o servidor
+// guarda em `campanhas_cartaz.aparencia`. Descrições e recortes continuam da organização.
+
+const CHAVES_DA_CAMPANHA: readonly ChaveAparenciaCampanha[] = ['story', 'panfleto', 'planilha', 'logo_story'];
+
+function ehChaveDaCampanha(chave: ChavePreferenciaCartaz): chave is ChaveAparenciaCampanha {
+  return (CHAVES_DA_CAMPANHA as readonly string[]).includes(chave);
+}
+
+/** Chave do localStorage da campanha aberta (sem campanha, a antiga — só em teste/tela solta). */
+function chaveLocalDaCampanha(chaveBase: string): string {
+  const campanha = campanhaAtiva();
+  return campanha ? `${chaveBase}__campanha_${campanha.id}` : chaveBase;
+}
+
+const envioCampanhaAgendado = new Map<string, ReturnType<typeof setTimeout>>();
+
+function agendarEnvioCampanha(chave: ChaveAparenciaCampanha, serializado: string) {
+  const campanha = campanhaAtiva();
+  if (!campanha) return;
+  // Guarda o id agora: trocar de campanha logo depois não pode mandar pra outra.
+  const id = campanha.id;
+  const marca = `${id}:${chave}`;
+  clearTimeout(envioCampanhaAgendado.get(marca));
+  envioCampanhaAgendado.set(
+    marca,
+    setTimeout(() => {
+      envioCampanhaAgendado.delete(marca);
+      let valor: Record<string, unknown>;
+      try {
+        valor = JSON.parse(serializado) ?? {};
+      } catch {
+        return;
+      }
+      campanhaCartazService.salvarAparencia(id, { [chave]: valor }).catch(() => {
+        /* sem conexão agora — fica salvo neste navegador e sobe na próxima mudança */
+      });
+    }, 800),
+  );
+}
+
+/**
+ * Ao abrir uma campanha: põe a aparência dela (do servidor) na cópia local, ANTES de montar os
+ * modos — cada um lê o fundo, as cores e a logo da campanha certa.
+ */
+export function aplicarAparenciaDaCampanha(campanha: CampanhaCartaz) {
+  for (const chave of CHAVES_DA_CAMPANHA) {
+    const chaveLocal = chaveLocalDaCampanha(CHAVE_LOCAL_DA_PREFERENCIA[chave]);
+    const valor = campanha.aparencia?.[chave];
+    try {
+      if (valor && Object.keys(valor).length > 0) localStorage.setItem(chaveLocal, JSON.stringify(valor));
+      else localStorage.removeItem(chaveLocal);
+    } catch {
+      /* sem localStorage: os modos abrem com o padrão */
+    }
+  }
+}
+
+/** Ponto de partida de uma campanha nova: cores, posições e logo da aberta — sem os fundos. */
+export function aparenciaParaNovaCampanha(): CampanhaCartaz['aparencia'] {
+  if (!campanhaAtiva()) return {};
+  const ler = (chave: ChaveAparenciaCampanha) => {
+    try {
+      return JSON.parse(localStorage.getItem(chaveLocalDaCampanha(CHAVE_LOCAL_DA_PREFERENCIA[chave])) || 'null') as Record<string, unknown> | null;
+    } catch {
+      return null;
+    }
+  };
+  const aparencia: CampanhaCartaz['aparencia'] = {};
+  const story = ler('story');
+  if (story) aparencia.story = { ...story, fundoPersonalizado: null, fundoPersonalizadoAtivo: false };
+  const panfleto = ler('panfleto');
+  if (panfleto) aparencia.panfleto = { ...panfleto, panfletoFundo: null, tabletFundo: null };
+  const planilha = ler('planilha');
+  if (planilha) aparencia.planilha = planilha;
+  const logo = ler('logo_story');
+  if (logo) aparencia.logo_story = logo;
+  return aparencia;
+}
+
 let preferenciasSincronizadas = false;
 let sincronizacaoEmAndamento: Promise<void> | null = null;
 /** Último valor (serializado) que se sabe estar no servidor, por chave — evita reenviar o que não mudou. */
@@ -719,6 +810,7 @@ function enviarPreferencia(chave: ChavePreferenciaCartaz, serializado: string) {
 
 /** `serializado` = o JSON do valor; `'{}'` = removido (ex.: logo padrão tirada no Story). */
 function agendarEnvioPreferencia(chave: ChavePreferenciaCartaz, serializado: string) {
+  if (ehChaveDaCampanha(chave)) return agendarEnvioCampanha(chave, serializado);
   if (!preferenciasSincronizadas || ultimoValorNoServidor.get(chave) === serializado) return;
   clearTimeout(envioAgendado.get(chave));
   envioAgendado.set(
@@ -736,6 +828,7 @@ export function sincronizarPreferenciasCartaz(): Promise<void> {
       .listar()
       .then((doServidor) => {
         (Object.keys(CHAVE_LOCAL_DA_PREFERENCIA) as ChavePreferenciaCartaz[]).forEach((chave) => {
+          if (ehChaveDaCampanha(chave)) return; // fundos, cores e logo agora são de cada campanha
           const chaveLocal = CHAVE_LOCAL_DA_PREFERENCIA[chave];
           const valorServidor = doServidor[chave];
           try {

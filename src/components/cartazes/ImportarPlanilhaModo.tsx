@@ -41,6 +41,7 @@ import { IconeWhatsapp } from '../IconeWhatsapp';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { cartazService, type ArquivoImportadoMeta } from '../../services/cartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { projetoInicialDaCampanha } from '../../utils/campanhaAtiva';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { useFilaUploadImagens } from '../../hooks/useFilaUploadImagens';
 import type { OfertaLote } from '../../utils/cartazOfertaEngine';
@@ -347,6 +348,17 @@ export function ImportarPlanilhaModo({ aoEnviarParaPanfleto, aoEnviarParaCartazO
         }
       }
 
+      // Sem projeto lembrado: abre o da campanha (ou cria um com o nome dela) — já cai trabalhando.
+      try {
+        const projeto = await projetoInicialDaCampanha('planilha');
+        if (projeto) {
+          await aplicarProjeto(projeto);
+          setCarregandoProjeto(false);
+          return;
+        }
+      } catch {
+        /* sem conexão agora — a lista de projetos mostra o erro e deixa tentar de novo */
+      }
       setMostrarPainelProjetos(true);
       setCarregandoProjeto(false);
     }

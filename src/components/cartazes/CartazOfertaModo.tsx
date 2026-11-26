@@ -2,14 +2,9 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
-import {
-  carregarFolhaCartazOferta,
-  descricaoDoProduto,
-  EVENTO_PREFERENCIAS_SINCRONIZADAS,
-  salvarDescricaoProduto,
-  salvarFolhaCartazOferta,
-} from '../../utils/cartazPersistencia';
-import { carregarFundoDoServidor, enviarFundoParaServidor, imagemDeDataUrlLocal, type FundoNoServidor } from '../../utils/fundoNoServidor';
+import { descricaoDoProduto, salvarDescricaoProduto, type FolhaCartazOferta } from '../../utils/cartazPersistencia';
+import { carregarFundoDoServidor, enviarFundoParaServidor, type FundoNoServidor } from '../../utils/fundoNoServidor';
+import { campanhaCartazService, type CampanhaCartaz } from '../../services/campanhaCartazService';
 import { baixarArquivoDireto } from '../../utils/compartilharArquivo';
 import {
   blobDoCanvas,
@@ -41,13 +36,17 @@ interface CartazOfertaModoProps {
   ofertasRecebidas?: OfertaLote[] | null;
   /** Avisa que `ofertasRecebidas` já virou o lote, pra não importar de novo a cada render. */
   aoReceberOfertas?: () => void;
+  /** Campanha aberta — a folha (dados, lote, página e fundo) é desta campanha, salva no servidor. */
+  campanha: CampanhaCartaz;
 }
 
-export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazOfertaModoProps = {}) {
+export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas, campanha }: CartazOfertaModoProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputFundoRef = useRef<HTMLInputElement>(null);
-  // Abre com a cópia local da folha (a do servidor chega logo depois, na sincronização).
-  const [folhaInicial] = useState(carregarFolhaCartazOferta);
+  // Abre com a folha desta campanha (vazia numa campanha nova = modelo e exemplo de sempre).
+  const [folhaInicial] = useState<Partial<FolhaCartazOferta> | null>(() =>
+    Object.keys(campanha.folhaOferta ?? {}).length > 0 ? (campanha.folhaOferta as Partial<FolhaCartazOferta>) : null,
+  );
   const [fundo, setFundo] = useState<HTMLImageElement | null>(null);
   const [fundoSalvo, setFundoSalvo] = useState<FundoNoServidor | null>(folhaInicial?.fundo ?? null);
   const fundoMostradoRef = useRef<string | null | undefined>(undefined);
@@ -108,50 +107,21 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas }: CartazO
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fundoSalvo?.arquivoId]);
 
-  /** Aplica uma folha salva (cópia local ou a que veio do servidor). */
-  function aplicarFolha(f: NonNullable<ReturnType<typeof carregarFolhaCartazOferta>>) {
-    if (f.modo) setModo(f.modo);
-    if (f.oferta) setOferta(f.oferta);
-    if (f.quantidade !== undefined) setQuantidade(f.quantidade);
-    if (f.porFolhaIndividual) setPorFolhaIndividual(f.porFolhaIndividual);
-    if (f.lote) setLote(f.lote);
-    if (f.nomeArquivoLote !== undefined) setNomeArquivoLote(f.nomeArquivoLote);
-    if (f.porFolhaLote) setPorFolhaLote(f.porFolhaLote);
-    if (f.pagina !== undefined) setPagina(f.pagina);
-    setFundoSalvo(f.fundo ?? null);
-  }
-
-  // A folha do servidor chega com a sincronização das preferências (ao abrir Cartazes) — é a mesma em qualquer aparelho.
+  // Salva a folha (dados, quantidades, lote, página e fundo) na campanha — abre igual em qualquer aparelho da conta.
+  const primeiraVezRef = useRef(true);
   useEffect(() => {
-    function aoSincronizar() {
-      const f = carregarFolhaCartazOferta();
-      if (f) aplicarFolha(f);
+    if (primeiraVezRef.current) {
+      primeiraVezRef.current = false; // acabou de abrir: nada mudou ainda
+      return;
     }
-    window.addEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aoSincronizar);
-    return () => window.removeEventListener(EVENTO_PREFERENCIAS_SINCRONIZADAS, aoSincronizar);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Rascunho antigo (só deste navegador) com fundo personalizado: envia o fundo pro servidor uma vez.
-  useEffect(() => {
-    if (!folhaInicial?.fundoLegadoDataUrl) return;
-    imagemDeDataUrlLocal(folhaInicial.fundoLegadoDataUrl)
-      .then((img) => enviarFundoParaServidor(img, 1334))
-      .then((arquivoId) => setFundoSalvo({ nome: folhaInicial.fundoLegadoNome || 'Fundo personalizado', arquivoId }))
-      .catch(() => {
-        /* sem conexão agora — continua com o modelo oficial */
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Salva a folha (dados, quantidades, lote, página e fundo) no servidor — abre igual em qualquer aparelho da conta.
-  useEffect(() => {
-    const timer = setTimeout(
-      () => salvarFolhaCartazOferta({ modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundo: fundoSalvo }),
-      500,
-    );
+    const folha: FolhaCartazOferta = { modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundo: fundoSalvo };
+    const timer = setTimeout(() => {
+      campanhaCartazService
+        .salvarFolhaOferta(campanha.id, folha as unknown as Record<string, unknown>)
+        .catch(() => setErro('Não foi possível salvar a folha do cartaz agora. Confira a conexão — a próxima alteração tenta de novo.'));
+    }, 800);
     return () => clearTimeout(timer);
-  }, [modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundoSalvo]);
+  }, [campanha.id, modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundoSalvo]);
 
   useEffect(() => {
     if (!ofertasRecebidas || ofertasRecebidas.length === 0) return;

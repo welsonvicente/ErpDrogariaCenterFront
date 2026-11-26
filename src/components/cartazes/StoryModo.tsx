@@ -43,6 +43,7 @@ import {
 import { baixarArquivoDireto, salvarOuCompartilharArquivo } from '../../utils/compartilharArquivo';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { projetoInicialDaCampanha } from '../../utils/campanhaAtiva';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { ProjetosCartazPainel } from './ProjetosCartazPainel';
 import { AjustesCaixaTexto } from './AjustesCaixaTexto';
@@ -394,6 +395,17 @@ export function StoryModo() {
         }
       }
 
+      // Sem projeto lembrado: abre o da campanha (ou cria um com o nome dela) — já cai trabalhando.
+      try {
+        const projeto = await projetoInicialDaCampanha('story');
+        if (projeto) {
+          await aplicarProjeto(projeto);
+          setCarregandoProjeto(false);
+          return;
+        }
+      } catch {
+        /* sem conexão agora — a lista de projetos mostra o erro e deixa tentar de novo */
+      }
       setMostrarPainelProjetos(true);
       setCarregandoProjeto(false);
     }

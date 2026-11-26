@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CampanhasPainel } from '../components/cartazes/CampanhasPainel';
 import { CartazOfertaModo } from '../components/cartazes/CartazOfertaModo';
 import { GuiaFundosModal } from '../components/cartazes/GuiaFundosModal';
 import { ImportarPlanilhaModo } from '../components/cartazes/ImportarPlanilhaModo';
@@ -6,7 +7,9 @@ import { PanfletoModo } from '../components/cartazes/PanfletoModo';
 import { StoryModo } from '../components/cartazes/StoryModo';
 import { FerramentaShell } from '../components/FerramentaShell';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { sincronizarPreferenciasCartaz } from '../utils/cartazPersistencia';
+import { campanhaCartazService, type CampanhaCartaz } from '../services/campanhaCartazService';
+import { campanhaSalvaNoAparelho, definirCampanhaAtiva } from '../utils/campanhaAtiva';
+import { aplicarAparenciaDaCampanha, sincronizarPreferenciasCartaz } from '../utils/cartazPersistencia';
 import type { OfertaLote } from '../utils/cartazOfertaEngine';
 import type { ProdutoPanfleto } from '../utils/panfletoEngine';
 
@@ -32,12 +35,40 @@ export function CartazesPage() {
   const [produtosParaPanfleto, setProdutosParaPanfleto] = useState<ProdutoPanfleto[] | null>(null);
   const [ofertasParaCartaz, setOfertasParaCartaz] = useState<OfertaLote[] | null>(null);
   const [mostrarGuiaFundos, setMostrarGuiaFundos] = useState(false);
+  // Campanha aberta (ex.: "Black Friday — semana 1"): os modos só montam depois de escolhida e
+  // remontam (key) ao trocar — cada campanha tem os seus projetos e a sua folha de Cartaz de oferta.
+  const [campanha, setCampanha] = useState<CampanhaCartaz | null>(null);
+  const [carregandoCampanha, setCarregandoCampanha] = useState(true);
+  const [trocandoCampanha, setTrocandoCampanha] = useState(false);
 
   // Cores, letras, tamanhos e posições padrão vêm do servidor (por organização), pra valerem em
   // qualquer navegador — os três modos reaplicam quando chegam (ver cartazPersistencia.ts).
   useEffect(() => {
     sincronizarPreferenciasCartaz();
   }, []);
+
+  // Reabre a campanha que estava aberta neste aparelho; sem ela, mostra a escolha.
+  useEffect(() => {
+    const id = campanhaSalvaNoAparelho();
+    if (!id) {
+      setCarregandoCampanha(false);
+      return;
+    }
+    campanhaCartazService
+      .obter(id)
+      .then(abrirCampanha)
+      .catch(() => definirCampanhaAtiva(null))
+      .finally(() => setCarregandoCampanha(false));
+  }, []);
+
+  function abrirCampanha(nova: CampanhaCartaz) {
+    definirCampanhaAtiva(nova);
+    aplicarAparenciaDaCampanha(nova);
+    setProdutosParaPanfleto(null);
+    setOfertasParaCartaz(null);
+    setCampanha(nova);
+    setTrocandoCampanha(false);
+  }
 
   return (
     <FerramentaShell titulo="Cartazes e panfletos">
@@ -47,6 +78,17 @@ export function CartazesPage() {
           <button type="button" className="btn-ghost" onClick={() => setMostrarGuiaFundos(true)}>
             🎨 Criar fundo com ChatGPT <span>textos prontos e modelos</span>
           </button>
+        </div>
+
+        {carregandoCampanha && <div className="card cartaz-painel">Abrindo campanha…</div>}
+        {!carregandoCampanha && !campanha && <CampanhasPainel atualId={null} onAbrir={abrirCampanha} />}
+
+        {campanha && (
+        <>
+        <div className="campanha-barra">
+          <span>📣 Campanha</span>
+          <strong>{campanha.nome}</strong>
+          <button type="button" className="btn-ghost" onClick={() => setTrocandoCampanha(true)}>🔁 Trocar ou criar campanha</button>
         </div>
 
         <div className="mode-tabs" role="tablist" aria-label="Formato do material">
@@ -65,10 +107,11 @@ export function CartazesPage() {
         </div>
 
         <div id="cartazes-panel-story" role="tabpanel" aria-labelledby="cartazes-tab-story" className="cartazes-mode" style={{ display: modo === 'story' ? 'block' : 'none' }}>
-          <StoryModo />
+          <StoryModo key={campanha.id} />
         </div>
         <div id="cartazes-panel-panfleto" role="tabpanel" aria-labelledby="cartazes-tab-panfleto" className="cartazes-mode" style={{ display: modo === 'panfleto' ? 'block' : 'none' }}>
           <PanfletoModo
+            key={campanha.id}
             produtosRecebidos={produtosParaPanfleto}
             aoReceberProdutos={() => setProdutosParaPanfleto(null)}
             aoAbrirConfiguracaoPadrao={() => setModo('story')}
@@ -76,6 +119,7 @@ export function CartazesPage() {
         </div>
         <div id="cartazes-panel-planilha" role="tabpanel" aria-labelledby="cartazes-tab-planilha" className="cartazes-mode cartazes-mode--planilha" style={{ display: modo === 'planilha' ? 'flex' : 'none' }}>
           <ImportarPlanilhaModo
+            key={campanha.id}
             aoEnviarParaPanfleto={(produtos) => {
               setProdutosParaPanfleto(produtos);
               setModo('panfleto');
@@ -87,9 +131,13 @@ export function CartazesPage() {
           />
         </div>
         <div id="cartazes-panel-oferta" role="tabpanel" aria-labelledby="cartazes-tab-oferta" className="cartazes-mode" style={{ display: modo === 'oferta' ? 'block' : 'none' }}>
-          <CartazOfertaModo ofertasRecebidas={ofertasParaCartaz} aoReceberOfertas={() => setOfertasParaCartaz(null)} />
+          <CartazOfertaModo key={campanha.id} campanha={campanha} ofertasRecebidas={ofertasParaCartaz} aoReceberOfertas={() => setOfertasParaCartaz(null)} />
         </div>
+        </>
+        )}
       </div>
+      {/* Abre por cima: os modos continuam montados até escolher, então o autosave do que estava aberto termina. */}
+      {trocandoCampanha && campanha && <CampanhasPainel atualId={campanha.id} onAbrir={abrirCampanha} onFechar={() => setTrocandoCampanha(false)} />}
       {mostrarGuiaFundos && <GuiaFundosModal onFechar={() => setMostrarGuiaFundos(false)} />}
     </FerramentaShell>
   );

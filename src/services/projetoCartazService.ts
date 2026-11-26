@@ -1,3 +1,4 @@
+import { campanhaAtiva } from '../utils/campanhaAtiva';
 import { api } from './api';
 
 export type TipoProjetoCartaz = 'story' | 'panfleto' | 'planilha';
@@ -35,13 +36,15 @@ export interface ProjetoCartazCompleto extends ProjetoCartazSalvo {
  * qualquer aparelho logado nela.
  */
 export const projetoCartazService = {
+  /** Cria dentro da campanha aberta (ver `campanhaAtiva`). */
   async criar(tipo: TipoProjetoCartaz, nome: string): Promise<ProjetoCartazSalvo> {
-    const { data } = await api.post<ProjetoCartazSalvo>('/cartazes/projetos', { tipo, nome });
+    const { data } = await api.post<ProjetoCartazSalvo>('/cartazes/projetos', { tipo, nome, campanhaId: campanhaAtiva()?.id });
     return data;
   },
 
+  /** Só os projetos da campanha aberta — as outras campanhas não aparecem misturadas. */
   async listar(tipo: TipoProjetoCartaz): Promise<ProjetoCartazResumo[]> {
-    const { data } = await api.get<ProjetoCartazResumo[]>('/cartazes/projetos', { params: { tipo } });
+    const { data } = await api.get<ProjetoCartazResumo[]>('/cartazes/projetos', { params: { tipo, campanhaId: campanhaAtiva()?.id } });
     return data;
   },
 

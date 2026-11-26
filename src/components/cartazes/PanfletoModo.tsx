@@ -34,6 +34,7 @@ import { contaComoEnviado, enviarNoWhatsapp, formatarEnviadoEm, mensagemEnvioWha
 import { IconeWhatsapp } from '../IconeWhatsapp';
 import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { mensagemFalhaAoSalvar, projetoCartazService, type ProjetoCartazCompleto } from '../../services/projetoCartazService';
+import { projetoInicialDaCampanha } from '../../utils/campanhaAtiva';
 import { useAvisoSairComPendencia } from '../../hooks/useAvisoSairComPendencia';
 import { useLogoPadraoStory } from '../../hooks/useLogoPadraoStory';
 import { useFundoPersonalizadoStory } from '../../hooks/useFundoPersonalizadoStory';
@@ -685,6 +686,17 @@ export function PanfletoModo({ produtosRecebidos, aoReceberProdutos, aoAbrirConf
         }
       }
 
+      // Sem projeto lembrado: abre o da campanha (ou cria um com o nome dela) — já cai trabalhando.
+      try {
+        const projeto = await projetoInicialDaCampanha('panfleto');
+        if (projeto) {
+          await aplicarProjeto(projeto);
+          setCarregandoProjeto(false);
+          return;
+        }
+      } catch {
+        /* sem conexão agora — a lista de projetos mostra o erro e deixa tentar de novo */
+      }
       setMostrarPainelProjetos(true);
       setCarregandoProjeto(false);
     }
