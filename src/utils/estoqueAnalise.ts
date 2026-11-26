@@ -172,6 +172,18 @@ function percentis(valores: Array<number | null>): number[] {
   });
 }
 
+/**
+ * Produto fora das análises por ter dado entrada no período desconsiderado (ex.: o que chegou em
+ * outubro e novembro ainda não é "parado"). Sem data de entrada, continua sendo considerado.
+ */
+export function entradaDesconsiderada(produto: Pick<ProdutoEstoque, 'dataUltimaEntrada'>, periodo: ConfigEstoque['desconsiderarEntradas']): boolean {
+  const data = produto.dataUltimaEntrada;
+  if (!periodo || (!periodo.de && !periodo.ate) || !data) return false;
+  if (periodo.de && data < periodo.de) return false;
+  if (periodo.ate && data > periodo.ate) return false;
+  return true;
+}
+
 export function analisar(produtos: ProdutoEstoque[], config: ConfigEstoque, hoje: Date = new Date()): ProdutoAnalisado[] {
   const faixas = faixasDeTempo(config);
 

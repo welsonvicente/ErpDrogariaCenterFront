@@ -279,3 +279,54 @@ table.est-tabela td { vertical-align: middle; }
   .est-graficos { grid-template-columns: repeat(2, 1fr); }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Período de entradas desconsideradas (aparece em todas as telas do módulo) */
+.est-periodo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font-size: 13px; color: var(--ink-soft); }
+.est-periodo.ativo { background: var(--warn-bg); border-color: var(--warn); color: var(--ink); }
+.est-periodo.editando { background: var(--mint); border-color: var(--teal); color: var(--ink); }
+.est-periodo label { display: flex; align-items: center; gap: 6px; }
+.est-periodo input[type="date"] { margin: 0; width: auto; padding: 6px 8px; }
+.est-periodo small { color: var(--ink-soft); }
+.est-periodo-atalhos, .est-periodo-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.est-periodo-acoes { margin-left: auto; }
+.est-periodo button { width: auto; margin: 0; font-size: 12.5px; padding: 6px 10px; }
+
+/* Lista com busca (Fornecedor, Laboratório, Grupo) */
+.est-select-pesquisavel { position: relative; }
+.est-sp-caixa { position: relative; }
+.est-sp-caixa input { width: 100%; margin: 0; padding-right: 30px; cursor: text; }
+.est-sp-caixa input.tem-valor { font-weight: 600; color: var(--teal-deep); }
+.est-sp-limpar { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px !important; height: 22px; margin: 0 !important; padding: 0 !important; border: 0; border-radius: 50%; background: var(--bg); color: var(--ink-soft); font-size: 15px; line-height: 1; cursor: pointer; }
+.est-sp-lista { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); max-height: 280px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.est-sp-lista li { padding: 7px 10px; border-radius: 7px; font-size: 13px; cursor: pointer; color: var(--ink); }
+.est-sp-lista li.todos { color: var(--ink-soft); font-style: italic; }
+.est-sp-lista li.destaque { background: var(--mint); }
+.est-sp-lista li.escolhido { font-weight: 700; color: var(--teal-deep); }
+.est-sp-lista li.vazio { color: var(--ink-soft); cursor: default; }
+
+/* Colunas da tabela de produtos: arrastar, esconder, ⚙️ Colunas */
+.est-colunas-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.est-colunas-barra .est-dica { margin: 0; }
+.est-colunas-menu { position: relative; margin-left: auto; }
+.est-colunas-menu > button { width: auto; margin: 0; font-size: 12.5px; padding: 6px 10px; }
+.est-colunas-painel { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 220px; max-height: 360px; overflow-y: auto; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; }
+.est-colunas-painel label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.est-colunas-painel input { width: 16px; height: 16px; margin: 0; }
+.est-colunas-painel-acoes { display: flex; gap: 6px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.est-colunas-painel-acoes button { width: auto; margin: 0; font-size: 12px; padding: 4px 10px; }
+.est-th-movel { cursor: grab; position: relative; padding-right: 22px !important; }
+.est-th-movel.arrastando { opacity: .45; }
+.est-th-movel.alvo { box-shadow: inset 3px 0 0 var(--teal); }
+.est-th-esconder { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; padding: 0; margin: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink-soft); font-size: 13px; line-height: 1; cursor: pointer; opacity: 0; }
+.est-th-movel:hover .est-th-esconder, .est-th-esconder:focus-visible { opacity: 1; }
+.est-th-esconder:hover { background: var(--late-bg); color: var(--late); }
+@media (hover: none) { .est-th-esconder { opacity: .6; } }
+@media print { .est-colunas-barra, .est-th-esconder { display: none !important; } }
+
+/* Barra de rolagem lateral presa no rodapé da tela (acompanha o subir e descer) */
+.est-barra-rolagem { position: sticky; bottom: 0; z-index: 20; height: 16px; overflow-x: auto; overflow-y: hidden; margin-top: -1px; background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; }
+.est-barra-rolagem > div { height: 1px; }
+.est-barra-rolagem::-webkit-scrollbar { height: 14px; }
+.est-barra-rolagem::-webkit-scrollbar-thumb { background: var(--teal); border-radius: 8px; border: 3px solid var(--card); }
+.est-barra-rolagem::-webkit-scrollbar-track { background: var(--bg); }
+@media print { .est-barra-rolagem { display: none !important; } }

@@ -3,6 +3,7 @@ import { produto } from '../tests/fabricaEstoque';
 import { categoriaDoProduto } from './estoqueAcoes';
 import {
   CONFIG_PADRAO,
+  entradaDesconsiderada,
   agruparPor,
   analisar,
   calcularTotais,
@@ -239,5 +240,23 @@ describe('simular', () => {
     expect(r.receita).toBeNull();
     expect(r.resultadoBruto).toBeNull();
     expect(r.abaixoDoCusto).toBe(false);
+  });
+});
+
+describe('entradaDesconsiderada', () => {
+  const p = (dataUltimaEntrada: string | null) => ({ dataUltimaEntrada });
+
+  it('tira só quem teve a última entrada dentro do período (inclusive nas pontas)', () => {
+    const periodo = { de: '2026-10-01', ate: '2026-11-30' };
+    expect(entradaDesconsiderada(p('2026-10-01'), periodo)).toBe(true);
+    expect(entradaDesconsiderada(p('2026-11-30'), periodo)).toBe(true);
+    expect(entradaDesconsiderada(p('2026-09-30'), periodo)).toBe(false);
+    expect(entradaDesconsiderada(p('2026-12-01'), periodo)).toBe(false);
+  });
+
+  it('fim vazio vale até hoje; sem período ou sem data de entrada, considera o produto', () => {
+    expect(entradaDesconsiderada(p('2026-11-20'), { de: '2026-10-01', ate: null })).toBe(true);
+    expect(entradaDesconsiderada(p('2026-11-20'), null)).toBe(false);
+    expect(entradaDesconsiderada(p(null), { de: '2026-10-01', ate: null })).toBe(false);
   });
 });

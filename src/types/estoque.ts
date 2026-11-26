@@ -55,6 +55,8 @@ export interface ConfigEstoque {
   pesos: { quantidade: number; valor: number; tempo: number };
   /** O Trier exporta o grupo só como código; aqui a gestão dá nome a cada código. */
   nomesGrupos: Record<string, string>;
+  /** Produtos com ÚLTIMA ENTRADA neste período ficam fora das análises (AAAA-MM-DD; `ate` null = até hoje). */
+  desconsiderarEntradas?: { de: string | null; ate: string | null } | null;
 }
 
 export type ModoImportacao = 'ATUALIZAR' | 'SUBSTITUIR' | 'RESTAURACAO';

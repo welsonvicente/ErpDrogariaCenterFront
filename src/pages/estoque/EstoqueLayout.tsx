@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { ManagerLayout } from '../../components/ManagerLayout';
 import { EstoqueProvider, useEstoque } from '../../context/EstoqueContext';
 import { useResponsaveis } from '../../hooks/useResponsaveis';
+import { PeriodoDesconsiderado } from '../../components/estoque/PeriodoDesconsiderado';
 import '../../estoque.css';
 
 /**
@@ -67,6 +68,7 @@ function Conteudo() {
         ))}
       </datalist>
       <BuscaGlobal />
+      <PeriodoDesconsiderado />
       <Outlet />
     </>
   );

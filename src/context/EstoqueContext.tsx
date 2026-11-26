@@ -1,14 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { estoqueService, mensagemDeErro, type PayloadImportacao } from '../services/estoqueService';
 import type { ConfigEstoque, EdicaoProduto, ImportacaoEstoque, ProdutoEstoque } from '../types/estoque';
-import { CONFIG_PADRAO, analisar, type ProdutoAnalisado } from '../utils/estoqueAnalise';
+import { CONFIG_PADRAO, analisar, entradaDesconsiderada, type ProdutoAnalisado } from '../utils/estoqueAnalise';
 
 interface EstoqueContextoValor {
   carregando: boolean;
   erro: string;
   produtos: ProdutoEstoque[];
-  /** Tudo que o relatório trouxe + classificação, dias, valor e ranking já calculados. */
+  /** O que o relatório trouxe (menos o período desconsiderado) + classificação, dias, valor e ranking. */
   analisados: ProdutoAnalisado[];
+  /** Produtos fora das análises por terem dado entrada no período desconsiderado (ver Config). */
+  desconsiderados: ProdutoEstoque[];
   config: ConfigEstoque;
   importacoes: ImportacaoEstoque[];
   /** "Hoje" fixado quando a tela abriu — todos os cálculos de dias usam o mesmo dia. */
@@ -66,7 +68,12 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     void recarregar();
   }, [recarregar]);
 
-  const analisados = useMemo(() => analisar(produtos, config, hoje), [produtos, config, hoje]);
+  // O período desconsiderado sai ANTES da análise: painel, ranking, plano, listas e totais já vêm sem ele.
+  const desconsiderados = useMemo(() => produtos.filter((p) => entradaDesconsiderada(p, config.desconsiderarEntradas)), [produtos, config.desconsiderarEntradas]);
+  const analisados = useMemo(() => {
+    const fora = new Set(desconsiderados.map((p) => p.id));
+    return analisar(fora.size ? produtos.filter((p) => !fora.has(p.id)) : produtos, config, hoje);
+  }, [produtos, desconsiderados, config, hoje]);
 
   const substituir = useCallback((atualizados: ProdutoEstoque[]) => {
     const porId = new Map(atualizados.map((p) => [p.id, p]));
@@ -79,6 +86,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       erro,
       produtos,
       analisados,
+      desconsiderados,
       config,
       importacoes,
       hoje,
@@ -105,7 +113,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
         setConfig(await estoqueService.salvarConfig(nova));
       },
     }),
-    [carregando, erro, produtos, analisados, config, importacoes, hoje, recarregar, avisar, substituir],
+    [carregando, erro, produtos, analisados, desconsiderados, config, importacoes, hoje, recarregar, avisar, substituir],
   );
 
   return (

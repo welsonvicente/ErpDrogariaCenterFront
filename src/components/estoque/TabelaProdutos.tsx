@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { useEstoque } from '../../context/EstoqueContext';
 import { mensagemDeErro } from '../../services/estoqueService';
 import { STATUS_ACAO_LABEL, STATUS_ACAO_ORDEM, type StatusAcao } from '../../types/estoque';
@@ -108,6 +108,31 @@ const COLUNAS: Record<IdColuna, DefinicaoColuna> = {
 
 const LIMITE_IMPRESSAO = 3000;
 
+/**
+ * Arranjo das colunas (ordem e escondidas) de cada tabela, guardado neste navegador.
+ * A chave é o conjunto padrão de colunas da tela — cada tela (Produtos, Ranking…) tem o seu.
+ */
+interface ArranjoColunas {
+  ordem: IdColuna[];
+  ocultas: IdColuna[];
+}
+
+function chaveArranjo(padrao: IdColuna[]) {
+  return `est_colunas_v1_${padrao.join(',')}`;
+}
+
+function lerArranjo(padrao: IdColuna[]): ArranjoColunas {
+  try {
+    const salvo = JSON.parse(localStorage.getItem(chaveArranjo(padrao)) || 'null') as ArranjoColunas | null;
+    if (!salvo) return { ordem: padrao, ocultas: [] };
+    // Só colunas que esta tela tem; coluna nova (que não existia quando salvou) entra no fim.
+    const ordem = salvo.ordem.filter((id) => padrao.includes(id));
+    return { ordem: [...ordem, ...padrao.filter((id) => !ordem.includes(id))], ocultas: salvo.ocultas.filter((id) => padrao.includes(id)) };
+  } catch {
+    return { ordem: padrao, ocultas: [] };
+  }
+}
+
 interface Props {
   produtos: ProdutoAnalisado[];
   colunas: IdColuna[];
@@ -131,6 +156,66 @@ export function TabelaProdutos({ produtos, colunas, onAbrir, selecionados, onSel
   const [pagina, setPagina] = useState(0);
   const [porPagina, setPorPagina] = useState(50);
   const [salvando, setSalvando] = useState<string | null>(null);
+
+  // Colunas arrastáveis e escondíveis (o padrão da tela continua sendo `colunas`; o "↺ Padrão" volta a ele).
+  const [arranjo, setArranjo] = useState<ArranjoColunas>(() => lerArranjo(colunas));
+  const [arrastando, setArrastando] = useState<IdColuna | null>(null);
+  const [alvoArraste, setAlvoArraste] = useState<IdColuna | null>(null);
+  const [menuColunas, setMenuColunas] = useState(false);
+  const visiveisColunas = arranjo.ordem.filter((id) => !arranjo.ocultas.includes(id));
+
+  function guardarArranjo(novo: ArranjoColunas) {
+    setArranjo(novo);
+    try {
+      localStorage.setItem(chaveArranjo(colunas), JSON.stringify(novo));
+    } catch {
+      /* sem localStorage: vale só até sair da tela */
+    }
+  }
+  function esconder(id: IdColuna) {
+    if (visiveisColunas.length <= 1) return avisar('Deixe pelo menos uma coluna na tabela.');
+    guardarArranjo({ ...arranjo, ocultas: [...arranjo.ocultas, id] });
+  }
+  function alternarColuna(id: IdColuna) {
+    if (arranjo.ocultas.includes(id)) guardarArranjo({ ...arranjo, ocultas: arranjo.ocultas.filter((o) => o !== id) });
+    else esconder(id);
+  }
+  function soltarEm(alvo: IdColuna) {
+    if (!arrastando || arrastando === alvo) return;
+    const ordem = arranjo.ordem.filter((id) => id !== arrastando);
+    ordem.splice(ordem.indexOf(alvo), 0, arrastando);
+    guardarArranjo({ ...arranjo, ordem });
+  }
+  const arranjoPadrao = arranjo.ocultas.length === 0 && arranjo.ordem.join() === colunas.join();
+
+  // Barra de rolagem lateral presa no rodapé da tela: a tabela é larga e a barra dela só aparecia
+  // no fim da lista. As duas ficam sincronizadas (mexer numa move a outra).
+  const rolagemRef = useRef<HTMLDivElement>(null);
+  const barraRef = useRef<HTMLDivElement>(null);
+  const [larguraConteudo, setLarguraConteudo] = useState(0);
+  const [precisaBarra, setPrecisaBarra] = useState(false);
+  useEffect(() => {
+    const caixa = rolagemRef.current;
+    if (!caixa) return;
+    const medir = () => {
+      setLarguraConteudo(caixa.scrollWidth);
+      setPrecisaBarra(caixa.scrollWidth > caixa.clientWidth + 1);
+    };
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(caixa);
+    if (caixa.firstElementChild) observador.observe(caixa.firstElementChild);
+    return () => observador.disconnect();
+  });
+  const sincronizando = useRef(false);
+  function sincronizar(origem: HTMLDivElement | null, destino: HTMLDivElement | null) {
+    if (!origem || !destino || sincronizando.current) return;
+    sincronizando.current = true;
+    destino.scrollLeft = origem.scrollLeft;
+    requestAnimationFrame(() => {
+      sincronizando.current = false;
+    });
+  }
 
   // Filtro novo → primeira página. Feito durante o render (padrão "estado derivado") e não num efeito, pra não custar um render extra.
   const [chaveAnterior, setChaveAnterior] = useState(chaveReset);
@@ -191,7 +276,28 @@ export function TabelaProdutos({ produtos, colunas, onAbrir, selecionados, onSel
 
   return (
     <>
-      <div className="est-tabela-rolagem">
+      <div className="est-colunas-barra">
+        <span className="est-dica">Arraste o título de uma coluna para mudar de lugar · × no título esconde.</span>
+        <div className="est-colunas-menu">
+          <button type="button" className="btn-ghost" aria-expanded={menuColunas} onClick={() => setMenuColunas((v) => !v)}>
+            ⚙️ Colunas{arranjo.ocultas.length > 0 ? ` (${arranjo.ocultas.length} escondida${arranjo.ocultas.length > 1 ? 's' : ''})` : ''}
+          </button>
+          {menuColunas && (
+            <div className="est-colunas-painel" role="dialog" aria-label="Colunas da tabela">
+              {arranjo.ordem.map((id) => (
+                <label key={id}>
+                  <input type="checkbox" checked={!arranjo.ocultas.includes(id)} onChange={() => alternarColuna(id)} /> {COLUNAS[id].titulo}
+                </label>
+              ))}
+              <div className="est-colunas-painel-acoes">
+                <button type="button" className="btn-ghost" disabled={arranjoPadrao} onClick={() => guardarArranjo({ ordem: colunas, ocultas: [] })}>↺ Padrão</button>
+                <button type="button" className="btn-ghost" onClick={() => setMenuColunas(false)}>Fechar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="est-tabela-rolagem" ref={rolagemRef} onScroll={() => sincronizar(rolagemRef.current, barraRef.current)}>
         <table className="data-table est-tabela">
           <thead>
             <tr>
@@ -200,18 +306,48 @@ export function TabelaProdutos({ produtos, colunas, onAbrir, selecionados, onSel
                   <input type="checkbox" checked={paginaInteiraSelecionada} onChange={alternarPagina} aria-label="Selecionar todos desta página" />
                 </th>
               )}
-              {colunas.map((id) => {
+              {visiveisColunas.map((id) => {
                 const def = COLUNAS[id];
                 const ativa = ordenacao?.chave === def.chave;
                 return (
                   <th
                     key={id}
-                    className={`${def.alinhar === 'direita' ? 'est-direita' : ''} ${ordenavel && def.chave ? 'est-ordenavel' : ''}`}
+                    draggable
+                    className={`est-th-movel ${def.alinhar === 'direita' ? 'est-direita' : ''} ${ordenavel && def.chave ? 'est-ordenavel' : ''}${arrastando === id ? ' arrastando' : ''}${alvoArraste === id && arrastando !== id ? ' alvo' : ''}`}
                     onClick={() => ordenarPorColuna(def)}
+                    onDragStart={(e: DragEvent) => {
+                      setArrastando(id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setAlvoArraste(id);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      soltarEm(id);
+                    }}
+                    onDragEnd={() => {
+                      setArrastando(null);
+                      setAlvoArraste(null);
+                    }}
+                    title="Arraste para mudar a coluna de lugar"
                     aria-sort={ativa ? (ordenacao?.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                   >
                     {def.titulo}
                     {ordenavel && def.chave && ativa && <span className="est-seta-ordem">{ordenacao?.dir === 'asc' ? ' ▲' : ' ▼'}</span>}
+                    <button
+                      type="button"
+                      className="est-th-esconder"
+                      aria-label={`Esconder a coluna ${def.titulo}`}
+                      title="Esconder esta coluna (volta pelo ⚙️ Colunas)"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        esconder(id);
+                      }}
+                    >
+                      ×
+                    </button>
                   </th>
                 );
               })}
@@ -225,7 +361,7 @@ export function TabelaProdutos({ produtos, colunas, onAbrir, selecionados, onSel
                     <input type="checkbox" checked={selecionados.has(p.id)} onChange={() => alternarUm(p.id)} aria-label={`Selecionar ${p.produto}`} />
                   </td>
                 )}
-                {colunas.map((id) => (
+                {visiveisColunas.map((id) => (
                   <td key={id} className={COLUNAS[id].alinhar === 'direita' ? 'est-direita' : undefined}>
                     {COLUNAS[id].celula(p, contexto)}
                   </td>
@@ -235,6 +371,12 @@ export function TabelaProdutos({ produtos, colunas, onAbrir, selecionados, onSel
           </tbody>
         </table>
       </div>
+
+      {precisaBarra && (
+        <div className="est-barra-rolagem" ref={barraRef} onScroll={() => sincronizar(barraRef.current, rolagemRef.current)} aria-hidden="true">
+          <div style={{ width: larguraConteudo }} />
+        </div>
+      )}
 
       {imprimirTudo && ordenados.length > LIMITE_IMPRESSAO && <p className="est-dica">Impressão limitada aos primeiros {LIMITE_IMPRESSAO} produtos — use os filtros para reduzir a lista.</p>}
 

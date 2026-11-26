@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useEstoque } from '../../context/EstoqueContext';
+import { SelectPesquisavel } from './SelectPesquisavel';
 import { STATUS_ACAO_LABEL, STATUS_ACAO_ORDEM, type StatusAcao } from '../../types/estoque';
 import {
   CODIGOS_PRIORIDADE,
@@ -58,37 +59,13 @@ export function FiltrosProdutos({ valor, onChange, campos = CAMPOS_TODOS }: Prop
           </label>
         )}
         {mostra('laboratorio') && (
-          <label className="field">
-            <span>Laboratório</span>
-            <select value={valor.laboratorio ?? ''} onChange={(e) => mudar({ laboratorio: e.target.value })}>
-              <option value="">Todos</option>
-              {laboratorios.map((l) => (
-                <option key={l}>{l}</option>
-              ))}
-            </select>
-          </label>
+          <SelectPesquisavel rotulo="Laboratório" opcoes={laboratorios} valor={valor.laboratorio ?? ''} onChange={(v) => mudar({ laboratorio: v })} />
         )}
         {mostra('fornecedor') && (
-          <label className="field">
-            <span>Fornecedor</span>
-            <select value={valor.fornecedor ?? ''} onChange={(e) => mudar({ fornecedor: e.target.value })}>
-              <option value="">Todos</option>
-              {fornecedores.map((l) => (
-                <option key={l}>{l}</option>
-              ))}
-            </select>
-          </label>
+          <SelectPesquisavel rotulo="Fornecedor" opcoes={fornecedores} valor={valor.fornecedor ?? ''} onChange={(v) => mudar({ fornecedor: v })} />
         )}
         {mostra('grupo') && (
-          <label className="field">
-            <span>Grupo</span>
-            <select value={valor.grupo ?? ''} onChange={(e) => mudar({ grupo: e.target.value })}>
-              <option value="">Todos</option>
-              {grupos.map((l) => (
-                <option key={l}>{l}</option>
-              ))}
-            </select>
-          </label>
+          <SelectPesquisavel rotulo="Grupo" opcoes={grupos} valor={valor.grupo ?? ''} onChange={(v) => mudar({ grupo: v })} />
         )}
         {mostra('prioridade') && (
           <label className="field">
