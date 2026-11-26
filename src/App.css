@@ -1874,3 +1874,28 @@ body.conta-gotas-ativo .story-elemento-editavel { cursor: crosshair !important; 
 .campanhas-acoes { display: flex; gap: 6px; }
 .campanhas-acoes button { width: auto; margin: 0; padding: 7px 12px; font-size: 13px; }
 .campanhas-apagar:not(:disabled):hover { background: var(--late-bg); color: var(--late); }
+
+/* Cartaz de oferta: cor das letras (geral e por cartaz) */
+.oferta-cores-gerais { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.oferta-cores-gerais label { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.oferta-cores-gerais input[type="color"], .oferta-cor-item input[type="color"] { width: 40px; height: 32px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; flex-shrink: 0; margin: 0; }
+.oferta-cores-gerais button { width: auto; margin: 0 0 0 auto; font-size: 12px; padding: 4px 10px; }
+.oferta-cor-botao { width: 26px !important; height: 26px; flex-shrink: 0; border-radius: 50% !important; border: 2px solid #fff !important; box-shadow: 0 0 0 1px var(--line); color: #fff !important; font-size: 12px !important; line-height: 1; padding: 0 !important; align-self: center; }
+.oferta-cor-botao.propria { box-shadow: 0 0 0 2px var(--teal-deep); }
+.oferta-cor-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.oferta-cor-item label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.oferta-cor-item button { width: auto; margin: 0; font-size: 12px; padding: 4px 10px; color: var(--teal-deep); }
+/* Lista do lote: o nome encolhe (reticências) e o lápis + a bolinha de cor ficam sempre visíveis */
+.cartaz-oferta-lista .product-row { flex-wrap: nowrap; }
+.cartaz-oferta-lista .pinfo { flex: 1 1 auto; min-width: 0; }
+.cartaz-oferta-lista .nome-produto-editavel { min-width: 0; }
+.cartaz-oferta-lista .nome-produto-editavel span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cartaz-oferta-lista .oferta-cor-botao { margin-left: 8px; }
+.cartaz-oferta-lista .product-row:has(.oferta-cor-item) { flex-wrap: wrap; }
+
+/* Cartaz de oferta: faixa "OFERTA" e logomarca */
+.oferta-faixa-texto { display: flex; gap: 8px; }
+.oferta-faixa-texto input { flex: 1; margin: 0; text-transform: uppercase; font-weight: 700; }
+.oferta-faixa-texto button { width: auto; margin: 0; font-size: 12px; padding: 4px 10px; }
+.oferta-cores-gerais small { font-weight: 500; color: var(--ink-soft); }
+.oferta-cores-gerais input[type="color"]:disabled { opacity: .4; cursor: not-allowed; }

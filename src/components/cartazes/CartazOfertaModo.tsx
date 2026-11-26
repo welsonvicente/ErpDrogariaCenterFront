@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
-import { carregarImagemDeArquivo } from '../../utils/arquivoImagem';
+import { carregarImagemDeArquivo, carregarImagemEBlobDeArquivo } from '../../utils/arquivoImagem';
+import { arquivoCartazService } from '../../services/arquivoCartazService';
 import { descricaoDoProduto, salvarDescricaoProduto, type FolhaCartazOferta } from '../../utils/cartazPersistencia';
 import { carregarFundoDoServidor, enviarFundoParaServidor, type FundoNoServidor } from '../../utils/fundoNoServidor';
 import { campanhaCartazService, type CampanhaCartaz } from '../../services/campanhaCartazService';
 import { baixarArquivoDireto } from '../../utils/compartilharArquivo';
 import {
   blobDoCanvas,
+  CABECALHO_ORIGINAL,
   CARTAZES_POR_FOLHA_OPCOES,
+  CORES_ORIGINAIS_CARTAZ,
+  type CoresCartaz,
   desenharFolhaOfertas,
   layoutFolhaOferta,
   ofertasDaPlanilha,
@@ -64,6 +68,26 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas, campanha 
   const [gerando, setGerando] = useState('');
   /** Oferta do lote aberta no editor de descrição/preços. */
   const [editandoLote, setEditandoLote] = useState<number | null>(null);
+  /** Cores das letras de todos os cartazes (vazio = originais do modelo). */
+  const [cores, setCores] = useState<CoresCartaz>(folhaInicial?.cores ?? {});
+  /** Cartaz do lote com o editor "cor só deste" aberto. */
+  const [corDoItem, setCorDoItem] = useState<number | null>(null);
+  /** Faixa "OFERTA" e logomarca (modelo oficial) — vazio = como no modelo. */
+  const [cabecalho, setCabecalho] = useState<NonNullable<FolhaCartazOferta['cabecalho']>>(folhaInicial?.cabecalho ?? {});
+  const [logoImagem, setLogoImagem] = useState<HTMLImageElement | null>(null);
+  const [enviandoLogo, setEnviandoLogo] = useState(false);
+  const inputLogoRef = useRef<HTMLInputElement>(null);
+
+  // Logomarca trocada: baixa do servidor quando muda (ao abrir a campanha, ou trocada aqui).
+  const logoId = cabecalho.logo?.arquivoId ?? null;
+  useEffect(() => {
+    if (!logoId) return setLogoImagem(null);
+    let cancelado = false;
+    carregarFundoDoServidor(logoId)
+      .then((img) => { if (!cancelado) setLogoImagem(img); })
+      .catch(() => { if (!cancelado) setErro('Não foi possível baixar a logomarca salva — usando a original.'); });
+    return () => { cancelado = true; };
+  }, [logoId]);
 
   function carregarFundoOficial() {
     const img = new Image();
@@ -114,14 +138,14 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas, campanha 
       primeiraVezRef.current = false; // acabou de abrir: nada mudou ainda
       return;
     }
-    const folha: FolhaCartazOferta = { modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundo: fundoSalvo };
+    const folha: FolhaCartazOferta = { modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundo: fundoSalvo, cores, cabecalho };
     const timer = setTimeout(() => {
       campanhaCartazService
         .salvarFolhaOferta(campanha.id, folha as unknown as Record<string, unknown>)
         .catch(() => setErro('Não foi possível salvar a folha do cartaz agora. Confira a conexão — a próxima alteração tenta de novo.'));
     }, 800);
     return () => clearTimeout(timer);
-  }, [campanha.id, modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundoSalvo]);
+  }, [campanha.id, modo, oferta, quantidade, porFolhaIndividual, lote, nomeArquivoLote, porFolhaLote, pagina, fundoSalvo, cores, cabecalho]);
 
   useEffect(() => {
     if (!ofertasRecebidas || ofertasRecebidas.length === 0) return;
@@ -139,20 +163,24 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas, campanha 
   const totalPaginas = Math.max(1, Math.ceil(totalItens / porFolha));
   const paginaValida = Math.min(pagina, totalPaginas - 1);
 
+  // Faixa e logo editáveis só no modelo oficial (com imagem própria, valem as da imagem).
+  const usandoModeloOficial = !fundoSalvo;
+  const cabecalhoDesenho = usandoModeloOficial ? { ...cabecalho, logoImagem: cabecalho.logo ? logoImagem : null } : undefined;
+
   function ofertasDaPagina(i: number): OfertaCartaz[] {
     if (modo === 'individual') return Array.from({ length: Math.max(0, Math.min(porFolha, copias - i * porFolha)) }, () => oferta);
     return lote.slice(i * porFolha, (i + 1) * porFolha);
   }
 
   useEffect(() => {
-    if (fundo && canvasRef.current) desenharFolhaOfertas(canvasRef.current, fundo, ofertasDaPagina(paginaValida), porFolha);
+    if (fundo && canvasRef.current) desenharFolhaOfertas(canvasRef.current, fundo, ofertasDaPagina(paginaValida), porFolha, cores, cabecalhoDesenho);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fundo, modo, oferta, copias, porFolha, lote, paginaValida]);
+  }, [fundo, modo, oferta, copias, porFolha, lote, paginaValida, cores, cabecalho, logoImagem, fundoSalvo]);
 
   function folhas() {
     return Array.from({ length: totalPaginas }, (_, i) => {
       const canvas = document.createElement('canvas');
-      desenharFolhaOfertas(canvas, fundo!, ofertasDaPagina(i), porFolha);
+      desenharFolhaOfertas(canvas, fundo!, ofertasDaPagina(i), porFolha, cores, cabecalhoDesenho);
       return canvas;
     });
   }
@@ -220,6 +248,29 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas, campanha 
     }
   }
 
+  /** Logomarca nova (PNG com fundo transparente fica melhor) — vai pro servidor e vale nesta campanha. */
+  async function escolherLogo(e: ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+    setErro('');
+    setEnviandoLogo(true);
+    try {
+      const { imagem, blob, mimeType } = await carregarImagemEBlobDeArquivo(arquivo);
+      setLogoImagem(imagem);
+      const arquivoId = await arquivoCartazService.enviarImagem(blob, mimeType);
+      setCabecalho((c) => ({ ...c, logo: { nome: arquivo.name, arquivoId }, semLogo: false }));
+    } catch {
+      setErro('Não foi possível salvar essa logomarca. Confira a conexão e tente de novo.');
+    } finally {
+      setEnviandoLogo(false);
+    }
+  }
+
+  const cabecalhoAlterado = Boolean(
+    (cabecalho.texto != null && cabecalho.texto !== CABECALHO_ORIGINAL.texto) || cabecalho.corFaixa || cabecalho.corTexto || cabecalho.corLogo || cabecalho.semLogo || cabecalho.logo,
+  );
+
   /** Descrição vai pro dicionário da farmácia; preços, só nesta oferta. */
   function salvarEdicaoLote(i: number, edicao: EdicaoProdutoPanfleto) {
     if (edicao.nome !== lote[i]?.produto) editarDescricaoLote(i, edicao.nome);
@@ -232,6 +283,22 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas, campanha 
     salvarDescricaoProduto(alvo.produtoOriginal, alvo.ean, novo);
     setLote((atual) => atual.map((o) => (o.produtoOriginal === alvo.produtoOriginal && o.ean === alvo.ean ? { ...o, produto: descricaoDoProduto(o.produtoOriginal, o.ean) } : o)));
   }
+
+  /** Cor própria de um cartaz do lote (`null` em tudo = volta pra cor geral). */
+  function definirCorDoItem(i: number, mudanca: CoresCartaz) {
+    setLote((atual) =>
+      atual.map((o, j) => {
+        if (j !== i) return o;
+        const novas = { ...o.cores, ...mudanca };
+        const temAlguma = Boolean(novas.preco || novas.nome);
+        return { ...o, cores: temAlguma ? novas : undefined };
+      }),
+    );
+  }
+
+  const corGeralPreco = cores.preco || CORES_ORIGINAIS_CARTAZ.preco;
+  const corGeralNome = cores.nome || CORES_ORIGINAIS_CARTAZ.nome;
+  const itensComCorPropria = lote.filter((o) => o.cores?.preco || o.cores?.nome).length;
 
   const semConteudo = !fundo || totalItens === 0;
   const orientacao = layoutFolhaOferta(porFolha).orientacao === 'paisagem' ? 'horizontal' : 'vertical';
@@ -302,9 +369,35 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas, campanha 
                           <div className="pprice">
                             {[precoParaExibir(o.precoAntigo) && `De ${precoParaExibir(o.precoAntigo)}`, `Por ${precoParaExibir(o.preco) || '—'}`].filter(Boolean).join(' · ')}
                           </div>
+                          {corDoItem === i && (
+                            <div className="oferta-cor-item">
+                              <label>
+                                <input type="color" value={o.cores?.preco || corGeralPreco} onChange={(e) => definirCorDoItem(i, { preco: e.target.value })} />
+                                Preço, DE e POR
+                              </label>
+                              <label>
+                                <input type="color" value={o.cores?.nome || corGeralNome} onChange={(e) => definirCorDoItem(i, { nome: e.target.value })} />
+                                Nome
+                              </label>
+                              <button type="button" className="btn-ghost" disabled={!o.cores} onClick={() => definirCorDoItem(i, { preco: null, nome: null })}>↺ Usar as cores gerais</button>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
+                    {editandoLote !== i && (
+                      <button
+                        type="button"
+                        className={`oferta-cor-botao${o.cores ? ' propria' : ''}`}
+                        style={{ background: o.cores?.preco || corGeralPreco }}
+                        title={o.cores ? 'Este cartaz tem cor própria — clique para mudar' : 'Mudar a cor só deste cartaz'}
+                        aria-label={`Cor do cartaz de ${o.produto}`}
+                        aria-expanded={corDoItem === i}
+                        onClick={() => setCorDoItem(corDoItem === i ? null : i)}
+                      >
+                        {o.cores ? '★' : ''}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -333,6 +426,89 @@ export function CartazOfertaModo({ ofertasRecebidas, aoReceberOfertas, campanha 
           </button>
           <input ref={inputFundoRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={escolherFundo} />
         </div>
+
+        <h3 className="cartaz-titulo-secao" style={{ marginTop: 18 }}>🎨 Cor das letras</h3>
+        <p className="footnote" style={{ textAlign: 'left', marginTop: 0 }}>
+          {modo === 'lote'
+            ? <>Vale para <b>todos os {lote.length} cartazes</b> do lote. Para mudar só um, use a bolinha colorida ao lado dele na lista{itensComCorPropria > 0 ? ` (${itensComCorPropria} com cor própria, marcados com ★)` : ''}.</>
+            : 'Vale para os cartazes desta folha.'}
+        </p>
+        <div className="oferta-cores-gerais">
+          <label>
+            <input type="color" value={corGeralPreco} onChange={(e) => setCores((c) => ({ ...c, preco: e.target.value }))} />
+            <span>Preço, “DE” e “POR”</span>
+            {cores.preco && <button type="button" className="btn-ghost" onClick={() => setCores((c) => ({ ...c, preco: null }))} title="Volta ao vermelho original do modelo">↺ Original</button>}
+          </label>
+          <label>
+            <input type="color" value={corGeralNome} onChange={(e) => setCores((c) => ({ ...c, nome: e.target.value }))} />
+            <span>Nome do produto</span>
+            {cores.nome && <button type="button" className="btn-ghost" onClick={() => setCores((c) => ({ ...c, nome: null }))} title="Volta à cor original do modelo">↺ Original</button>}
+          </label>
+        </div>
+        <div className="cartaz-oferta-acoes">
+          <button type="button" className="btn-ghost" disabled={!cores.preco && !cores.nome} onClick={() => setCores({})}>↺ Voltar às cores originais</button>
+          {modo === 'lote' && (
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={itensComCorPropria === 0}
+              onClick={() => {
+                if (window.confirm(`Tirar a cor própria de ${itensComCorPropria} cartaz(es)? Eles voltam a usar a cor geral.`)) setLote((atual) => atual.map((o) => ({ ...o, cores: undefined })));
+              }}
+            >
+              ↺ Tirar cor própria de todos
+            </button>
+          )}
+        </div>
+
+        <h3 className="cartaz-titulo-secao" style={{ marginTop: 18 }}>🏷️ Faixa “OFERTA” e logomarca</h3>
+        {!usandoModeloOficial ? (
+          <p className="footnote" style={{ textAlign: 'left', marginTop: 0 }}>
+            Com imagem de fundo própria, a faixa e a logomarca são as da sua imagem. Para editar aqui, use o modelo oficial (“Remover imagem” acima).
+          </p>
+        ) : (
+          <>
+            <p className="footnote" style={{ textAlign: 'left', marginTop: 0 }}>Vale para todos os cartazes desta campanha. O original fica guardado — dá pra voltar quando quiser.</p>
+            <div className="field">
+              <label htmlFor="oferta-faixa-texto">Texto da faixa</label>
+              <div className="oferta-faixa-texto">
+                <input id="oferta-faixa-texto" maxLength={20} value={cabecalho.texto ?? CABECALHO_ORIGINAL.texto} onChange={(e) => setCabecalho((c) => ({ ...c, texto: e.target.value }))} placeholder="OFERTA" />
+                {cabecalho.texto != null && cabecalho.texto !== CABECALHO_ORIGINAL.texto && (
+                  <button type="button" className="btn-ghost" onClick={() => setCabecalho((c) => ({ ...c, texto: null }))}>↺ OFERTA</button>
+                )}
+              </div>
+            </div>
+            <div className="oferta-cores-gerais">
+              <label>
+                <input type="color" value={cabecalho.corFaixa || CABECALHO_ORIGINAL.corFaixa} onChange={(e) => setCabecalho((c) => ({ ...c, corFaixa: e.target.value }))} />
+                <span>Cor da faixa</span>
+                {cabecalho.corFaixa && <button type="button" className="btn-ghost" onClick={() => setCabecalho((c) => ({ ...c, corFaixa: null }))}>↺ Original</button>}
+              </label>
+              <label>
+                <input type="color" value={cabecalho.corTexto || CABECALHO_ORIGINAL.corTexto} onChange={(e) => setCabecalho((c) => ({ ...c, corTexto: e.target.value }))} />
+                <span>Cor do texto da faixa</span>
+                {cabecalho.corTexto && <button type="button" className="btn-ghost" onClick={() => setCabecalho((c) => ({ ...c, corTexto: null }))}>↺ Original</button>}
+              </label>
+              <label>
+                <input type="color" disabled={cabecalho.semLogo} value={cabecalho.corLogo || '#dc0019'} onChange={(e) => setCabecalho((c) => ({ ...c, corLogo: e.target.value }))} />
+                <span>Cor da logomarca <small>(pinta a logo inteira de uma cor)</small></span>
+                {cabecalho.corLogo && <button type="button" className="btn-ghost" onClick={() => setCabecalho((c) => ({ ...c, corLogo: null }))}>↺ Cores originais</button>}
+              </label>
+            </div>
+            <p className="footnote" style={{ textAlign: 'left', margin: '0 0 6px' }}>
+              Logomarca: <b>{cabecalho.semLogo ? 'sem logomarca' : cabecalho.logo ? cabecalho.logo.nome : 'Drogaria Center (original)'}</b>
+            </p>
+            <div className="cartaz-oferta-acoes">
+              <button type="button" className="btn-ghost" disabled={enviandoLogo} onClick={() => inputLogoRef.current?.click()}>{enviandoLogo ? 'Enviando…' : '🖼️ Trocar logomarca'}</button>
+              {cabecalho.logo && <button type="button" className="btn-ghost" onClick={() => setCabecalho((c) => ({ ...c, logo: null }))}>↺ Logo original</button>}
+              <button type="button" className="btn-ghost" onClick={() => setCabecalho((c) => ({ ...c, semLogo: !c.semLogo }))}>{cabecalho.semLogo ? '➕ Mostrar logomarca' : '🚫 Sem logomarca'}</button>
+              <input ref={inputLogoRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={(e) => void escolherLogo(e)} />
+            </div>
+            <div className="cartaz-oferta-acoes">
+              <button type="button" className="btn-ghost" disabled={!cabecalhoAlterado} onClick={() => { if (window.confirm('Voltar a faixa e a logomarca ao modelo original?')) setCabecalho({}); }}>↺ Voltar faixa e logo ao original</button>
+            </div>
+          </>
+        )}
 
         <h3 className="cartaz-titulo-secao" style={{ marginTop: 18 }}>Baixar</h3>
         <div className="cartaz-oferta-acoes">

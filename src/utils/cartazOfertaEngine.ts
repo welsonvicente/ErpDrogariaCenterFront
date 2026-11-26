@@ -10,10 +10,21 @@
  */
 import type * as XLSXTipos from 'xlsx';
 
+/** Cores originais do modelo (vermelho do preço/"DE"/"POR" e o tom do nome) — sempre dá pra voltar a elas. */
+export const CORES_ORIGINAIS_CARTAZ = { preco: '#e6001a', nome: '#4a4210' } as const;
+
+/** Cores das letras; ausente/null = a de cima (cor geral da folha → original do modelo). */
+export interface CoresCartaz {
+  preco?: string | null;
+  nome?: string | null;
+}
+
 export interface OfertaCartaz {
   produto: string;
   precoAntigo: string | number;
   preco: string | number;
+  /** Cor só deste cartaz (no lote) — passa por cima da cor geral. */
+  cores?: CoresCartaz;
 }
 
 /** Oferta de um lote: `produtoOriginal` (+ `ean`) é a chave do dicionário de descrições; `produto`, o que sai no cartaz. */
@@ -47,8 +58,114 @@ function linhasTitulo(ctx: CanvasRenderingContext2D, titulo: string, larguraMax:
   );
 }
 
-/** Um cartaz (1334×2000): nome do produto, "DE", "POR" e o preço gigante. */
-export function desenharCartazOferta(canvas: HTMLCanvasElement, fundo: HTMLImageElement, oferta: OfertaCartaz) {
+/**
+ * Faixa do topo ("OFERTA") e logomarca do MODELO OFICIAL, que vêm desenhadas na própria imagem
+ * de fundo. Com algo mudado, essas duas áreas são redesenhadas por cima; sem mudança nenhuma, o
+ * cartaz sai idêntico ao modelo. (Com imagem de fundo própria, a faixa e a logo são as dela.)
+ */
+export interface CabecalhoCartaz {
+  texto?: string | null;
+  corFaixa?: string | null;
+  corTexto?: string | null;
+  /** Logomarca enviada no lugar da original (já carregada). */
+  logoImagem?: HTMLImageElement | null;
+  /** Pinta a logomarca (original ou enviada) inteira de uma cor só. */
+  corLogo?: string | null;
+  semLogo?: boolean;
+}
+
+export const CABECALHO_ORIGINAL = { texto: 'OFERTA', corFaixa: '#dc0019', corTexto: '#ffffff' } as const;
+
+/** Áreas no modelo oficial (1414×2000): faixa do topo e caixa da logomarca. */
+const AREA_FAIXA = { x: 0, y: 0, largura: 1414, altura: 289 };
+const AREA_LOGO = { x: 500, y: 1675, largura: 414, altura: 160 };
+
+export function cabecalhoMudou(c?: CabecalhoCartaz): boolean {
+  if (!c) return false;
+  return Boolean(
+    (c.texto != null && c.texto !== CABECALHO_ORIGINAL.texto) || c.corFaixa || c.corTexto || c.logoImagem || c.corLogo || c.semLogo,
+  );
+}
+
+const logosDoModelo = new WeakMap<HTMLImageElement, HTMLCanvasElement>();
+
+/** Recorta a logomarca do modelo oficial (o branco em volta vira transparente) — pra repintar com outra cor. */
+function logoDoModelo(fundo: HTMLImageElement): HTMLCanvasElement {
+  const salvo = logosDoModelo.get(fundo);
+  if (salvo) return salvo;
+  const escala = (fundo.naturalWidth || 1414) / 1414;
+  const c = document.createElement('canvas');
+  c.width = Math.round(AREA_LOGO.largura * escala);
+  c.height = Math.round(AREA_LOGO.altura * escala);
+  const ctx = c.getContext('2d')!;
+  ctx.drawImage(fundo, AREA_LOGO.x * escala, AREA_LOGO.y * escala, c.width, c.height, 0, 0, c.width, c.height);
+  const dados = ctx.getImageData(0, 0, c.width, c.height);
+  for (let i = 0; i < dados.data.length; i += 4) {
+    const claro = Math.min(dados.data[i], dados.data[i + 1], dados.data[i + 2]);
+    // Branco some; quase branco (borda suavizada) fica meio transparente.
+    dados.data[i + 3] = claro >= 245 ? 0 : claro >= 200 ? Math.round(((245 - claro) / 45) * 255) : 255;
+  }
+  ctx.putImageData(dados, 0, 0);
+  logosDoModelo.set(fundo, c);
+  return c;
+}
+
+/** Logomarca pintada de uma cor só (mantém o formato e a transparência). */
+function pintarDeUmaCor(img: CanvasImageSource & { width: number; height: number }, cor: string): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = (img as HTMLImageElement).naturalWidth || img.width;
+  c.height = (img as HTMLImageElement).naturalHeight || img.height;
+  const ctx = c.getContext('2d')!;
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  ctx.globalCompositeOperation = 'source-in';
+  ctx.fillStyle = cor;
+  ctx.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+
+/** `escalaFundo` = escala usada pra desenhar o fundo; as áreas estão em pixels do modelo de 1414 de largura. */
+function desenharCabecalho(ctx: CanvasRenderingContext2D, fundo: HTMLImageElement, dx: number, dy: number, escalaFundo: number, c: CabecalhoCartaz) {
+  const e = escalaFundo * ((fundo.naturalWidth || 1414) / 1414);
+  // Faixa: repinta a área toda e escreve o texto (centralizado, encolhe pra caber) — só se ela mudou.
+  const faixaMudou = (c.texto != null && c.texto !== CABECALHO_ORIGINAL.texto) || Boolean(c.corFaixa || c.corTexto);
+  const fx = dx + AREA_FAIXA.x * e, fy = dy + AREA_FAIXA.y * e, fl = AREA_FAIXA.largura * e, fa = AREA_FAIXA.altura * e;
+  if (faixaMudou) {
+    ctx.fillStyle = c.corFaixa || CABECALHO_ORIGINAL.corFaixa;
+    ctx.fillRect(fx, fy, fl, fa);
+  }
+  const texto = (c.texto ?? CABECALHO_ORIGINAL.texto).trim().toUpperCase();
+  if (faixaMudou && texto) {
+    let tamanho = 205 * e;
+    ctx.font = `900 ${tamanho}px "Arial Black", Arial, sans-serif`;
+    while (ctx.measureText(texto).width > fl * 0.86 && tamanho > 40 * e) {
+      tamanho -= 6 * e;
+      ctx.font = `900 ${tamanho}px "Arial Black", Arial, sans-serif`;
+    }
+    ctx.fillStyle = c.corTexto || CABECALHO_ORIGINAL.corTexto;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(texto, fx + fl / 2, fy + fa / 2 + tamanho * 0.04);
+  }
+  // Logomarca: apaga a original (fundo branco) e desenha a escolhida, na mesma caixa.
+  const lx = dx + AREA_LOGO.x * e, ly = dy + AREA_LOGO.y * e, ll = AREA_LOGO.largura * e, la = AREA_LOGO.altura * e;
+  if (c.semLogo || c.logoImagem || c.corLogo) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(lx, ly, ll, la);
+  }
+  if (c.semLogo) return;
+  const base: CanvasImageSource & { width: number; height: number } = c.logoImagem ?? logoDoModelo(fundo);
+  const logo = c.corLogo ? pintarDeUmaCor(base, c.corLogo) : base;
+  if (!c.logoImagem && !c.corLogo) return; // logo original intacta
+  const lw = (logo as HTMLImageElement).naturalWidth || logo.width;
+  const lh = (logo as HTMLImageElement).naturalHeight || logo.height;
+  const k = Math.min(ll / lw, la / lh);
+  ctx.drawImage(logo, lx + (ll - lw * k) / 2, ly + (la - lh * k) / 2, lw * k, lh * k);
+}
+
+/** Um cartaz (1334×2000): nome do produto, "DE", "POR" e o preço gigante. `coresGerais` = cores da folha toda. */
+export function desenharCartazOferta(canvas: HTMLCanvasElement, fundo: HTMLImageElement, oferta: OfertaCartaz, coresGerais?: CoresCartaz, cabecalho?: CabecalhoCartaz) {
+  const corNome = oferta.cores?.nome || coresGerais?.nome || CORES_ORIGINAIS_CARTAZ.nome;
+  const corPreco = oferta.cores?.preco || coresGerais?.preco || CORES_ORIGINAIS_CARTAZ.preco;
   canvas.width = 1334;
   canvas.height = 2000;
   const ctx = canvas.getContext('2d');
@@ -63,6 +180,7 @@ export function desenharCartazOferta(canvas: HTMLCanvasElement, fundo: HTMLImage
   const lf = larguraFundo * escalaFundo;
   const af = alturaFundo * escalaFundo;
   ctx.drawImage(fundo, (canvas.width - lf) / 2, (canvas.height - af) / 2, lf, af);
+  if (cabecalhoMudou(cabecalho)) desenharCabecalho(ctx, fundo, (canvas.width - lf) / 2, (canvas.height - af) / 2, escalaFundo, cabecalho!);
 
   const escala = canvas.width / 1334;
   const x = (v: number) => v * escala;
@@ -81,14 +199,14 @@ export function desenharCartazOferta(canvas: HTMLCanvasElement, fundo: HTMLImage
   }
   const alturaLinha = tamanhoFonte * 0.92;
   const centroTitulo = (topoTitulo + baseTitulo) / 2;
-  ctx.fillStyle = '#4a4210';
+  ctx.fillStyle = corNome;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   linhas.slice(0, 3).forEach((linha, i) => ctx.fillText(linha, canvas.width / 2, centroTitulo + (i - (Math.min(linhas.length, 3) - 1) / 2) * alturaLinha));
 
   const antigo = partesPreco(oferta.precoAntigo);
   const atual = partesPreco(oferta.preco);
-  ctx.fillStyle = '#e6001a';
+  ctx.fillStyle = corPreco;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.font = `900 ${x(66)}px Arial, sans-serif`;
@@ -136,7 +254,7 @@ export function layoutFolhaOferta(cartazesPorFolha: number) {
 }
 
 /** Uma folha A4 (1800 px de largura) com até `cartazesPorFolha` cartazes. */
-export function desenharFolhaOfertas(canvas: HTMLCanvasElement, fundo: HTMLImageElement, ofertas: OfertaCartaz[], cartazesPorFolha: number) {
+export function desenharFolhaOfertas(canvas: HTMLCanvasElement, fundo: HTMLImageElement, ofertas: OfertaCartaz[], cartazesPorFolha: number, coresGerais?: CoresCartaz, cabecalho?: CabecalhoCartaz) {
   const { colunas, linhas, orientacao } = layoutFolhaOferta(cartazesPorFolha);
   const largura = 1800;
   const altura = Math.round(largura * (orientacao === 'paisagem' ? 210 / 297 : 297 / 210));
@@ -152,7 +270,7 @@ export function desenharFolhaOfertas(canvas: HTMLCanvasElement, fundo: HTMLImage
   ctx.fillRect(0, 0, largura, altura);
   ofertas.forEach((oferta, i) => {
     const cartaz = document.createElement('canvas');
-    desenharCartazOferta(cartaz, fundo, oferta);
+    desenharCartazOferta(cartaz, fundo, oferta, coresGerais, cabecalho);
     const col = i % colunas;
     const lin = Math.floor(i / colunas);
     ctx.drawImage(cartaz, margem + col * larguraCelula + gap / 2, margem + lin * alturaCelula + gap / 2, larguraCelula - gap, alturaCelula - gap);

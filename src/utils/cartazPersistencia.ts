@@ -590,6 +590,17 @@ export interface FolhaCartazOferta {
   pagina: number;
   /** Fundo personalizado no R2 — null/ausente = modelo oficial. */
   fundo?: { nome: string; arquivoId: string } | null;
+  /** Cores das letras de todos os cartazes da folha — ausente = cores originais do modelo. */
+  cores?: { preco?: string | null; nome?: string | null };
+  /** Faixa "OFERTA" e logomarca do modelo oficial (texto, cores, logo trocada no R2) — ausente = como no modelo. */
+  cabecalho?: {
+    texto?: string | null;
+    corFaixa?: string | null;
+    corTexto?: string | null;
+    corLogo?: string | null;
+    semLogo?: boolean;
+    logo?: { nome: string; arquivoId: string } | null;
+  };
 }
 
 /** Cópia local da folha (a do servidor chega com a sincronização). `fundoLegadoDataUrl` = fundo do rascunho antigo, ainda por enviar. */
